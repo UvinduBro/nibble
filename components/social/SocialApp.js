@@ -247,11 +247,23 @@ function Messages({ social, state, chatWith, setChatWith }) {
   );
 }
 
+const ACCS = [['cap', '🧢 Cap'], ['tophat', '🎩 Top hat'], ['party', '🥳 Party hat'], ['crown', '👑 Crown'], ['bow', '🎀 Bow'], ['flower', '🌸 Flower'], ['sunglasses', '🕶 Shades'], ['glasses', '👓 Glasses'], ['headphones', '🎧 Headphones']];
+const TINTS = ['#7ee8c6', '#ff8fab', '#ffd166', '#b9a3ff', '#4cc9f0', '#ff6b3d', '#a3ff12', '#f4f6fb'];
+const MAKEUPS = [['', 'None'], ['blush', '😊 Blush'], ['freckles', '🙂 Freckles'], ['star', '⭐ Star'], ['all', '✨ Full glam']];
+
 function Pets({ social, state, desktop, local, toast }) {
   const [petName, setPetName] = useState(state.profile.petName || '');
   const save = (patch) => social.updateProfile(patch).then(() => toast({ text: 'Saved — friends see the update' })).catch((e) => toast({ err: true, text: niceError(e) }));
   const pets = (local && local.settings.pets) || [];
   const [sel, setSel] = useState(0);
+  const [acc, setAcc] = useState(state.profile.acc || []);
+  const [tint, setTint] = useState(state.profile.tint || '');
+  const [makeup, setMakeup] = useState(state.profile.makeup || '');
+  const toggleAcc = (k) => setAcc((cur) => (cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k].slice(0, 6)));
+  const saveLook = () => {
+    save({ acc, tint, makeup });
+    if (desktop && pets.length) desktop.setLocal({ pets: pets.map((p) => ({ ...p, acc, tint, makeup })) });
+  };
   return (
     <div className="sa-page">
       <h2>Pets</h2>
@@ -266,6 +278,24 @@ function Pets({ social, state, desktop, local, toast }) {
         </div>
       </div>
       <CharacterGrid value={state.profile.skin} onPick={(k) => { save({ skin: k }); if (desktop && pets.length) desktop.setLocal({ pets: pets.map((p, i) => (i === 0 ? { ...p, skin: k } : p)) }); }} compact />
+      <div className="sa-card">
+        <h3>Customize <small>hats, glasses, colour &amp; makeup — friends see it too</small></h3>
+        <div className="sa-custom">
+          <div className="sa-custom-prev"><PetFigure skin={state.profile.skin} mood="wave" acc={acc} tint={tint} makeup={makeup} w={132} h={132} size={1.15} /></div>
+          <div className="sa-custom-opts">
+            <div className="sa-coltitle">Accessories <small>up to 6</small></div>
+            <div className="sa-chips">{ACCS.map(([k, label]) => <button key={k} className={'sa-chip' + (acc.includes(k) ? ' on' : '')} onClick={() => toggleAcc(k)}>{label}</button>)}</div>
+            <div className="sa-coltitle">Colour</div>
+            <div className="sa-swatches">
+              <button className={'sa-sw sa-sw-none' + (!tint ? ' on' : '')} onClick={() => setTint('')} title="Original colour">∅</button>
+              {TINTS.map((c) => <button key={c} className={'sa-sw' + (tint === c ? ' on' : '')} style={{ background: c }} onClick={() => setTint(c)} title={c} />)}
+            </div>
+            <div className="sa-coltitle">Makeup</div>
+            <div className="sa-chips">{MAKEUPS.map(([k, label]) => <button key={k || 'none'} className={'sa-chip' + (makeup === k ? ' on' : '')} onClick={() => setMakeup(k)}>{label}</button>)}</div>
+            <button className="btn small" onClick={saveLook} style={{ marginTop: 10 }}>Save look</button>
+          </div>
+        </div>
+      </div>
       {desktop && local && (
         <div className="sa-card">
           <h3>Pets on this PC <small>{pets.length} of 8</small></h3>

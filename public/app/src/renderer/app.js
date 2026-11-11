@@ -96,6 +96,7 @@
       }
       p.name = cfg.name || p.name;
       p.skinKey = cfg.skin || p.skinKey;
+      p.acc = Array.isArray(cfg.acc) ? cfg.acc : []; p.tint = cfg.tint || ''; p.makeup = cfg.makeup || '';
       p.index = i;
       keep.push(p);
     });
@@ -544,6 +545,7 @@
         }
         p.friend = f;
         p.skinKey = env.skins[f.skin] ? f.skin : 'mint';
+        p.acc = Array.isArray(f.acc) ? f.acc : []; p.tint = f.tint || ''; p.makeup = f.makeup || '';
         p.name = f.petName || f.username;
       }
       keep.forEach((p, k) => { p.index = own.length + k; });

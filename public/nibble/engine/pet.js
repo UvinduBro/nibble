@@ -28,6 +28,9 @@
       this.id = cfg.id;
       this.name = cfg.name || 'Nibble';
       this.skinKey = cfg.skin || 'mint';
+      this.acc = Array.isArray(cfg.acc) ? cfg.acc : [];
+      this.tint = cfg.tint || '';
+      this.makeup = cfg.makeup || '';
       this.index = index;
       const w = env.world;
       this.x = rand(w.left + 120, w.right - 120);
@@ -430,9 +433,13 @@
       this.enter('drag');
       this.dragHist = [{ x: px, y: py, t: performance.now() }];
       this.dragTalked = false;
+      this.shakeHits = [];
+      this.shakeDir = 0;
+      this.lastShakeX = px;
     }
 
     dragTo(px, py, env) {
+      if (this.gone) return;
       const now = performance.now();
       this.dragHist.push({ x: px, y: py, t: now });
       while (this.dragHist.length > 2 && now - this.dragHist[0].t > 90) this.dragHist.shift();
@@ -441,9 +448,35 @@
         this.dragTalked = true;
         this.speak(env, 'dragged');
       }
+      // shake-to-poof: whip the pet back and forth and it vanishes in a puff (a little stress relief)
+      const dx = px - (this.lastShakeX ?? px);
+      if (Math.abs(dx) > 7) {
+        const d = dx > 0 ? 1 : -1;
+        if (this.shakeDir && d !== this.shakeDir) {
+          this.shakeHits.push(now);
+          while (this.shakeHits.length && now - this.shakeHits[0] > 700) this.shakeHits.shift();
+          if (this.shakeHits.length >= 4) { this.poof(env); return; }
+        }
+        this.shakeDir = d;
+        this.lastShakeX = px;
+      }
+    }
+
+    poof(env) {
+      if (this.gone) return;
+      for (let i = 0; i < 3; i++) env.emit('dust', this.x + rand(-10, 10), this.y - (6 + i * 6) * this.u, { n: 10 });
+      if (env.sound) env.sound('boing');
+      this.gone = true;
+      this.alpha = 0;
+      this.vx = 0; this.vy = 0;
+      this.support = null; this.seg = null; this.wall = null;
+      this.x = -99999; this.y = -99999;
+      this.state = 'idle';
+      if (env.onPoof) env.onPoof(this);
     }
 
     release(env) {
+      if (this.gone) return;
       const h = this.dragHist;
       let vx = 0, vy = 0;
       if (h.length >= 2) {
@@ -495,6 +528,7 @@
         case 'work': if (this.grounded()) this.enter('work', 30); break;
         case 'special': if (!this.special(env) && this.grounded()) { this.backflip(env); this.speak(env, 'flip', { force: true }); } break;
         case 'summon': {
+          if (this.gone) { this.gone = false; this.alpha = 1; } // poofed pets come back when you call them
           const c = env.cursor || { x: env.world.w / 2 };
           this.support = null;
           this.seg = null;
@@ -719,6 +753,7 @@
       const u = (this._u = 1.1 * (env.settings.size || 1));
       this.t += dt;
       this.st += dt;
+      if (this.gone) { this.alpha = 0; return; } // poofed away — parked off-screen until summoned back
       if (this.bubble) {
         this.bubble.t += dt;
         if (this.bubble.t > this.bubble.dur) this.bubble = null;
@@ -980,6 +1015,7 @@
         eyes: 'open', mouth: 'w', arms: 'down', ears: 0, stride: 0, bob: 0, tailWag: 3,
         alpha: this.alpha, lift: this.liftV, emote: this.emote, fx: this.fx,
         air: AIR.has(s), sleep: s === 'sleep',
+        acc: this.acc, tint: this.tint, makeup: this.makeup,
       };
       if (this.shake) p.x += this.shake;
       if (this.hoverT > 0.05 && s !== 'sleep') { p.ears = 1; p.tailWag = 9; }

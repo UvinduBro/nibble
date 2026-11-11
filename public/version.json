@@ -1,11 +1,10 @@
 {
-  "version": "2.0.2",
+  "version": "2.0.3",
   "date": "2026-11-11",
   "notes": [
-    "Private messages: pick a friend and only they see it. Choose 📣 All friends when you want everyone to.",
-    "Chats are now threaded per friend, like texting",
-    "Messages disappear after 30 minutes — nothing sticks around",
-    "Typing dots only show to the person you're actually typing to",
-    "New native installer — no PowerShell window, proper Add/Remove Programs entry and uninstaller"
+    "Dress up your pet: caps, top hats, party hats, crowns, bows, flowers, sunglasses, glasses and headphones",
+    "Recolour your pet and add blush, freckles or a star — your friends see your look too",
+    "Customize from the Hub → Pets tab, with a live preview",
+    "Stressed? Grab your pet and shake it side to side to poof it away — 'Call pets to cursor' brings it back"
   ]
 }

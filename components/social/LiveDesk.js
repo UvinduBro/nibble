@@ -102,6 +102,7 @@ export default function LiveDesk({ social, state }) {
     }
     mine.skinKey = state.profile.skin || 'mint';
     mine.name = state.profile.petName || 'Nibble';
+    mine.acc = state.profile.acc || []; mine.tint = state.profile.tint || ''; mine.makeup = state.profile.makeup || '';
     const show = state.prefs.dnd ? [] : state.friends.filter((f) => f.online || (visitors.current.get(f.uid) || 0) > Date.now());
     const ids = new Set(show.map((f) => f.uid));
     for (const p of env.pets.slice()) if (p.friend && !ids.has(p.friend.uid)) s.removePetObj(p);
@@ -114,6 +115,7 @@ export default function LiveDesk({ social, state }) {
       }
       p.friend = f;
       p.skinKey = f.skin;
+      p.acc = f.acc || []; p.tint = f.tint || ''; p.makeup = f.makeup || '';
     }
   }, [ready, state.profile, state.friends, state.prefs, vtick]);
 
@@ -214,7 +216,7 @@ export default function LiveDesk({ social, state }) {
       />
       <div className="sa-desk-hud">
         <span className="sa-dot on" /> {online ? `${online} friend${online > 1 ? 's' : ''} here` : 'No friends online yet'}
-        <span className="sa-hint">Hold your pet, let go, pick a friend and type · hold a friend's pet to message them · double-click to poke</span>
+        <span className="sa-hint">Hold your pet, let go, pick a friend and type · hold a friend's pet to message them · double-click to poke · shake your pet to poof it away</span>
       </div>
       {compose && (
         <form className="sa-compose" style={{ left: compose.x, top: compose.y }} onSubmit={send}>

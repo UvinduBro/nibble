@@ -26,11 +26,14 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if signedIn();
       allow create, update: if signedIn() && uid == me()
-        && incoming().keys().hasOnly(['username', 'petName', 'skin', 'createdAt', 'updatedAt'])
+        && incoming().keys().hasOnly(['username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'createdAt', 'updatedAt'])
         && validName(incoming().username)
         && getAfter(/databases/$(database)/documents/usernames/$(incoming().username)).data.uid == me()
         && shortText(incoming().get('petName', ''), 20)
-        && shortText(incoming().get('skin', ''), 20);
+        && shortText(incoming().get('skin', ''), 20)
+        && (!('acc' in incoming()) || incoming().acc is list)
+        && shortText(incoming().get('tint', ''), 7)
+        && shortText(incoming().get('makeup', ''), 12);
       allow delete: if false;
 
       // friendships are written on both sides when a request is accepted
@@ -69,9 +72,10 @@ service cloud.firestore {
     match /presence/{uid} {
       allow read: if signedIn() && (uid == me() || isFriendOf(uid));
       allow create, update: if signedIn() && uid == me()
-        && incoming().keys().hasOnly(['online', 'lastSeen', 'username', 'petName', 'skin', 'status', 'dnd', 'typing', 'typingAt', 'typingTo', 'say'])
+        && incoming().keys().hasOnly(['online', 'lastSeen', 'username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'status', 'dnd', 'typing', 'typingAt', 'typingTo', 'say'])
         && shortText(incoming().get('status', ''), 40)
         && shortText(incoming().get('petName', ''), 20)
+        && (!('acc' in incoming()) || incoming().acc is list)
         && (!('say' in incoming()) || (incoming().say is map && shortText(incoming().say.text, 80) && shortText(incoming().say.id, 40)));
       allow delete: if signedIn() && uid == me();
     }

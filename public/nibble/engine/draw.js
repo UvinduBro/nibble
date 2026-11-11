@@ -786,6 +786,127 @@
     ctx.restore();
   }
 
+  // ---------- user customization: hats, glasses, makeup ----------
+  // Drawn in the face save-block (already scaled by sx/sy, facing right). Head top ~ -40u, eye line ~ -23u.
+  function sunglasses(ctx, u) {
+    ctx.save();
+    ctx.fillStyle = '#15171c';
+    ctx.strokeStyle = '#15171c';
+    ctx.lineWidth = 1.6 * u;
+    ctx.beginPath();
+    ctx.roundRect(-11 * u, -27.5 * u, 9 * u, 7.5 * u, 2.5 * u);
+    ctx.roundRect(5 * u, -27.5 * u, 9 * u, 7.5 * u, 2.5 * u);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-2 * u, -25 * u);
+    ctx.lineTo(5 * u, -25 * u);
+    ctx.stroke();
+    // little shine
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1.2 * u;
+    ctx.beginPath();
+    ctx.moveTo(-9 * u, -25.5 * u); ctx.lineTo(-6 * u, -25.5 * u);
+    ctx.moveTo(7 * u, -25.5 * u); ctx.lineTo(10 * u, -25.5 * u);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function accessory(ctx, name, skin, u) {
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = skin.line;
+    ctx.lineWidth = 2 * u;
+    const C = (c) => { ctx.fillStyle = c; };
+    switch (name) {
+      case 'cap': {
+        C('#ff5e5e');
+        ctx.beginPath(); ctx.arc(1.5 * u, -34 * u, 15 * u, Math.PI, 2 * Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(9 * u, -34 * u);
+        ctx.quadraticCurveTo(27 * u, -35.5 * u, 25 * u, -30.5 * u);
+        ctx.quadraticCurveTo(17 * u, -33 * u, 9 * u, -33 * u);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ellipse(ctx, 1.5 * u, -48.5 * u, 1.8 * u, 1.8 * u); C('#ffd166'); ctx.fill(); ctx.stroke();
+        break;
+      }
+      case 'tophat': {
+        C('#20232e');
+        ctx.beginPath(); ctx.ellipse(1.5 * u, -34 * u, 20 * u, 4.5 * u, 0, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.roundRect(-10 * u, -58 * u, 23 * u, 25 * u, 2 * u); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#ff5e5e';
+        ctx.beginPath(); ctx.rect(-10 * u, -40 * u, 23 * u, 4 * u); ctx.fill();
+        break;
+      }
+      case 'party': {
+        ctx.beginPath();
+        ctx.moveTo(1.5 * u, -56 * u); ctx.lineTo(-11 * u, -33 * u); ctx.lineTo(14 * u, -33 * u); ctx.closePath();
+        C('#ff7ab8'); ctx.fill(); ctx.stroke();
+        for (let i = 0; i < 3; i++) { ellipse(ctx, (-5 + i * 6) * u, (-37 - i * 5) * u, 1.8 * u, 1.8 * u); ctx.fillStyle = i % 2 ? '#7ee8c6' : '#ffd166'; ctx.fill(); }
+        ellipse(ctx, 1.5 * u, -57 * u, 2.6 * u, 2.6 * u); ctx.fillStyle = '#ffd166'; ctx.fill(); ctx.stroke();
+        break;
+      }
+      case 'crown': {
+        C('#ffd166');
+        ctx.beginPath();
+        ctx.moveTo(-12 * u, -34 * u);
+        ctx.lineTo(-12 * u, -44 * u); ctx.lineTo(-5 * u, -39 * u); ctx.lineTo(1.5 * u, -47 * u);
+        ctx.lineTo(8 * u, -39 * u); ctx.lineTo(15 * u, -44 * u); ctx.lineTo(15 * u, -34 * u);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        for (const [gx, gy] of [[-12, -44], [1.5, -47], [15, -44]]) { ellipse(ctx, gx * u, gy * u, 1.7 * u, 1.7 * u); ctx.fillStyle = '#ff5e5e'; ctx.fill(); }
+        break;
+      }
+      case 'bow': {
+        C('#ff4fa3');
+        ctx.beginPath(); ctx.moveTo(1.5 * u, -37 * u); ctx.lineTo(-11 * u, -42 * u); ctx.lineTo(-11 * u, -32 * u); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(1.5 * u, -37 * u); ctx.lineTo(14 * u, -42 * u); ctx.lineTo(14 * u, -32 * u); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ellipse(ctx, 1.5 * u, -37 * u, 3 * u, 3 * u); ctx.fill(); ctx.stroke();
+        break;
+      }
+      case 'flower': {
+        const fx = 13 * u, fy = -36 * u;
+        ctx.fillStyle = '#ff8fab';
+        for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; ellipse(ctx, fx + Math.cos(a) * 4 * u, fy + Math.sin(a) * 4 * u, 2.6 * u, 2.6 * u); ctx.fill(); ctx.stroke(); }
+        ellipse(ctx, fx, fy, 2.4 * u, 2.4 * u); ctx.fillStyle = '#ffd166'; ctx.fill(); ctx.stroke();
+        break;
+      }
+      default: break;
+    }
+    ctx.restore();
+  }
+
+  function drawMakeup(ctx, pose, skin, u) {
+    ctx.save();
+    const m = pose.makeup;
+    if (m === 'blush' || m === 'all') {
+      ctx.fillStyle = skin.cheek || '#ff8fab';
+      ctx.globalAlpha = 0.75;
+      ellipse(ctx, -9 * u, -20 * u, 4.5 * u, 3 * u);
+      ctx.fill();
+      ellipse(ctx, 12 * u, -20 * u, 4.5 * u, 3 * u);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (m === 'freckles' || m === 'all') {
+      ctx.fillStyle = shade(skin.cheek || '#ff8fab', -0.25);
+      for (const [dx, dy] of [[-10, -21], [-7, -22.5], [-4, -21], [9, -21], [12, -22.5], [15, -21]]) { ellipse(ctx, dx * u, dy * u, 0.9 * u, 0.9 * u); ctx.fill(); }
+    }
+    if (m === 'star') {
+      ctx.fillStyle = '#ffd166';
+      star4(ctx, -9 * u, -20 * u, 3.2 * u); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawAcc(ctx, pose, skin, u) {
+    for (const a of pose.acc) {
+      if (a === 'sunglasses') sunglasses(ctx, u);
+      else if (a === 'glasses') glasses(ctx, pose, u);
+      else if (a === 'headphones') headphones(ctx, skin, u);
+      else accessory(ctx, a, skin, u);
+    }
+  }
+
   // ---------- humanoid anime chibi (Mojo) ----------
   // Same pose contract as drawPet: feet at (0,0), facing right, ~62u tall. Palette lives in skin.chibi.
   function drawChibi(ctx, pose, skin, u) {
@@ -1119,6 +1240,10 @@
     if (skin.chibi) return drawChibi(ctx, pose, skin, u);
     const t = pose.t || 0;
     const kit = skin.kit || {};
+    // user colour customization: recolour the body, keep outline/eyes for contrast
+    if (pose.tint && /^#[0-9a-fA-F]{6}$/.test(pose.tint)) {
+      skin = Object.assign({}, skin, { body: pose.tint, belly: shade(pose.tint, 0.55), ear: shade(pose.tint, -0.12) });
+    }
     ctx.save();
     ctx.globalAlpha = pose.alpha ?? 1;
     ctx.translate(pose.x, pose.y - (pose.lift || 0) * u);
@@ -1248,6 +1373,8 @@
     ctx.lineWidth = 2.3 * u;
     kitHead(ctx, pose, skin, kit, u);
     if (kit.wisps) wisps(ctx, pose, kit, u);
+    if (pose.makeup) drawMakeup(ctx, pose, skin, u);
+    if (pose.acc && pose.acc.length) drawAcc(ctx, pose, skin, u);
     emote(ctx, pose, skin, u);
     ctx.restore();
 
