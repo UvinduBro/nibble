@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>Nibble</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; user-select: none; }
+    canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; transition: opacity .35s ease; }
+    body.hidden canvas { opacity: 0; }
+    body.grab { cursor: grab; }
+    body.grabbing { cursor: grabbing; }
+    /* hold-to-talk box */
+    #composer { position: fixed; left: 0; top: 0; width: 290px; background: #fff; border-radius: 14px; padding: 8px 10px 10px; box-shadow: 0 14px 40px rgba(0,0,0,.35); display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; cursor: default; user-select: text; }
+    #composer[hidden] { display: none; }
+    #cto { grid-column: 1 / -1; color: #5b6380; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+    #cin { font: inherit; font-size: 14.5px; color: #161a27; background: #f2f4fa; border: 0; border-radius: 10px; padding: 9px 10px; outline: 2px solid transparent; min-width: 0; }
+    #cin:focus { outline-color: #7ee8c6; }
+    #ccount { font-style: normal; font-size: 12px; color: #8a91a8; font-weight: 700; }
+    #composer small { grid-column: 1 / -1; color: #8a91a8; font-size: 11px; }
+    #csel { grid-column: 1 / -1; font: inherit; font-size: 12.5px; font-weight: 700; color: #2b3150; background: #eef1f8; border: 0; border-radius: 8px; padding: 5px 8px; outline: none; }
+    #csel[hidden], #cto[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="composer" hidden><span id="cto">Say to all friends</span><select id="csel" aria-label="Send to"></select><input id="cin" maxlength="80" placeholder="Type something short…" autocomplete="off" spellcheck="true" /><em id="ccount">80</em><small>Enter to send · Esc to cancel · messages vanish after 30 min</small></div>
+  <script src="../skins.js"></script>
+  <script src="lines.js"></script>
+  <script src="draw.js"></script>
+  <script src="pet.js"></script>
+  <script src="social-draw.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

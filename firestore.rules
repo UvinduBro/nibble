@@ -1,0 +1,91 @@
+rules_version = '2';
+
+// Nibble Social security rules. Paste into Firebase console → Firestore Database → Rules → Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    // `owner` lists the caller as a friend
+    function isFriendOf(owner) { return exists(/databases/$(database)/documents/users/$(owner)/friends/$(me())); }
+    function validName(n) { return n is string && n.matches('^[a-z0-9_]{3,20}$'); }
+    function shortText(t, max) { return t is string && t.size() <= max; }
+    function incoming() { return request.resource.data; }
+
+    // one doc per claimed username → { uid }
+    match /usernames/{name} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && validName(name)
+        && incoming().keys().hasOnly(['uid']) && incoming().uid == me();
+      allow delete: if signedIn() && resource.data.uid == me();
+      allow update: if false;
+    }
+
+    // public profile: username, pet, character. No emails are stored here.
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && uid == me()
+        && incoming().keys().hasOnly(['username', 'petName', 'skin', 'createdAt', 'updatedAt'])
+        && validName(incoming().username)
+        && getAfter(/databases/$(database)/documents/usernames/$(incoming().username)).data.uid == me()
+        && shortText(incoming().get('petName', ''), 20)
+        && shortText(incoming().get('skin', ''), 20);
+      allow delete: if false;
+
+      // friendships are written on both sides when a request is accepted
+      match /friends/{fid} {
+        allow read: if signedIn() && uid == me();
+        allow create: if signedIn()
+          && incoming().keys().hasOnly(['username', 'since'])
+          && shortText(incoming().username, 20)
+          && (
+            // accepting: add the requester to my list…
+            (uid == me() && exists(/databases/$(database)/documents/requests/$(fid + '_' + me())))
+            // …and add myself to the requester's list
+            || (fid == me() && exists(/databases/$(database)/documents/requests/$(uid + '_' + me())))
+          );
+        allow delete: if signedIn() && (uid == me() || fid == me());
+        allow update: if false;
+      }
+    }
+
+    // friend requests: id is "{from}_{to}"
+    match /requests/{rid} {
+      allow read: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+      allow create: if signedIn()
+        && incoming().keys().hasOnly(['from', 'to', 'fromName', 'toName', 'at'])
+        && incoming().from == me()
+        && incoming().to is string && incoming().to != me()
+        && rid == me() + '_' + incoming().to
+        && shortText(incoming().fromName, 20) && shortText(incoming().toName, 20)
+        && exists(/databases/$(database)/documents/users/$(incoming().to))
+        && !exists(/databases/$(database)/documents/users/$(me())/friends/$(incoming().to));
+      allow delete: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+      allow update: if false;
+    }
+
+    // online status, "thinking…" and the last short message. Only you and your friends can read it.
+    match /presence/{uid} {
+      allow read: if signedIn() && (uid == me() || isFriendOf(uid));
+      allow create, update: if signedIn() && uid == me()
+        && incoming().keys().hasOnly(['online', 'lastSeen', 'username', 'petName', 'skin', 'status', 'dnd', 'typing', 'typingAt', 'typingTo', 'say'])
+        && shortText(incoming().get('status', ''), 40)
+        && shortText(incoming().get('petName', ''), 20)
+        && (!('say' in incoming()) || (incoming().say is map && shortText(incoming().say.text, 80) && shortText(incoming().say.id, 40)));
+      allow delete: if signedIn() && uid == me();
+    }
+
+    // direct pokes, waves, cuddles and whispers. Only friends can send; only you can read.
+    match /inbox/{uid}/items/{id} {
+      allow read, delete: if signedIn() && uid == me();
+      allow create: if signedIn() && isFriendOf(uid)
+        && incoming().keys().hasOnly(['from', 'fromName', 'kind', 'text', 'at'])
+        && incoming().from == me()
+        && incoming().kind is string && incoming().kind.matches('^[a-z]{2,12}$')
+        && shortText(incoming().get('text', ''), 80)
+        && incoming().at == request.time;
+      allow update: if false;
+    }
+  }
+}
