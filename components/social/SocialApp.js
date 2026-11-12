@@ -482,6 +482,19 @@ export default function SocialApp({ mode = 'web' }) {
   const toast = useMemo(() => (n) => setNote(n), []);
   const isDesk = mode === 'desktop' || !!desktop;
 
+  // site-wide announcement from an admin: banner for everyone, Windows notification on desktop
+  const bcId = state.broadcast && state.broadcast.id;
+  const notified = useRef('');
+  const [bcDismissed, setBcDismissed] = useState('');
+  useEffect(() => { try { setBcDismissed(localStorage.getItem('nibble-bc-seen') || ''); } catch {} }, []);
+  useEffect(() => {
+    if (!bcId || notified.current === bcId) return;
+    notified.current = bcId;
+    if (desktop && desktop.notify) desktop.notify({ title: state.broadcast.title || 'Nibble', body: state.broadcast.text });
+  }, [bcId, desktop]);
+  const showBc = state.broadcast && bcId !== bcDismissed;
+  const dismissBc = () => { try { localStorage.setItem('nibble-bc-seen', bcId); } catch {} setBcDismissed(bcId); };
+
   let body;
   if (missing) {
     body = (
@@ -526,11 +539,21 @@ export default function SocialApp({ mode = 'web' }) {
               </button>
             ))}
           </nav>
-          <div className="sa-side-foot">{isDesk ? `Nibble ${local?.version || ''}` : <a href="/#download">Get the desktop app →</a>}</div>
+          <div className="sa-side-foot">
+            {state.admin && <a href="/admin" style={{ display: 'block', marginBottom: 6 }}>⚙️ Admin panel</a>}
+            {isDesk ? `Nibble ${local?.version || ''}` : <a href="/#download">Get the desktop app →</a>}
+          </div>
         </aside>
       )}
       <main className="sa-main">
         {!signedIn && !isDesk && <a className="sa-back" href="/">← nibble</a>}
+        {signedIn && showBc && (
+          <div className="sa-bc">
+            <span className="sa-bc-ico">📣</span>
+            <div className="sa-bc-text">{state.broadcast.title && <b>{state.broadcast.title} </b>}{state.broadcast.text}</div>
+            <button className="sa-x" onClick={dismissBc} title="Dismiss">✕</button>
+          </div>
+        )}
         {body}
       </main>
       <Notice note={note} onDone={() => setNote(null)} />

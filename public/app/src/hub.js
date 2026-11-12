@@ -159,6 +159,12 @@ function setupHub(ctx) {
   });
   ipcMain.on('hub:update', (e) => { if (fromHub(e)) runUpdate(); });
   ipcMain.on('hub:hide', (e) => { if (fromHub(e)) hub.hide(); });
+  ipcMain.on('hub:notify', (e, d) => {
+    if (!fromHub(e) || !d || !Notification.isSupported()) return;
+    const n = new Notification({ title: String(d.title || 'Nibble').slice(0, 80), body: String(d.body || '').slice(0, 180), silent: false });
+    n.on('click', () => open());
+    n.show();
+  });
 
   // ---------- IPC: overlay ----------
   ipcMain.on('social-action', (e, a) => {

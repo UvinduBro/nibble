@@ -23,4 +23,5 @@ contextBridge.exposeInMainWorld('nibbleDesktop', {
   googleSignIn: () => ipcRenderer.invoke('hub:google'),
   update: () => ipcRenderer.send('hub:update'),
   hide: () => ipcRenderer.send('hub:hide'),
+  notify: (data) => ipcRenderer.send('hub:notify', data),
 });

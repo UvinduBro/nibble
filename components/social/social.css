@@ -218,3 +218,11 @@
 .sa-sw { all: unset; cursor: pointer; width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; box-shadow: 0 0 0 1px var(--line); }
 .sa-sw.on { border-color: #fff; box-shadow: 0 0 0 2px var(--mint); }
 .sa-sw-none { display: grid; place-items: center; background: #0f1226; color: var(--muted); font-size: 14px; }
+/* admin dashboard + announcement banner */
+.sa-stats { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.sa-stat { flex: 1; min-width: 100px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.sa-stat b { display: block; font-size: 26px; line-height: 1; }
+.sa-stat span { color: var(--muted); font-size: 13px; }
+.sa-bc { display: flex; align-items: center; gap: 12px; background: linear-gradient(90deg, rgba(126,232,198,0.16), rgba(255,143,208,0.12)); border: 1px solid var(--mint); border-radius: 14px; padding: 12px 14px; margin-bottom: 16px; }
+.sa-bc-ico { font-size: 20px; }
+.sa-bc-text { flex: 1; font-size: 14.5px; line-height: 1.4; }

@@ -1,10 +1,9 @@
 {
-  "version": "2.0.3",
-  "date": "2026-11-11",
+  "version": "2.0.4",
+  "date": "2026-11-12",
   "notes": [
-    "Dress up your pet: caps, top hats, party hats, crowns, bows, flowers, sunglasses, glasses and headphones",
-    "Recolour your pet and add blush, freckles or a star — your friends see your look too",
-    "Customize from the Hub → Pets tab, with a live preview",
-    "Stressed? Grab your pet and shake it side to side to poof it away — 'Call pets to cursor' brings it back"
+    "New: admin panel (web) to see who's signed in, manage users and send announcements",
+    "Announcements reach everyone — a banner in the app, and a Windows notification on the desktop",
+    "Tidy-ups under the hood"
   ]
 }
