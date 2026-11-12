@@ -95,6 +95,7 @@ export function Download() {
             <button onClick={copy}>{copied ? 'Copied ✓' : 'Copy'}</button>
           </div>
           <p className="dl-upd">Already have Nibble? Run the installer again. From v1.1 on, the tray menu has <b>Update Nibble</b>. Your pets and settings stay.</p>
+          <a className="btn ghost dl-guide" href="/Nibble-Reinstall-Guide.pdf" target="_blank" rel="noopener">📄 How to reinstall the latest version</a>
         </div>
       </div>
       <div className="dl-bottom">

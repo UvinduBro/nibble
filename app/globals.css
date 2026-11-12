@@ -283,6 +283,7 @@ kbd { font-size: 12.5px; background: var(--card2); border: 1px solid rgba(255, 2
 .dl-meta { color: var(--muted); font-size: 13.5px; font-family: var(--font-mono); margin: 12px 0 18px; }
 .dl-upd { color: var(--muted); font-size: 13.5px; margin: 14px 0 0; max-width: 560px; }
 .dl-upd b { color: var(--text); }
+.dl-guide { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; }
 .cmd { display: flex; align-items: center; gap: 10px; background: #070812; border: 1px solid var(--line); border-radius: 12px; padding: 10px 10px 10px 14px; flex-wrap: wrap; max-width: 620px; }
 .cmd-label { width: 100%; font-size: 11.5px; color: var(--muted); font-family: var(--font-mono); }
 .cmd code { background: none; padding: 0; color: var(--mint); font-size: 13.5px; flex: 1; word-break: break-all; }
