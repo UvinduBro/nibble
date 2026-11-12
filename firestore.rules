@@ -100,16 +100,21 @@ service cloud.firestore {
         allow update: if false;
       }
 
-      // private "About me" (what to call you, what you do, interests, current focus).
-      // Only the owner can read or write it; admins can only delete it when removing a user.
+      // private docs: "about" (nickname, role, interests, current focus) and "deadlines"
+      // (your reminder list). Only the owner can read or write; admins can only delete them.
       match /private/{doc} {
         allow read: if signedIn() && uid == me();
-        allow write: if signedIn() && uid == me() && !isBanned() && doc == 'about'
-          && incoming().keys().hasOnly(['nick', 'role', 'interests', 'focus', 'updatedAt'])
-          && shortText(incoming().get('nick', ''), 20)
-          && shortText(incoming().get('role', ''), 20)
-          && shortText(incoming().get('focus', ''), 40)
-          && (!('interests' in incoming()) || (incoming().interests is list && incoming().interests.size() <= 6));
+        allow write: if signedIn() && uid == me() && !isBanned() && (
+          (doc == 'about'
+            && incoming().keys().hasOnly(['nick', 'role', 'interests', 'focus', 'updatedAt'])
+            && shortText(incoming().get('nick', ''), 20)
+            && shortText(incoming().get('role', ''), 20)
+            && shortText(incoming().get('focus', ''), 40)
+            && (!('interests' in incoming()) || (incoming().interests is list && incoming().interests.size() <= 6)))
+          || (doc == 'deadlines'
+            && incoming().keys().hasOnly(['items', 'updatedAt'])
+            && incoming().items is list && incoming().items.size() <= 40)
+        );
         allow delete: if isAdmin();
       }
     }

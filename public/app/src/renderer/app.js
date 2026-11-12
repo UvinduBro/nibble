@@ -265,6 +265,7 @@
         boing: ['triangle', 320, 140, 0.22],
         pop: ['sine', 900, 260, 0.07],
         hop: ['sine', 420, 760, 0.08],
+        chime: ['sine', 880, 1480, 0.32],
       }[name];
       if (!spec) return;
       o.type = spec[0];
@@ -660,7 +661,27 @@
       sync();
     }
 
+    // ---- deadline reminders: your own pet drops in by your cursor and tells you ----
+    // If you're away (idle) or a fullscreen app has hidden the pets, it waits until you're back.
+    const pendingRem = [];
+    function remind(m) {
+      if (hidden || env.idle > 90) { if (!pendingRem.some((x) => x.id === m.id)) pendingRem.push(m); return; }
+      const me = mine();
+      if (!me) return;
+      me.command({ type: 'summon' }, env); // falls in right above the cursor (and un-poofs it)
+      sound('chime');
+      setTimeout(() => {
+        me.bubble = null;
+        me.say(String(m.text || '').slice(0, 140), 12);
+        if (me.grounded && me.grounded()) me.enter('wave', 1.8);
+        popOn(me, '⏰');
+        for (let i = 0; i < 3; i++) emit('bang', me.x, me.y - 55, { delay: i * 0.15 });
+      }, 1100);
+    }
+    setInterval(() => { if (pendingRem.length && !hidden && env.idle < 5) remind(pendingRem.shift()); }, 2000);
+
     function onEvent(m) {
+      if (m && m.kind === 'reminder') { remind(m); return; } // your own reminders ignore do-not-disturb
       if (!m || m.mine || dnd()) return;
       const me = mine();
       // everything a friend sends is delivered by THEIR pet, so it comes over if it isn't here yet

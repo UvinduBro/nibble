@@ -33,7 +33,7 @@ const ago = (t) => {
   return Math.floor(s / 86400) + 'd ago';
 };
 const NAV = [
-  ['home', 'Home', '⌂'], ['profile', 'Profile', '☻'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['pets', 'Pets', '✦'], ['settings', 'Settings', '⚙'],
+  ['home', 'Home', '⌂'], ['profile', 'Profile', '☻'], ['deadlines', 'Deadlines', '⏰'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['pets', 'Pets', '✦'], ['settings', 'Settings', '⚙'],
 ];
 
 function Avatar({ skin, size = 44, mood = 'idle' }) {
@@ -409,6 +409,103 @@ function Settings({ social, state, desktop, local, toast }) {
   );
 }
 
+// ---------- Deadlines: your pet reminds you 1 day and 3 hours before ----------
+const pad2 = (n) => String(n).padStart(2, '0');
+const toLocalInput = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const atDay = (days, h, m = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(h, m, 0, 0); return d.getTime(); };
+const nextWeekday = (wd, h) => { const d = new Date(); d.setDate(d.getDate() + (((wd - d.getDay() + 7) % 7) || 7)); d.setHours(h, 0, 0, 0); return d.getTime(); };
+const QUICK = [
+  ['Today 5 PM', () => atDay(0, 17)], ['Tonight 9 PM', () => atDay(0, 21)], ['Tomorrow 9 AM', () => atDay(1, 9)],
+  ['Tomorrow 5 PM', () => atDay(1, 17)], ['In 3 days', () => atDay(3, 17)], ['Next Monday', () => nextWeekday(1, 9)],
+];
+export const fmtDue = (t) => new Date(t).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+export function dueLeft(t) {
+  const ms = t - Date.now();
+  if (ms <= 0) return { txt: 'overdue', cls: 'bad' };
+  const m = Math.round(ms / 60_000), h = Math.round(ms / 3600_000), d = Math.round(ms / 86400_000);
+  const txt = m < 60 ? `in ${m} min` : h < 36 ? `in ${h} hour${h === 1 ? '' : 's'}` : `in ${d} days`;
+  return { txt, cls: ms <= 3 * 3600_000 ? 'bad' : ms <= 86400_000 ? 'warn' : 'ok' };
+}
+
+function Deadlines({ social, state, desktop, local, toast }) {
+  const [title, setTitle] = useState('');
+  const [when, setWhen] = useState(() => toLocalInput(atDay(1, 17)));
+  const [busy, setBusy] = useState(false);
+  const [, setTick] = useState(0);
+  useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
+  const items = state.deadlines || [];
+  const open = items.filter((d) => !d.done).sort((a, b) => a.due - b.due);
+  const done = items.filter((d) => d.done).sort((a, b) => b.due - a.due);
+  const saved = (r, msg) => toast({ text: r === 'local' ? msg + ' — saved on this device (publish the latest rules to sync)' : msg });
+  const run = async (fn, msg) => { try { const r = await fn(); if (msg) saved(r, msg); } catch (x) { toast({ err: true, text: niceError(x) }); } };
+  const add = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    const due = new Date(when).getTime();
+    const ms = due - Date.now();
+    const plan = ms > 86400_000 ? '1 day before and 3 hours before' : ms > 3 * 3600_000 ? '3 hours before' : 'right away';
+    await run(() => social.deadlines.add(title, due), `Added — your pet will remind you ${plan} ⏰`);
+    setTitle('');
+    setBusy(false);
+  };
+  const newPets = !desktop || (local && local.version && !verLess(local.version, '2.0.8'));
+  const minIn = toLocalInput(Date.now() + 5 * 60_000);
+
+  return (
+    <div className="sa-page">
+      <h2>Deadlines</h2>
+      <div className="sa-card">
+        <h3>⏰ Add a deadline</h3>
+        <p className="sa-sub">Your pet reminds you <b>1 day before</b> and again <b>3 hours before</b>. It drops in right next to your cursor and tells you. If you're away from your PC, it waits until you're back.</p>
+        <form className="sa-form" onSubmit={add}>
+          <label><span>What's due?</span><input value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Final project submission" /></label>
+          <label><span>When?</span><input type="datetime-local" value={when} min={minIn} onChange={(e) => setWhen(e.target.value)} /></label>
+          <div className="sa-quick">{QUICK.map(([l, f]) => <button type="button" key={l} className={toLocalInput(f()) === when ? 'on' : ''} onClick={() => setWhen(toLocalInput(f()))}>{l}</button>)}</div>
+          <button className="btn" disabled={!title.trim() || !when || busy}>{busy ? 'Adding…' : 'Add deadline'}</button>
+        </form>
+      </div>
+
+      <div className="sa-card">
+        <h3>Coming up <small>{open.length}</small><button className="sa-link" onClick={() => { social.deadlines.test(); toast({ text: desktop ? 'Watch your desktop 👀' : 'Look at your pet on Home 👀' }); }}>▶ Test a reminder</button></h3>
+        {open.length === 0 && <p className="sa-empty">Nothing due. Enjoy it 🌴</p>}
+        {open.map((d) => {
+          const l = dueLeft(d.due);
+          return (
+            <div key={d.id} className={'sa-dl ' + l.cls}>
+              <button className="sa-dl-check" onClick={() => run(() => social.deadlines.toggle(d.id), 'Done! Nice work 🎉')} title="Mark as done" aria-label="Mark as done" />
+              <div className="sa-dl-main">
+                <b>{d.title}</b>
+                <small>{fmtDue(d.due)} · <span className={'sa-dl-left ' + l.cls}>{l.txt}</span></small>
+                {d.due > Date.now() ? (
+                  <span className="sa-dl-bells">
+                    {(!d.createdAt || d.due - d.createdAt > 86400_000) && <i className={d.r1 ? 'on' : ''} title={d.r1 ? 'Reminded' : 'Not yet'}>{d.r1 ? '✓' : '🔔'} 1 day before</i>}
+                    <i className={d.r2 ? 'on' : ''} title={d.r2 ? 'Reminded' : 'Not yet'}>{d.r2 ? '✓' : '🔔'} 3 hours before</i>
+                  </span>
+                ) : null}
+              </div>
+              <button className="sa-x" onClick={() => run(() => social.deadlines.remove(d.id))} title="Delete">✕</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {done.length > 0 && (
+        <div className="sa-card">
+          <h3>Done <small>{done.length}</small><button className="sa-link" onClick={() => run(() => social.deadlines.clearDone(), 'Cleared')}>Clear all</button></h3>
+          {done.map((d) => (
+            <div key={d.id} className="sa-dl done">
+              <button className="sa-dl-check on" onClick={() => run(() => social.deadlines.toggle(d.id))} title="Not done yet" aria-label="Mark as not done">✓</button>
+              <div className="sa-dl-main"><b>{d.title}</b><small>{fmtDue(d.due)}</small></div>
+              <button className="sa-x" onClick={() => run(() => social.deadlines.remove(d.id))} title="Delete">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {!newPets && <p className="sa-sub">⬆️ On your desktop app (v{local.version}) reminders arrive as Windows notifications. Update to <b>Nibble 2.0.8</b> and your pet will deliver them itself.</p>}
+    </div>
+  );
+}
+
 // ---------- Profile: "About me" shapes what your own pet thinks about ----------
 const sameAbout = (a, b) => JSON.stringify(cleanAbout(a || {})) === JSON.stringify(cleanAbout(b || {}));
 
@@ -432,7 +529,7 @@ function Profile({ social, state, desktop, local, toast }) {
   const about = { nick, role, interests: ints, focus };
   const dirty = !sameAbout(about, saved);
   const samples = useMemo(
-    () => (engine && window.NibbleLines && window.NibbleLines.sample ? window.NibbleLines.sample(cleanAbout(about), 3) : []),
+    () => (engine && window.NibbleLines && window.NibbleLines.sample ? window.NibbleLines.sample(cleanAbout(about), 6) : []),
     [engine, seed, nick, role, ints.join(','), focus] // eslint-disable-line react-hooks/exhaustive-deps
   );
   const toggle = (k) => setInts(ints.includes(k) ? ints.filter((x) => x !== k) : ints.length >= MAX_INTERESTS ? ints : [...ints, k]);
@@ -490,7 +587,7 @@ function Profile({ social, state, desktop, local, toast }) {
         </label>
 
         <div className="sa-think">
-          <div className="sa-think-h"><span>Your pet might think…</span><button type="button" onClick={() => setSeed(seed + 1)} title="Show other examples">🔀 Shuffle</button></div>
+          <div className="sa-think-h"><span>Your pet might think… {engine && window.NibbleLines && window.NibbleLines.countFor && <em className="sa-think-n">{window.NibbleLines.countFor(cleanAbout(about))} thoughts fit you</em>}</span><button type="button" onClick={() => setSeed(seed + 1)} title="Show other examples">🔀 Shuffle</button></div>
           {samples.length
             ? samples.map((t) => <div key={t} className="sa-thought">{t}</div>)
             : <p className="sa-empty">{engine ? 'Pick a few things above to see examples.' : 'Loading…'}</p>}
@@ -519,6 +616,18 @@ function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith 
           <button className="btn small" onClick={() => go('profile')}>Set up</button>
         </div>
       )}
+      {(() => {
+        const next = (state.deadlines || []).filter((d) => !d.done && d.due > Date.now()).sort((a, b) => a.due - b.due)[0];
+        if (!next) return null;
+        const l = dueLeft(next.due);
+        return (
+          <button className={'sa-card sa-next ' + l.cls} onClick={() => go('deadlines')}>
+            <span className="sa-tip-ico">⏰</span>
+            <span><b>Next up: {next.title}</b><small>{fmtDue(next.due)} · {l.txt}</small></span>
+            <em>All deadlines →</em>
+          </button>
+        );
+      })()}
       {!desktop && <LiveDesk social={social} state={state} />}
       {desktop && (
         <div className="sa-card sa-hero">
@@ -558,6 +667,17 @@ function useDesktopBridge(desktop, social, state) {
     desktop.getLocal().then(setLocal);
     return desktop.onLocal(setLocal);
   }, [desktop]);
+  const localRef = useRef(local);
+  localRef.current = local;
+  useEffect(() => {
+    if (!desktop || !social || !social.onReminder) return;
+    return social.onReminder((r) => {
+      const l = localRef.current;
+      const petsCanTell = l && l.version && !verLess(l.version, '2.0.8');
+      if (petsCanTell) desktop.sendEvent(r); // pets deliver it (hub.js falls back to a notification when pets are hidden)
+      else if (desktop.notify) desktop.notify({ title: 'Nibble reminder ⏰', body: r.text });
+    });
+  }, [desktop, social]);
   const sent = useRef('');
   useEffect(() => {
     if (!desktop) return;
@@ -616,6 +736,20 @@ export default function SocialApp({ mode = 'web' }) {
   const showBc = bcLive && bcId !== bcDismissed;
   const dismissBc = () => { try { localStorage.setItem('nibble-bc-seen', bcId); } catch {} setBcDismissed(bcId); };
 
+  // deadline reminders: a banner in the app, and on the web your desk pet says it too
+  const [rem, setRem] = useState(null);
+  useEffect(() => {
+    if (!social || !social.onReminder) return;
+    return social.onReminder((r) => {
+      setRem(r);
+      if (!desktop) {
+        // the desk pet only lives on Home: if it isn't on screen, it says this when you get there
+        window.__nibbleRem = { r, at: Date.now() };
+        window.dispatchEvent(new CustomEvent('nibble-remind', { detail: r }));
+      }
+    });
+  }, [social, desktop]);
+
   // tell admins which app this is (desktop + version, or web)
   useEffect(() => {
     if (!social || !state.profile) return;
@@ -661,6 +795,7 @@ export default function SocialApp({ mode = 'web' }) {
       <>
         {tab === 'home' && <Home {...props} />}
         {tab === 'profile' && <Profile {...props} />}
+        {tab === 'deadlines' && <Deadlines {...props} />}
         {tab === 'friends' && <Friends {...props} presetAdd={presetAdd} />}
         {tab === 'messages' && <Messages {...props} />}
         {tab === 'pets' && <Pets {...props} />}
@@ -700,6 +835,7 @@ export default function SocialApp({ mode = 'web' }) {
             {desktop && desktop.update && <button className="btn small" onClick={() => desktop.update()}>Update now</button>}
           </Banner>
         )}
+        {signedIn && rem && <Banner level="warn" text={rem.text} onClose={() => setRem(null)}>{!rem.test && <button className="btn small" onClick={() => { setTab('deadlines'); setRem(null); }}>View</button>}</Banner>}
         {signedIn && showNotice && <Banner level={cfg.noticeLevel} text={cfg.notice} onClose={dismissNotice} />}
         {signedIn && showBc && <Banner level={state.broadcast.level} title={state.broadcast.title} text={state.broadcast.text} link={state.broadcast.link} onClose={dismissBc} />}
         {body}

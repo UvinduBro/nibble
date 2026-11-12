@@ -133,6 +133,58 @@
     char_mojo: ['Turn it up! 🎧', 'Your code has a nice rhythm.', 'Ship it like a drop.', 'Pocket DJ, at your service.', 'Lo-fi or hyperpop? …both.'],
   };
 
+  // ---- more variety (added on top of the packs above) ----
+  const MORE = {
+    random: [
+      "Stretch your fingers, they work hard 🖐️", "Who's that cool person on my screen? Oh, you 😎", "Hold on, I'm buffering… done!",
+      "I just did 3 laps around your taskbar 🏃", "Your desktop is my favourite apartment 🏠", "I'm here if you need a tiny cheerleader 📣",
+      "Coffee, tea, or water? Pick one and sip 💧", "Deep breath in… and out 🌬️", "Look away from the screen for a sec 👀",
+      "Today counts. Even the slow parts.", "Psst… you're doing the thing. Keep going.", "I believe in your next 10 minutes ⏱️",
+      "Have you smiled today? This counts 🙂", "Close one tab. Just one. For me? 🥺", "Ten-second dance break? 🕺",
+      "I'd make you tea if I had hands 🍵", "That was a big sigh. Want a break? 💨", "Fun fact: naps are a valid strategy 😴",
+      "Water. Now. Please. 💧", "Organised chaos is still organised 🌀", "Your future self is waving at you 👋",
+    ],
+    role_designer: ["Can it be more… purple? 💜", "Another round of feedback? Breathe 🌬️", "Ctrl+S, then Ctrl+S again 💾", "Spacing is everything ✨",
+      "Contrast check passed? 👀", "That gradient is gorgeous 🌈", "Exporting at 2x, right? 📐", "Your moodboard is a vibe 🖼️", "Trust your eye 👁️"],
+    role_developer: ["Did you push before lunch? 🍱", "Tabs or spaces? I won't judge… much", "Console.log driven development 🔍", "That bug is scared of you 🐛",
+      "Coffee-to-code conversion in progress ☕", "Take a break, the build will wait ⏳", "Ship small, ship often 🚢", "Comments are love letters to future you 💌", "Off-by-one again? 😅"],
+    role_student: ["Flashcard time? 🗂️", "Hard topic? Teach it to me, that helps! 🐾", "Phone face down for 25 minutes? 📵", "Snack + study = power combo 🍪",
+      "You've studied more than you think 📈", "Exam brain needs sleep too 😴", "Past papers are your secret weapon 📄", "Ask for help, that's smart, not weak 💡",
+      "Tick one thing off your list ✅", "Highlight less, recall more 🧠"],
+    role_marketer: ["Did the post go live? 📲", "Check the analytics, then breathe 📊", "Storytelling beats selling ✨", "Reply to that DM 💬",
+      "Your carousel needs one more slide 🖼️", "Schedule it and relax 📅", "Find the audience, then the message 🎯", "Metrics up, stress down 📉"],
+    role_writer: ["One more paragraph? ✍️", "Your voice is the good stuff 🗣️", "Edit tomorrow, write today 📝", "That metaphor slaps 🔥",
+      "Coffee and words go together ☕", "Done is better than perfect 📄", "Your characters miss you 📚"],
+    role_creator: ["Batch-record today? 🎬", "Your hook is everything ⚡", "Captions on? 💬", "Post when you're proud, not perfect 📲",
+      "Check your audio levels 🎙️", "That idea would make a great series 💡", "Make one for you today 💛"],
+    role_office: ["Block focus time on your calendar 🗓️", "Stand up between meetings 🧍", "Lunch away from the desk? 🥗", "Write tomorrow's top 3 tonight ✍️",
+      "That email can wait 5 minutes ⏳", "Celebrate a small win today 🎉", "Mute notifications for 30 min? 🔕"],
+    role_teacher: ["Your students are lucky 🍎", "Coffee before marking ☕", "One more lesson, then rest 📚", "You make tough stuff simple ✨", "Weekend plans: no grading 🙅"],
+    role_health: ["Did you eat on this shift? 🥪", "Rest is part of care 💤", "Small kindness, big difference 💚", "Hydrate, hero 💧", "You're appreciated, truly 🫶"],
+    int_music: ["Shuffle or album order? 🎵", "This needs a headphone moment 🎧", "Make a playlist for this mood 📻", "Sing it, nobody's listening 🎤"],
+    int_gaming: ["Achievement unlocked: focus 🏅", "Boss fight energy 🗡️", "Quick game after this task? 🎮", "Stretch between rounds 🙆"],
+    int_coffee: ["Cold brew or hot? ☕", "Coffee break, then conquer 💪", "Latte art level: you ☕", "Water chaser with that coffee 💧"],
+    int_tea: ["Ginger tea kind of day? 🫚", "Plain tea and a biscuit? 🍪", "Steep, sip, smile 🍵", "Tea breaks are sacred 🫖"],
+    int_fitness: ["Shoulder rolls ×5 🌀", "Walk while you think 🚶", "Protein snack? 🥜", "Rest days build strength too 💪"],
+    int_anime: ["Training arc starts now 🔥", "Your plot armour is strong 🛡️", "Next episode after this task? 📺", "Filler episode day? Allowed 😴"],
+    int_food: ["Rice and curry later? 🍛", "Hoppers for breakfast tomorrow? 🥞", "Fruit break 🍉", "Don't skip lunch! 🍱"],
+    int_travel: ["Plan a weekend escape? 🗺️", "Ella train rides hit different 🚂", "Save that place for later 📍", "Pack light, dream big 🎒"],
+    int_reading: ["Ten pages before bed? 📖", "Book recommendation for me? 📚", "Library trip soon? 🏛️", "Read outside today? 🌳"],
+    int_movies: ["Watchlist growing again? 🎞️", "Rate the last thing you watched ⭐", "Comfort show tonight? 🛋️", "Trailer break? 🎬"],
+    int_art: ["Draw the first thing you see 👀", "Messy sketches count 🖍️", "Try a new colour today 🎨", "Art block? Doodle me! 🐾"],
+    int_pets: ["Treat time for your fur buddy? 🦴", "Pets make everything better 🐱", "Walkies later? 🐕"],
+    int_sports: ["Big match tonight? 🏏", "Warm up before playing! 🔥", "Team chat buzzing? 📣", "Training pays off 💪"],
+    int_fashion: ["Accessorise the day ✨", "Colour of the day? 🎨", "Comfy and cute counts 👟"],
+    int_photo: ["Clean your lens 📸", "Shoot the light, not the thing 🌅", "Edit later, shoot now 📷"],
+    int_nature: ["Open a window? 🌬️", "Bird check outside 🐦", "Sunset walk later? 🌇", "Water your plants 🪴"],
+    focus: ["Ten focused minutes on {focus}? ⏱️", "{focus} is getting closer to done 🏁", "What's the next tiny step for {focus}? 👣",
+      "Stuck on {focus}? Take a walk, then try again 🚶", "Future you will love that {focus} is finished 🎉"],
+    cheerNick: ["Proud of you, {nick} 🫶", "{nick}, water break? 💧", "Let's go, {nick}! 🚀", "{nick} is unstoppable today ⚡"],
+    greetNick: ["Good to see you, {nick} 🌞", "{nick}! What are we doing today? ✨"],
+    backNick: ["{nick}! Did you have a nice break? ☕"],
+  };
+  for (const k of Object.keys(MORE)) L[k] = (L[k] || []).concat(MORE[k]);
+
   const APP_RULES = [
     { test: (p) => /^(code|code - insiders|cursor|windsurf|zed|devenv|idea64|webstorm64|pycharm64|phpstorm64|rider64|clion64|goland64|studio64|sublime_text|notepad\+\+|fleet|atom)$/.test(p), cat: 'code', mood: 'work' },
     { test: (p) => /^(figma|photoshop|illustrator|afterfx|adobe premiere pro|indesign|xd|lightroom|lightroomclassic|affinity.*|canva|framer|sketch|krita|gimp.*|coreldrw|clipstudiopaint|davinci ?resolve|resolve|capcut)$/.test(p), cat: 'design', mood: 'work' },
@@ -251,5 +303,16 @@
     return out;
   }
 
-  window.NibbleLines = { L, pick, sample, classifyApp };
+  // how many different thoughts fit this person's About me
+  function countFor(about) {
+    const a = about || {};
+    let n = L.random.length;
+    if (a.role && L['role_' + a.role]) n += L['role_' + a.role].length;
+    for (const k of a.interests || []) if (L['int_' + k]) n += L['int_' + k].length;
+    if (a.focus) n += L.focus.length;
+    if (a.nick) n += L.cheerNick.length + L.greetNick.length;
+    return n;
+  }
+
+  window.NibbleLines = { L, pick, sample, countFor, classifyApp };
 })();

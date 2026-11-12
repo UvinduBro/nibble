@@ -150,6 +150,13 @@ function setupHub(ctx) {
     toOverlay('social-event', m);
     // pets hidden? surface direct messages as a Windows notification instead
     const s = settings.get();
+    // pets hidden + a deadline reminder: still make sure you hear about it
+    if (s.paused && m.kind === 'reminder' && Notification.isSupported()) {
+      const n = new Notification({ title: 'Nibble reminder ⏰', body: String(m.text || '').slice(0, 180), silent: false });
+      n.on('click', () => open('deadlines'));
+      n.show();
+      return;
+    }
     if (s.paused && m.direct && !(lastSocial.prefs || {}).dnd && Notification.isSupported()) {
       const body = m.kind === 'whisper' ? m.text : `sent you a ${m.kind}`;
       const n = new Notification({ title: '@' + m.fromName, body, silent: false });

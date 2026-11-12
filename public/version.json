@@ -1,10 +1,10 @@
 {
-  "version": "2.0.7",
+  "version": "2.0.8",
   "date": "2026-11-12",
   "notes": [
-    "New: About me in the Hub's Profile tab — tell your pet what you do, what you're into and what you're working on",
-    "Your pet's thoughts now fit you (study tips for students, playlist chat for music lovers, cheering on your current project)",
-    "Far less repetition: every line comes up once before any repeats, and job-specific jokes only show for that job",
-    "Your pet can call you by a nickname"
+    "New: Deadlines — add something that's due and your pet reminds you 1 day before and again 3 hours before",
+    "Your pet delivers reminders itself: it drops in by your cursor, chimes and tells you (and waits if you're away)",
+    "Pets hidden? Reminders still arrive as a Windows notification",
+    "Also in the Profile tab: About me, so your pet's thoughts fit you"
   ]
 }

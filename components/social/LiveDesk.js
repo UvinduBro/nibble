@@ -83,6 +83,25 @@ export default function LiveDesk({ social, state }) {
     return p;
   };
 
+  // deadline reminders: your pet on the desk hops and says it
+  useEffect(() => {
+    const say = (r) => {
+      const s = stage.current;
+      const me = s && s.env.pets.find((p) => p.mine);
+      if (!me || !r) return false;
+      me.bubble = null;
+      me.say(String(r.text || '').slice(0, 140), 12);
+      if (me.grounded && me.grounded()) me.enter('wave', 1.8);
+      window.__nibbleRem = null;
+      return true;
+    };
+    const onRemind = (e) => say(e.detail);
+    window.addEventListener('nibble-remind', onRemind);
+    // a reminder that fired while you were on another tab: say it now (if it's recent)
+    const t = setTimeout(() => { const p = window.__nibbleRem; if (p && Date.now() - p.at < 10 * 60_000) say(p.r); }, 1200);
+    return () => { window.removeEventListener('nibble-remind', onRemind); clearTimeout(t); };
+  }, [ready]);
+
   useEffect(() => {
     const onBring = (e) => visit(e.detail, 30 * 60);
     window.addEventListener('nibble-bring', onBring);
