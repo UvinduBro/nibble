@@ -32,6 +32,7 @@ const ago = (t) => {
   if (s < 86400) return Math.floor(s / 3600) + 'h ago';
   return Math.floor(s / 86400) + 'd ago';
 };
+const EMOTE_TITLE = { wave: 'Wave', hug: 'Cuddle', kiss: 'Kiss', poke: 'Poke', annoy: 'Tease', icecream: 'Share ice cream', heart: 'Send a heart', highfive: 'High five', tickle: 'Tickle', cheer: 'Cheer them on', snack: 'Share a snack', dance: 'Dance together' };
 const NAV = [
   ['home', 'Home', '⌂'], ['profile', 'Profile', '☻'], ['deadlines', 'Deadlines', '⏰'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['pets', 'Pets', '✦'], ['settings', 'Settings', '⚙'],
 ];
@@ -96,10 +97,10 @@ function FriendActions({ social, f, toast, compact }) {
       </form>
     );
   }
-  const kinds = compact ? ['wave', 'hug', 'poke', 'heart'] : ['wave', 'hug', 'kiss', 'poke', 'heart', 'highfive', 'tickle', 'cheer', 'snack', 'dance'];
+  const kinds = compact ? ['wave', 'hug', 'kiss', 'icecream'] : ['wave', 'hug', 'kiss', 'poke', 'annoy', 'icecream', 'heart', 'highfive', 'tickle', 'cheer', 'snack', 'dance'];
   return (
     <div className="sa-acts">
-      {kinds.map((k) => <button key={k} title={k} onClick={() => act(k)}>{EMOTES[k]}</button>)}
+      {kinds.map((k) => <button key={k} title={EMOTE_TITLE[k] || k} onClick={() => act(k)}>{EMOTES[k]}</button>)}
       <button title="Private message" onClick={() => setWhisper('')}>💬</button>
     </div>
   );

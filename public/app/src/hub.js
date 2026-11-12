@@ -210,6 +210,8 @@ function setupHub(ctx) {
       { label: '🎉  Cheer them on', click: send('cheer') },
       { label: '🍪  Share a snack', click: send('snack') },
       { label: '🎶  Dance together', click: send('dance') },
+      { label: '😜  Tease them', click: send('annoy') },
+      { label: '🍦  Share ice cream', click: send('icecream') },
       { label: '💬  Whisper… (hold their pet)', click: () => toOverlay('command', { type: 'whisper', uid }) },
       { type: 'separator' },
       { label: '🏠  Keep their pet here (30 min)', click: () => toOverlay('command', { type: 'bring', uid }) },

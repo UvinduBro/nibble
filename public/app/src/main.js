@@ -342,6 +342,18 @@ function petMenu(index) {
     { label: 'Take a nap', click: cmd('sleep') },
     { label: 'Wake up', click: cmd('wake') },
     { label: 'Code with me', click: cmd('work') },
+    { label: '🍦 Give ice cream', click: cmd('treat') },
+    ...(s.pets.length > 1 ? [{
+      label: 'With another pet',
+      submenu: [
+        { label: '😘 Kiss', click: cmd('act', { kind: 'kiss' }) },
+        { label: '🤗 Cuddle', click: cmd('act', { kind: 'hug' }) },
+        { label: '😜 Tease', click: cmd('act', { kind: 'annoy' }) },
+        { label: '🍦 Share ice cream', click: cmd('act', { kind: 'icecream' }) },
+        { label: '🙌 High five', click: cmd('act', { kind: 'highfive' }) },
+        { label: '🎶 Dance together', click: cmd('act', { kind: 'dance' }) },
+      ],
+    }] : []),
     {
       label: 'Character',
       submenu: skinMenu((k) => {

@@ -1,10 +1,10 @@
 {
-  "version": "2.0.10",
+  "version": "2.0.11",
   "date": "2026-11-12",
   "notes": [
-    "New: subtle pet sounds — babbling when they talk, snoring, munching, happy jingles, grumbles and sighs (Settings → Pet sounds)",
-    "Smoother and lighter: pets slow their redraws while idle, pause while hidden or in fullscreen games, and the Hub stops animating when it's closed",
-    "Fix: pets on different windows now hop over to interact, and Make them interact always works",
-    "When you send a wave, hug or kiss, your own pet acts it out too"
+    "New: every friend action is now animated — your pet runs over to theirs to kiss, cuddle, high five, tickle, dance, share a snack and more (on both desktops)",
+    "New: 😜 Tease and 🍦 Share ice cream as clickable actions (Hub friend buttons and right-click on a friend's pet)",
+    "New: right-click your own pet → 🍦 Give ice cream, or With another pet → kiss, cuddle, tease, share ice cream",
+    "Ice cream during a fight makes them make up straight away"
   ]
 }

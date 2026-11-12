@@ -1190,6 +1190,106 @@
   };
   const GAP = { chat: 60, play: 64, snuggle: 34, annoy: 28, argue: 58 };
 
+  // ---- friend actions you click (kiss, cuddle, tease, ice cream…): s.a walks over to s.b and does it ----
+  const talk = (p, lines, other, secs) => {
+    if (!p) return;
+    const t = lines[Math.floor(Math.random() * lines.length)].replace(/\{other\}/g, other && other.name ? other.name : 'you');
+    if (other && other.bubble && other.dramaSaid) other.bubble = null;
+    p.bubble = null; p.say(t, secs || Math.max(2, Math.min(3.6, 1.3 + t.length * 0.05))); p.dramaSaid = true;
+  };
+  const hearts = (env, s, n = 6) => { const u = U(env); for (let i = 0; i < n; i++) env.emit('heart', (s.a.x + s.b.x) / 2 + rand(-18, 18), Math.min(s.a.y, s.b.y) - 46 * u, { delay: i * 0.1 }); };
+  const stars = (env, x, y, n = 5) => { for (let i = 0; i < n; i++) env.emit('star', x, y, { delay: i * 0.07 }); };
+  const ACT = {
+    kiss: [
+      [0, (s) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); s.a.setEmote('blush', 4); talk(s.a, ['mwah! 😘', 'c\'mere {other} 💋', 'smooch incoming!']); }],
+      [0.7, (s, env) => { s.lean(24); s.fly('💋', s.a, s.b, 0.5); env.sound('smooch'); }],
+      [1.25, (s, env) => { hold(s.b, 'happy'); s.b.setEmote('blush', 4); hearts(env, s, 7); }],
+      [1.9, (s) => { s.closeIn(); hold(s.a, 'snuggle'); hold(s.b, 'snuggle'); talk(s.b, ['aww 🥰', 'hehe 💕', 'you\'re the cutest', 'one more? 😚']); }],
+      [3.4, (s, env) => { s.fly('💗', s.b, s.a, 0.6); env.sound('happy'); }],
+      [5.2, (s) => s.done(6)],
+    ],
+    hug: [
+      [0, (s) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); talk(s.a, ['come here {other}! 🤗', 'cuddle time!', 'hug attack!']); }],
+      [0.8, (s, env) => { s.closeIn(); hold(s.a, 'snuggle'); hold(s.b, 'snuggle'); hearts(env, s, 6); env.sound('happy'); }],
+      [2.6, (s) => talk(s.b, ['so warm 🥰', 'best cuddles', 'don\'t let go', 'mmm comfy']) ],
+      [4.4, (s, env) => hearts(env, s, 4)],
+      [6, (s) => s.done(5)],
+    ],
+    wave: [
+      [0, (s) => { face(s.a, s.b); hold(s.a, 'wave'); hold(s.b, 'look'); talk(s.a, ['hiii {other}! 👋', 'heyyy 👋', 'yoohoo!']); }],
+      [1.3, (s) => { hold(s.b, 'wave'); talk(s.b, ['hi hi! 👋', 'oh hey!', 'heyyy']); }],
+      [2.9, (s) => s.done(2)],
+    ],
+    poke: [
+      [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); s.fly('👉', s.a, s.b, 0.3); env.sound('pop'); }],
+      [0.35, (s, env) => { hold(s.b, 'dizzy'); s.b.setEmote('anger', 2); env.sound('boing'); stars(env, s.b.x, s.b.y - 50 * U(env), 3); }],
+      [0.9, (s) => { hold(s.b, 'look'); talk(s.b, ['hey! 😤', 'what?!', 'stop poking meee']); }],
+      [2.4, (s) => s.done(-1)],
+    ],
+    annoy: [
+      [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); talk(s.a, ['boop! 😜', 'hehe {other} 😜', 'nyeh nyeh nyeh 😛', 'bet you can\'t catch me']); s.fly('😜', s.a, s.b, 0.45); env.sound('boing'); }],
+      [0.6, (s, env) => { hold(s.b, 'dizzy'); s.b.setEmote('anger', 3); stars(env, s.b.x, s.b.y - 55 * U(env), 3); }],
+      [1.7, (s) => { hold(s.b, 'look'); talk(s.b, ['HEY! 😤', 'ugh, stop it', 'not funny!!', 'I\'m telling 😠']); }],
+      [3.4, (s) => { s.bond(-6); if (s.getBond() < 45 && chance(0.4)) s.chain('argue'); else s.done(0); }],
+    ],
+    highfive: [
+      [0, (s) => { face(s.a, s.b); hold(s.a, 'wave'); hold(s.b, 'look'); talk(s.a, ['up high! 🙌', 'high five {other}!']); }],
+      [0.7, (s) => { hold(s.b, 'wave'); s.lean(34); }],
+      [1.1, (s, env) => { s.burst('🙌'); env.sound('pop'); stars(env, (s.a.x + s.b.x) / 2, s.a.y - 48 * U(env), 7); hold(s.a, 'happy'); hold(s.b, 'happy'); }],
+      [2.2, (s) => talk(s.b, ['yesss! 🙌', 'nailed it', 'teamwork!'])],
+      [3.4, (s) => s.done(4)],
+    ],
+    tickle: [
+      [0, (s) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); talk(s.a, ['tickle tickle! 🤭', 'gotcha {other}!']); s.lean(26); }],
+      [0.5, (s, env) => { hold(s.b, 'dizzy'); s.burst('🤭'); env.sound('happy'); }],
+      [1.2, (s) => talk(s.b, ['hehe stoppp 🤭', 'AHAHA no fair', 'ok ok you win 😂'])],
+      [2.4, (s, env) => { hold(s.b, 'happy'); stars(env, s.b.x, s.b.y - 50 * U(env), 3); }],
+      [3.6, (s) => s.done(4)],
+    ],
+    cheer: [
+      [0, (s, env) => { face(s.a, s.b); hold(s.a, 'dance'); hold(s.b, 'look'); talk(s.a, ['you got this {other}! 🎉', 'go go go! 📣', 'so proud of you!']); env.sound('hop'); }],
+      [0.9, (s, env) => { s.fly('🎉', s.a, s.b, 0.5); stars(env, s.a.x, s.a.y - 45 * U(env), 5); }],
+      [1.5, (s) => { hold(s.b, 'happy'); talk(s.b, ['thank you!! 🥹', 'let\'s gooo', 'aww I needed that']); }],
+      [3, (s, env) => { const a = s.a; s.done(3); if (a.grounded()) a.backflip(env); }],
+    ],
+    heart: [
+      [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); s.fly('❤️', s.a, s.b, 0.9); env.sound('pop'); talk(s.a, ['for you ❤️', 'a heart for {other}']); }],
+      [1, (s, env) => { hold(s.b, 'happy'); s.b.setEmote('blush', 2.5); hearts(env, s, 6); env.sound('happy'); }],
+      [1.7, (s) => talk(s.b, ['aww ❤️', 'right back at you 💕', 'my heart!'])],
+      [3, (s) => s.done(4)],
+    ],
+    snack: [
+      [0, (s) => { face(s.a, s.b); hold(s.a, 'wave'); hold(s.b, 'look'); talk(s.a, ['want a cookie? 🍪', 'I saved you a snack!']); }],
+      [0.8, (s) => s.fly('🍪', s.a, s.b, 0.6)],
+      [1.4, (s, env) => { hold(s.b, 'eat'); hold(s.a, 'happy'); env.sound('nom'); }],
+      [2.9, (s) => { hold(s.b, 'happy'); talk(s.b, ['yum! thank you 🍪', 'nom nom nom', 'best snack ever']); }],
+      [4.2, (s) => s.done(4)],
+    ],
+    dance: [
+      [0, (s, env) => { face(s.a, s.b); hold(s.a, 'dance'); hold(s.b, 'look'); talk(s.a, ['dance with me {other}! 🎶', 'it\'s party time 🪩']); env.sound('hop'); }],
+      [0.8, (s, env) => { hold(s.b, 'dance'); for (let i = 0; i < 3; i++) env.emit('note', (s.a.x + s.b.x) / 2, s.a.y - 50 * U(env), { delay: i * 0.2 }); }],
+      [2.2, (s, env) => { talk(s.b, ['woo! 🎶', 'look at us go', 'best duo']); for (let i = 0; i < 3; i++) env.emit('note', (s.a.x + s.b.x) / 2, s.a.y - 50 * U(env), { delay: i * 0.2 }); }],
+      [4.4, (s, env) => { hold(s.a, 'happy'); hold(s.b, 'happy'); stars(env, (s.a.x + s.b.x) / 2, s.a.y - 50 * U(env), 6); env.sound('chime'); }],
+      [5.6, (s) => s.done(4)],
+    ],
+    icecream: [
+      [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); s.dropCones(env); talk(s.a, ['ice cream for us! 🍦', 'my treat {other} 🍦', 'look what I got!']); }],
+      [1.1, (s, env) => { s.giveCones(); hold(s.a, 'eat'); hold(s.b, 'eat'); env.sound('nom'); }],
+      [2.6, (s) => talk(s.b, ['best day ever 🍦', 'strawberry is my fave', 'brain freeze! 🥶'])],
+      [4.4, (s, env) => { s.takeCones(); face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'happy'); hearts(env, s, 6); env.sound('happy'); }],
+      [5.8, (s) => s.done(8)],
+    ],
+  };
+  const AGAP = { kiss: 30, hug: 34, wave: 70, poke: 30, annoy: 30, highfive: 40, tickle: 30, cheer: 66, heart: 76, snack: 42, dance: 60, icecream: 52 };
+  for (const k of Object.keys(ACT)) SCRIPTS['x_' + k] = ACT[k];
+  // one pet on its own gets a cone (pet menu → "Give ice cream")
+  SCRIPTS.x_treat = [
+    [0, (s, env) => { hold(s.a, 'look'); s.dropCones(env, true); talk(s.a, ['ooh! for me? 🍦', 'ICE CREAM! 🍦', 'you\'re the best']); }],
+    [1.1, (s, env) => { s.giveCones(); hold(s.a, 'eat'); env.sound('nom'); }],
+    [3.6, (s, env) => { s.takeCones(); hold(s.a, 'happy'); for (let i = 0; i < 5; i++) env.emit('heart', s.a.x + rand(-12, 12), s.a.y - 46 * U(env), { delay: i * 0.1 }); env.sound('happy'); talk(s.a, ['yum!! thank you 💕', 'so good', 'more tomorrow? 🥺']); }],
+    [5.4, (s) => s.done(0)],
+  ];
+
   function create() {
     const bonds = new Map();
     const key = (a, b) => [String(a.id), String(b.id)].sort().join('|');
@@ -1197,6 +1297,7 @@
     const addBond = (a, b, d) => bonds.set(key(a, b), Math.max(0, Math.min(100, getBond(a, b) + d)));
     let scene = null, wait = rand(15, 30), fight = null, button = null;
     const cones = []; // { pet, x, y, vy, held }
+    const floats = []; // emoji flying from one pet to another (💋, 🍪, ❤️…)
 
     function sameSurface(a, b) {
       return a.support && b.support && a.support.type === b.support.type && a.support.winId === b.support.winId && Math.abs(a.y - b.y) < 6;
@@ -1237,7 +1338,11 @@
           for (let i = 0; i < 3; i++) e.emit('dust', fight.x, a.y, { n: 6 });
           fight = null;
         },
-        dropCones(e) { const u = U(e); for (const p of [a, b]) cones.push({ pet: p, x: p.x + p.dir * 11 * u, y: p.y - 260 * u, vy: 0, held: false }); },
+        dropCones(e, solo) { const u = U(e); for (const p of solo ? [a] : [a, b]) cones.push({ pet: p, x: p.x + p.dir * 11 * u, y: p.y - 260 * u, vy: 0, held: false }); },
+        // the actor steps right up to the other pet (kiss, high five…)
+        lean(g) { const u = U(env), side = sign(a.x - b.x); const nx = b.x + side * g * u; if (Math.abs(nx - a.x) < 60 * u) a.x = nx; face(a, b); },
+        fly(text, from, to, dur) { floats.push({ text, from, to, t: 0, dur: dur || 0.6, x: from.x, y: from.y - 40 * U(env) }); },
+        burst(text) { floats.push({ text, burst: true, t: 0, dur: 0.9, x: (a.x + b.x) / 2, y: Math.min(a.y, b.y) - 52 * U(env) }); },
         giveCones() { for (const c of cones) c.held = true; },
         takeCones() { cones.length = 0; },
         closeIn() { // sit right next to each other for the cuddle
@@ -1305,6 +1410,48 @@
       wait = rand(g[0], g[1]);
     }
 
+    // put `mover` right beside `anchor` with a little hop (works from anywhere: other window, wall, mid-climb)
+    function hopTo(env, mover, anchor, g) {
+      const u = U(env), gap = g * u;
+      const seg = anchor.currentSeg && anchor.currentSeg(env);
+      let side = sign(mover.x - anchor.x);
+      if (seg) {
+        if (anchor.x + side * gap > seg.x2 - 16 * u) side = -1;
+        if (anchor.x + side * gap < seg.x1 + 16 * u) side = 1;
+        if (anchor.x + side * gap > seg.x2 - 16 * u) return false;
+      }
+      env.emit('dust', mover.x, mover.y, { n: 10 });
+      mover.chaseX = null; mover.support = null; mover.seg = null; mover.wall = null; mover.baseRot = 0; mover.rot = 0;
+      mover.x = anchor.x + side * gap; mover.y = anchor.y - 110 * u; mover.vx = 0; mover.vy = 0;
+      mover.enter('fall');
+      anchor.dir = side; anchor.enter('look', LONG);
+      return true;
+    }
+    const OFF_GROUND = new Set(['drag', 'thrown']);
+    function begin(env, kind, actor, target) {
+      const type = 'x_' + kind, u = U(env);
+      for (const p of [actor, target]) { p.inCloud = false; if (p.state === 'sleep' || p.state === 'yawn') p.enter('idle', 0.3); }
+      scene = makeScene(env, type, actor, target);
+      scene.act = true; scene.kind = kind; scene.gap = AGAP[kind] || 40;
+      const gap = scene.gap * u;
+      if (OFF_GROUND.has(actor.state) || OFF_GROUND.has(target.state)) { scene.phase = 'wait'; return true; }
+      if (actor.grounded() && target.grounded() && sameSurface(actor, target)) {
+        const dx = target.x - actor.x;
+        if (Math.abs(dx) <= gap * 1.3) { scene.phase = 'run'; return true; }
+        if (Math.abs(dx) < 560 * u) { // run over to them
+          actor.chaseX = target.x - sign(dx) * gap; actor.dir = sign(dx); actor.enter('run', 12);
+          target.dir = -actor.dir; target.enter('look', LONG);
+          scene.phase = 'approach';
+          return true;
+        }
+      }
+      if (target.grounded() && hopTo(env, actor, target, scene.gap)) { scene.phase = 'arrive'; return true; }
+      if (actor.grounded() && hopTo(env, target, actor, scene.gap)) { scene.phase = 'arrive'; return true; }
+      if (actor.grounded() || target.grounded()) { scene.phase = 'run'; return true; } // no room to stand together: do it from here
+      scene.phase = 'wait';
+      return true;
+    }
+
     function feed(env) {
       if (!scene || !(scene.type === 'argue' || scene.type === 'annoy')) return false;
       const { a, b } = scene;
@@ -1337,7 +1484,30 @@
         if (!pair[1].grounded() || !sameSurface(pair[0], pair[1])) return hopOver(env, kind, pair[0], pair[1]) || (pair[1].grounded() && hopOver(env, kind, pair[1], pair[0]));
         return start(env, kind, pair[0], pair[1]);
       },
+      // a clicked friend action: `actor` goes over to `target` and does it (kiss, hug, poke, annoy, icecream…)
+      act(env, kind, actor, target) {
+        if (!ACT[kind] || !actor || !target || actor === target || actor.gone || target.gone) return false;
+        // ice cream for two pets that are fighting = the usual make-up scene
+        if (kind === 'icecream' && scene && (scene.type === 'argue' || scene.type === 'annoy') && [scene.a, scene.b].includes(actor) && [scene.a, scene.b].includes(target)) return feed(env);
+        if (scene) end(env);
+        return begin(env, kind, actor, target);
+      },
+      treat(env, pet) {
+        if (!pet || pet.gone || OFF_GROUND.has(pet.state)) return false;
+        if (scene && (scene.type === 'argue' || scene.type === 'annoy') && (scene.a === pet || scene.b === pet)) return feed(env);
+        if (scene) end(env);
+        if (pet.state === 'sleep' || pet.state === 'yawn') pet.enter('idle', 0.3);
+        scene = makeScene(env, 'x_treat', pet, pet);
+        scene.act = true; scene.kind = 'treat';
+        scene.phase = pet.grounded() ? 'run' : 'wait';
+        return true;
+      },
       tick(env, dt) {
+        for (let i = floats.length - 1; i >= 0; i--) {
+          const f = floats[i]; f.t += dt;
+          if (f.to) { const k = Math.min(1, f.t / f.dur), u = U(env); f.x = f.from.x + (f.to.x - f.from.x) * k; f.y = (f.from.y + (f.to.y - f.from.y) * k) - 40 * u - Math.sin(k * Math.PI) * 34 * u; }
+          if (f.t > f.dur + 0.45) floats.splice(i, 1);
+        }
         const off = env.settings.drama === false || env.settings.chatty === 'silent';
         // falling ice cream cones
         for (const c of cones) {
@@ -1373,20 +1543,26 @@
           return;
         }
         const s = scene, { a, b } = s;
+        if (s.phase === 'wait') { // a clicked action while a pet is mid-climb / mid-air: go as soon as one lands
+          s.t += dt;
+          if (!env.pets.includes(a) || !env.pets.includes(b) || a.gone || b.gone) { end(env); return; }
+          if (a.grounded() || b.grounded() || s.t > 5) { scene = null; begin(env, s.kind, a, b); }
+          return;
+        }
         // someone grabbed, threw or removed a pet: the scene just stops
         if (!env.pets.includes(a) || !env.pets.includes(b) || a.gone || b.gone || BROKEN.has(a.state) || BROKEN.has(b.state)) { end(env); return; }
         if (s.phase === 'arrive') { // waiting for the hopping pet to land next to its buddy
           s.t += dt;
-          if (b.grounded() && sameSurface(a, b)) { s.phase = 'run'; s.t = 0; b.dir = sign(a.x - b.x); }
+          if (a.grounded() && b.grounded() && sameSurface(a, b)) { s.phase = 'run'; s.t = 0; face(a, b); }
           else if (s.t > 4) { end(env); return; }
           else return;
         }
         if ((a.state === 'fall' || b.state === 'fall') && s.phase === 'run') { end(env); return; }
         if (s.phase === 'approach') {
           s.t += dt;
-          const gap = (GAP[s.type] || 40) * U(env);
+          const gap = (s.gap || GAP[s.type] || 40) * U(env);
           if (Math.abs(a.x - b.x) <= gap * 1.3) { a.chaseX = null; b.chaseX = null; s.phase = 'run'; s.t = 0; }
-          else if (s.t > 7 || !sameSurface(a, b)) { end(env); return; }
+          else if (s.t > (s.act ? 10 : 7) || !sameSurface(a, b)) { if (s.act && sameSurface(a, b)) { a.chaseX = null; s.phase = 'run'; s.t = 0; } else { end(env); return; } }
           else return;
         }
         s.t += dt;
@@ -1414,6 +1590,7 @@
         if (fight) drawCloud(ctx, env, u, fight);
         for (const c of cones) drawCone(ctx, c.x, c.y, u);
         if (button) drawButton(ctx, u, button);
+        for (const f of floats) drawFloat(ctx, u, f);
       },
       hit(x, y) { return !!button && button.w > 0 && x > button.x0 && x < button.x0 + button.w && y > button.y && y < button.y + button.h; },
       click(x, y, env) { if (!this.hit(x, y)) return false; return feed(env); },
@@ -1476,6 +1653,19 @@
     ctx.beginPath(); ctx.arc(0, -9 * u, 4.6 * u, 0, 7); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#ff4d6d';
     ctx.beginPath(); ctx.arc(1 * u, -14.2 * u, 1.8 * u, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFloat(ctx, u, f) {
+    const k = Math.min(1, f.t / f.dur), out = Math.max(0, f.t - f.dur) / 0.45;
+    const size = (f.burst ? 18 + 14 * Math.sin(Math.min(1, k * 1.4) * Math.PI * 0.5) : 18 + (k >= 1 ? 8 * (1 - out) : 0)) * u;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 1 - out);
+    ctx.font = `${size}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.translate(f.x, f.y - (f.burst ? k * 10 * u : 0));
+    if (!f.burst) ctx.rotate(Math.sin(f.t * 9) * 0.18);
+    ctx.fillText(f.text, 0, 0);
     ctx.restore();
   }
 

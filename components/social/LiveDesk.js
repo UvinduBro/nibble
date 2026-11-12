@@ -177,6 +177,8 @@ export default function LiveDesk({ social, state }) {
         return;
       }
       if (!mine) return;
+      // their pet comes over to yours and acts it out
+      if (from && s.act && s.act(m.kind, from, mine)) { pops.current.push({ text: EMOTES[m.kind] || '✨', x: mine.x, y: mine.y - 70, t: 0, max: 1.6, size: 26 }); return; }
       {
         pops.current.push({ text: EMOTES[m.kind] || '✨', x: mine.x, y: mine.y - 70, t: 0, max: 1.6, size: 26 });
         if (from) {
@@ -195,6 +197,20 @@ export default function LiveDesk({ social, state }) {
         else mine.enter('happy', 1.6);
         if (m.kind === 'hug' || m.kind === 'kiss' || m.kind === 'heart') for (let i = 0; i < 5; i++) s.emit('heart', mine.x + (i - 2) * 6, mine.y - 40, { delay: i * 0.12 });
       }
+    });
+  }, [social]);
+
+  // you sent something: your pet runs over to theirs and does it
+  useEffect(() => {
+    if (!social || !social.onSent) return;
+    return social.onSent((m) => {
+      const s = stage.current;
+      if (!s || !m || !m.to || m.to === 'all' || m.kind === 'say' || m.kind === 'whisper' || m.kind === 'visit') return;
+      const mine = s.env.pets.find((p) => p.mine);
+      if (!mine) return;
+      if (!s.env.pets.some((q) => q.friend && q.friend.uid === m.to)) visit(m.to, 60);
+      const to = petOf(m.to);
+      if (to && s.act(m.kind, mine, to)) pops.current.push({ text: EMOTES[m.kind] || '✨', x: mine.x, y: mine.y - 70, t: 0, max: 1.6, size: 26 });
     });
   }, [social]);
 

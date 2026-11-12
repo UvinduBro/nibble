@@ -477,6 +477,13 @@
     });
     api.onCommand((cmd) => {
       if (cmd.type === 'drama') { if (drama && !drama.force(env, cmd.kind)) { const p = env.pets[0]; if (p) p.say('I need a buddy nearby for that! 🫂', 3); } return; }
+      if (cmd.type === 'treat') { const p = env.pets[cmd.pet || 0]; if (drama && p) drama.treat(env, p); return; }
+      if (cmd.type === 'act') { // pet menu → an action between your pet and one of your other pets
+        const a = env.pets[cmd.pet || 0], b = env.pets.find((q, i) => q !== a && i === cmd.with) || env.pets.find((q) => q !== a);
+        if (drama && a && b && drama.act(env, cmd.kind, a, b)) return;
+        if (a) a.say('I need a buddy nearby for that! 🫂', 3);
+        return;
+      }
       if (cmd.type === 'compose') { const p = env.pets[cmd.pet || 0]; if (p && !p.friend) social.openComposer(p); return; }
       if (cmd.type === 'whisper') { const p = env.pets.find((q) => q.friend && q.friend.uid === cmd.uid); if (p) social.openComposer(p); return; }
       if (cmd.type === 'bring') { social.bring(cmd.uid); return; }
@@ -525,7 +532,7 @@
     const pops = [];
     const visitors = new Map(); // uid -> until: friends' pets that stay even when the friend is offline
     const sentHome = new Map(); // uid -> until: online friends you sent home for a while
-    const SAY = { wave: 'hi there! 👋', hug: 'cuddle time! 🤗', kiss: 'mwah! 😘', heart: '❤️ ❤️ ❤️', poke: 'poke! 👉', highfive: 'high five! 🙌', tickle: 'tickle tickle 🤭', cheer: 'you got this! 🎉', snack: 'brought you a cookie 🍪', dance: "let's dance! 🎶" };
+    const SAY = { wave: 'hi there! 👋', hug: 'cuddle time! 🤗', kiss: 'mwah! 😘', heart: '❤️ ❤️ ❤️', poke: 'poke! 👉', highfive: 'high five! 🙌', tickle: 'tickle tickle 🤭', cheer: 'you got this! 🎉', snack: 'brought you a cookie 🍪', dance: "let's dance! 🎶", annoy: 'boop! 😜', icecream: 'ice cream for you! 🍦' };
     const send = (a) => api && api.socialAction(a);
     const dnd = () => !!(st.prefs && st.prefs.dnd);
     const showFriends = () => env.settings.showFriends !== false && !dnd();
@@ -691,7 +698,10 @@
     function sentEcho(m) {
       const me = mine();
       if (!me || !me.grounded()) return;
-      const EMO = { wave: '👋', hug: '🤗', kiss: '😘', heart: '❤️', poke: '👉', highfive: '🙌', tickle: '🤭', cheer: '🎉', snack: '🍪', dance: '🎶', visit: '🏠' };
+      const EMO = { wave: '👋', hug: '🤗', kiss: '😘', heart: '❤️', poke: '👉', highfive: '🙌', tickle: '🤭', cheer: '🎉', snack: '🍪', dance: '🎶', visit: '🏠', annoy: '😜', icecream: '🍦' };
+      // your pet goes over to theirs and acts it out (their pet pops over for a minute if it isn't here)
+      const tgt = m.to && m.to !== 'all' && drama ? petOf(m.to, 60) : null;
+      if (tgt && drama.act(env, m.kind, me, tgt)) { popOn(me, EMO[m.kind] || '✨'); return; }
       const to = env.pets.find((q) => q.friend && q.friend.uid === m.to);
       popOn(me, EMO[m.kind] || '✨');
       me.bubble = null;
@@ -724,11 +734,13 @@
         return;
       }
       if (!me) return;
-      const EM = { wave: '👋', hug: '🤗', kiss: '😘', heart: '❤️', poke: '👉', highfive: '🙌', tickle: '🤭', cheer: '🎉', snack: '🍪', dance: '🎶' };
+      const EM = { wave: '👋', hug: '🤗', kiss: '😘', heart: '❤️', poke: '👉', highfive: '🙌', tickle: '🤭', cheer: '🎉', snack: '🍪', dance: '🎶', annoy: '😜', icecream: '🍦' };
       popOn(me, EM[m.kind] || '✨');
+      // their pet comes over to yours and does it: kisses, cuddles, teases, shares ice cream…
+      if (from && drama && drama.act(env, m.kind, from, me)) return;
       if (from) { popOn(from, EM[m.kind] || '✨'); from.bubble = null; from.say(SAY[m.kind] || 'hi!', 3.5); }
       me.bubble = null;
-      const what = { wave: 'waves at you', hug: 'gave you a big cuddle', kiss: 'sent you a smooch', heart: 'sent you a heart', poke: 'poked you!', highfive: 'wants a high five', tickle: 'is tickling you', cheer: 'is cheering you on', snack: 'shared a snack', dance: 'wants to dance' }[m.kind] || 'says hi';
+      const what = { wave: 'waves at you', hug: 'gave you a big cuddle', kiss: 'sent you a smooch', heart: 'sent you a heart', poke: 'poked you!', highfive: 'wants a high five', tickle: 'is tickling you', cheer: 'is cheering you on', snack: 'shared a snack', dance: 'wants to dance', annoy: 'is teasing you 😜', icecream: 'shared ice cream with you 🍦' }[m.kind] || 'says hi';
       if ((m.kind === 'hug' || m.kind === 'kiss') && from && me.grounded()) {
         // the friend's pet pops over to snuggle up next to yours (or drops in right beside it)
         const u = 1.1 * (env.settings.size || 1), side = from.x < me.x ? -1 : 1;
@@ -750,6 +762,8 @@
       if (!p.friend) return;
       send({ type: 'send', to: p.friend.uid, kind: 'poke', text: '' });
       popOn(p, '👉');
+      const me = mine();
+      if (drama && me && drama.act(env, 'poke', me, p)) return;
       p.enter('dizzy', 1);
       sound('pop');
     }
