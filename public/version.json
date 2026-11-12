@@ -1,9 +1,10 @@
 {
-  "version": "2.0.4",
+  "version": "2.0.5",
   "date": "2026-11-12",
   "notes": [
-    "New: admin panel (web) to see who's signed in, manage users and send announcements",
-    "Announcements reach everyone — a banner in the app, and a Windows notification on the desktop",
-    "Tidy-ups under the hood"
+    "Fix: customization (hats, glasses, colours, makeup) now shows on your desktop pets and your friends'",
+    "Fix: pokes, waves and cuddles no longer get dropped on the way in",
+    "Fix: announcements now pop up as a Windows notification even when the hub is closed",
+    "Updating refreshes the pet engine, so reinstall/update on every PC to get these"
   ]
 }
