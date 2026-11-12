@@ -90,7 +90,7 @@
 
     lineCat() {
       const c = 'char_' + this.skinKey;
-      return window.NibbleLines.L[c] && chance(0.55) ? c : 'random';
+      return window.NibbleLines.L[c] && chance(0.3) ? c : 'random';
     }
 
     // ---------- helpers ----------
@@ -128,7 +128,7 @@
         const gap = kind === 'rand' ? c.gap : kind === 'app' ? Math.max(20, c.gap) : 3;
         if (env.time - env.lastSpeech < gap) return false;
       }
-      const text = window.NibbleLines.pick(cat, { name: this.name, ...vars });
+      const text = window.NibbleLines.pick(cat, { name: this.name, ...vars }, env.about);
       if (!text) return false;
       this.say(text);
       env.lastSpeech = env.time;

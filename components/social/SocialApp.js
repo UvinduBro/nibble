@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocial } from './useSocial';
 import { AuthScreen, Onboard, CharacterGrid } from './Auth';
 import LiveDesk from './LiveDesk';
-import PetFigure from '../PetFigure';
+import PetFigure, { useNibble } from '../PetFigure';
 import { byKey, CHARACTERS } from '../../lib/characters';
 import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess } from '../../lib/social/social';
+import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
 
 // announcement / notice banner. level: info | update | warn | party | need
 const BANNER_ICON = { info: '📣', update: '⬆️', warn: '⚠️', party: '🎉', need: '⬆️' };
@@ -32,7 +33,7 @@ const ago = (t) => {
   return Math.floor(s / 86400) + 'd ago';
 };
 const NAV = [
-  ['home', 'Home', '⌂'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['pets', 'Pets', '✦'], ['settings', 'Settings', '⚙'],
+  ['home', 'Home', '⌂'], ['profile', 'Profile', '☻'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['pets', 'Pets', '✦'], ['settings', 'Settings', '⚙'],
 ];
 
 function Avatar({ skin, size = 44, mood = 'idle' }) {
@@ -408,12 +409,116 @@ function Settings({ social, state, desktop, local, toast }) {
   );
 }
 
+// ---------- Profile: "About me" shapes what your own pet thinks about ----------
+const sameAbout = (a, b) => JSON.stringify(cleanAbout(a || {})) === JSON.stringify(cleanAbout(b || {}));
+
+function Profile({ social, state, desktop, local, toast }) {
+  const engine = useNibble();
+  const saved = state.about || {};
+  const [nick, setNick] = useState(saved.nick || '');
+  const [role, setRole] = useState(saved.role || '');
+  const [ints, setInts] = useState(saved.interests || []);
+  const [focus, setFocus] = useState(saved.focus || '');
+  const [busy, setBusy] = useState(false);
+  const [seed, setSeed] = useState(0);
+  // the saved About me can arrive a moment after the tab opens — fill the form once when it does
+  const filled = useRef(!!state.about);
+  useEffect(() => {
+    if (filled.current || !state.about) return;
+    filled.current = true;
+    setNick(state.about.nick || ''); setRole(state.about.role || ''); setInts(state.about.interests || []); setFocus(state.about.focus || '');
+  }, [state.about]);
+
+  const about = { nick, role, interests: ints, focus };
+  const dirty = !sameAbout(about, saved);
+  const samples = useMemo(
+    () => (engine && window.NibbleLines && window.NibbleLines.sample ? window.NibbleLines.sample(cleanAbout(about), 3) : []),
+    [engine, seed, nick, role, ints.join(','), focus] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const toggle = (k) => setInts(ints.includes(k) ? ints.filter((x) => x !== k) : ints.length >= MAX_INTERESTS ? ints : [...ints, k]);
+  const save = async (next = about, msg) => {
+    setBusy(true);
+    try {
+      const r = await social.setAbout(next);
+      toast({ text: msg || (r === 'local' ? 'Saved on this device — sync turns on once the latest rules are published' : 'Saved — your pet has new things to think about ✨') });
+    } catch (e) { toast({ err: true, text: niceError(e) }); }
+    setBusy(false);
+  };
+  const clear = () => { setNick(''); setRole(''); setInts([]); setFocus(''); save({}, 'About me cleared'); };
+  const roleInfo = ROLES.find(([k]) => k === saved.role);
+  const oldDesk = desktop && local && local.version && verLess(local.version, '2.0.7');
+
+  return (
+    <div className="sa-page">
+      <h2>Profile</h2>
+      <div className="sa-card sa-prof">
+        <div className="sa-prof-pet"><PetFigure skin={state.profile.skin} mood="happy" acc={state.profile.acc} tint={state.profile.tint} makeup={state.profile.makeup} w={120} h={116} size={1.05} /></div>
+        <div className="sa-prof-main">
+          <b>{saved.nick || '@' + state.profile.username}</b>
+          <small>@{state.profile.username}{state.profile.petName ? ` · pet: ${state.profile.petName}` : ''}</small>
+          <div className="sa-prof-tags">
+            {roleInfo && roleInfo[0] !== 'other' && <span>{roleInfo[2]} {roleInfo[1]}</span>}
+            {(saved.interests || []).map((k) => { const i = INTERESTS.find(([x]) => x === k); return i ? <span key={k}>{i[2]} {i[1]}</span> : null; })}
+            {saved.focus && <span>🎯 {saved.focus}</span>}
+            {!state.about && <span className="dim">Nothing about you yet</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className="sa-card">
+        <h3>💭 About me <small>🔒 private · only you can see this</small></h3>
+        <p className="sa-sub">Tell your pet a little about you. Its thoughts will be about your work, your hobbies and what you're up to, so they don't keep repeating random jokes.</p>
+
+        <label className="sa-field"><span>What should your pet call you?</span>
+          <input value={nick} maxLength={20} onChange={(e) => setNick(e.target.value)} placeholder={state.profile.username} />
+        </label>
+
+        <div className="sa-field"><span>What do you do?</span>
+          <div className="sa-chips">
+            {ROLES.map(([k, l, i]) => <button key={k} type="button" className={role === k ? 'on' : ''} onClick={() => setRole(role === k ? '' : k)}>{i} {l}</button>)}
+          </div>
+        </div>
+
+        <div className="sa-field"><span>What are you into? <small>{ints.length}/{MAX_INTERESTS}</small></span>
+          <div className="sa-chips">
+            {INTERESTS.map(([k, l, i]) => <button key={k} type="button" className={ints.includes(k) ? 'on' : ''} disabled={!ints.includes(k) && ints.length >= MAX_INTERESTS} onClick={() => toggle(k)}>{i} {l}</button>)}
+          </div>
+        </div>
+
+        <label className="sa-field"><span>What are you working on right now? <small>optional · {focus.length}/40</small></span>
+          <input value={focus} maxLength={40} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. my final project, a café logo, learning guitar" />
+        </label>
+
+        <div className="sa-think">
+          <div className="sa-think-h"><span>Your pet might think…</span><button type="button" onClick={() => setSeed(seed + 1)} title="Show other examples">🔀 Shuffle</button></div>
+          {samples.length
+            ? samples.map((t) => <div key={t} className="sa-thought">{t}</div>)
+            : <p className="sa-empty">{engine ? 'Pick a few things above to see examples.' : 'Loading…'}</p>}
+        </div>
+
+        <div className="sa-inline" style={{ marginBottom: 0 }}>
+          <button className="btn" disabled={!dirty || busy} onClick={() => save()}>{busy ? 'Saving…' : dirty ? 'Save' : 'Saved ✓'}</button>
+          {state.about && <button className="btn small ghost" disabled={busy} onClick={clear}>Clear all</button>}
+        </div>
+        {oldDesk && <p className="sa-sub" style={{ marginTop: 12 }}>⬆️ Your desktop pets pick up these thoughts from <b>Nibble 2.0.7</b> — update from the tray menu (you're on v{local.version}).</p>}
+      </div>
+    </div>
+  );
+}
+
 function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith }) {
   const online = state.friends.filter((f) => f.online);
   const last = state.messages.filter((m) => !m.mine).slice(-3).reverse();
   return (
     <div className="sa-page">
-      <h2>Hey @{state.profile.username} 👋</h2>
+      <h2>Hey {(state.about && state.about.nick) || '@' + state.profile.username} 👋</h2>
+      {!state.about && (
+        <div className="sa-card sa-tip">
+          <span className="sa-tip-ico">💭</span>
+          <div><b>New: tell your pet about you</b><p className="sa-sub">What you do, what you're into and what you're working on — your pet's thoughts will fit your day instead of repeating random jokes.</p></div>
+          <button className="btn small" onClick={() => go('profile')}>Set up</button>
+        </div>
+      )}
       {!desktop && <LiveDesk social={social} state={state} />}
       {desktop && (
         <div className="sa-card sa-hero">
@@ -457,7 +562,7 @@ function useDesktopBridge(desktop, social, state) {
   useEffect(() => {
     if (!desktop) return;
     const payload = state.profile && state.user ? {
-      me: { uid: state.user.uid, username: state.profile.username, skin: state.profile.skin, petName: state.profile.petName },
+      me: { uid: state.user.uid, username: state.profile.username, skin: state.profile.skin, petName: state.profile.petName, about: state.about || null },
       prefs: state.prefs,
       friends: state.friends.map((f) => ({ uid: f.uid, username: f.username, skin: f.skin, petName: f.petName, online: f.online, typing: f.typing, dnd: f.dnd, status: f.status })),
       requests: state.incoming.length,
@@ -555,6 +660,7 @@ export default function SocialApp({ mode = 'web' }) {
     body = (
       <>
         {tab === 'home' && <Home {...props} />}
+        {tab === 'profile' && <Profile {...props} />}
         {tab === 'friends' && <Friends {...props} presetAdd={presetAdd} />}
         {tab === 'messages' && <Messages {...props} />}
         {tab === 'pets' && <Pets {...props} />}

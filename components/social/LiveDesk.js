@@ -95,6 +95,7 @@ export default function LiveDesk({ social, state }) {
     const s = stage.current;
     if (!s || !state.profile) return;
     const env = s.env;
+    env.about = state.about || null; // "About me" shapes what your pet thinks about
     let mine = env.pets.find((p) => p.mine);
     if (!mine) {
       mine = s.addPet(state.profile.skin || 'mint', state.profile.petName || 'Nibble', { mine: true });
@@ -117,7 +118,7 @@ export default function LiveDesk({ social, state }) {
       p.skinKey = f.skin;
       p.acc = f.acc || []; p.tint = f.tint || ''; p.makeup = f.makeup || '';
     }
-  }, [ready, state.profile, state.friends, state.prefs, vtick]);
+  }, [ready, state.profile, state.friends, state.prefs, state.about, vtick]);
 
   // incoming messages → bubbles & reactions
   useEffect(() => {

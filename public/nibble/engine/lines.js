@@ -1,35 +1,79 @@
 // Everything Nibble can say. Edit away – {name}, {friend}, {mins} get filled in.
 (function () {
   const L = {
-    greetMorning: ['Good morning! ☀️ Let\'s make something cool.', 'Morning! Coffee first, pixels later ☕', 'Rise and design ✨'],
+    greetMorning: ['Good morning! ☀️ Let\'s make something cool.', 'Morning! Coffee first, greatness later ☕', 'Rise and shine ✨'],
     greetAfternoon: ['Afternoon! How\'s the grind? 💪', 'Hey hey! Back to it?', 'Afternoon vibes engaged 😎'],
-    greetEvening: ['Evening! Night-mode activated 🌙', 'Hey! Late session, huh?', 'Golden hour coding 🌆'],
+    greetEvening: ['Evening! Night-mode activated 🌙', 'Hey! Late session, huh?', 'Golden hour vibes 🌆'],
     greetNight: ['It\'s late… sleep is a feature, not a bug 🌙', 'Burning the midnight oil? I\'ll keep you company.'],
 
+    // everyday thoughts for everyone. Job-specific jokes live in the role_* packs below,
+    // and the "About me" profile mixes in role / interest / current-focus lines.
     random: [
-      'Have you tried turning it off and on again?',
-      'There\'s no place like 127.0.0.1 🏠',
       'I\'m not lazy, I\'m in power-saving mode.',
       '404: motivation not found… jk, let\'s go!',
-      'Commit early, commit often.',
-      'Bug or feature? 🤔',
-      'Pixel-perfect vibes only.',
-      'Kerning matters. Fight me.',
-      'Ctrl+Z is my love language.',
       'Just vibing on your windows.',
       'Could I get a snack? A byte, maybe? 🍪',
-      'Dark mode > light mode. Always.',
-      'Lorem ipsum dolor sit cat.',
-      'Have you backed up today? 💾',
       'Fun fact: I\'m 4 bits of pure joy.',
-      'git push --force… just kidding. Never.',
-      'One more pixel to the left. Perfect.',
-      'Make the logo bigger 😏',
       'Is it Friday yet?',
-      'I believe in you! (and in semicolons)',
       'Hydrate or diedrate 💧',
       '*stares at your cursor*',
+      'Ctrl+Z is my love language.',
+      'Have you backed up today? 💾',
+      'Dark mode > light mode. Always.',
+      'Posture check! 🪑',
+      'Did you eat yet? 🍜',
+      'Tiny break? Your shoulders say yes 🙆',
+      'You\'re doing better than you think 💛',
+      'I counted your tabs. We need to talk 👀',
+      'Today\'s mood: chaotic good ✨',
+      'Plot twist: you\'re the main character 🎬',
+      'I\'d high-five you, but I\'m 2D 🙌',
+      'One task at a time. You got this.',
+      'Small progress is still progress 🌱',
+      'Brb, chasing your cursor 🏃',
+      'Nice wallpaper, by the way 🖼️',
+      'If you need me, I\'ll be on this window.',
+      'Blink twice if you need a break 👀',
+      'Friendly reminder: you\'re awesome 💪',
+      'Fresh air break? 🌤️',
+      'I\'m rooting for you today 📣',
     ],
+
+    // ---- "About me": what you do ----
+    role_designer: ['Make the logo bigger 😏', 'Kerning matters. Fight me.', 'Pixel-perfect vibes only.', 'One more pixel to the left. Perfect.', 'Lorem ipsum dolor sit cat.', 'Is that final_final_v3? 😅', 'Client said "make it pop" again? ✨', 'That colour palette slaps 🎨', 'Grid on. Chaos off.', 'Fonts: max two. Okay… three.', 'Your eye for detail is elite 👀', 'Save. Then save again. 💾'],
+    role_developer: ['Have you tried turning it off and on again?', 'There\'s no place like 127.0.0.1 🏠', 'Commit early, commit often.', 'Bug or feature? 🤔', 'git push --force… just kidding. Never.', 'I believe in you! (and in semicolons)', 'It compiled first try?! Suspicious 🤨', 'Read the error message. Slowly. 🔍', 'Rubber duck mode: activated 🦆', 'Naming things is the real boss fight.', 'Have you written a test today? 🧪', 'Works on my machine™'],
+    role_student: ['Study 25, break 5 — deal? ⏲️', 'Notes first, panic later 📝', 'Future you will thank present you 🎓', 'One page at a time 📖', 'Highlighter count: too many? 🖍️', 'Deadline brain? I\'m here for moral support.', 'Group project? I volunteer as the mascot.', 'Water between chapters! 💧', 'You\'re smarter than you feel right now 🧠', 'Quiz me! …actually don\'t, I\'m a pet 😅'],
+    role_marketer: ['May your CTR be high 📈', 'A/B test me, I dare you', 'Content calendar looking full 📅', 'That caption needs one more emoji ✨', 'Hook them in the first 3 seconds ⏱️', 'Engagement is up, I can feel it 📊', 'Trend alert? 👀', 'Your brand voice is on point 🎯', 'May your ROAS be high 📈', 'Viral energy only 🚀'],
+    role_writer: ['First drafts are allowed to be messy ✍️', 'Word count check? 📝', 'Kill your darlings… gently 💔', 'That sentence? Chef\'s kiss 🤌', 'Show, don\'t tell 👀', 'Writer\'s block? Let\'s take a walk.', 'Read it out loud. Trust me.', 'Oxford comma: yes, no, maybe?'],
+    role_creator: ['Hit record! 🎥', 'Thumbnail face: 😮', 'Lighting check! 💡', 'B-roll is the secret sauce 🎬', 'Post it. Perfection is a trap.', 'Your audience is lucky 💛', 'Editing timeline looking spicy 🌶️', 'Don\'t forget to reply to comments 💬'],
+    role_office: ['Inbox zero? Legendary 📥', 'Another meeting that could\'ve been an email? 📧', 'Spreadsheet wizardry detected 📊', 'Coffee + to-do list = unstoppable ☕', 'Log off on time today, okay? 🌇', 'Calendar Tetris champion 🗓️', 'Reply-all? Think twice 😅', 'You\'re the glue holding this place together 🧩'],
+    role_teacher: ['Grading pile getting smaller? 📚', 'You\'re shaping future geniuses 🍎', 'Lesson plan: nailed it ✅', 'Teachers need snacks too 🍪', 'Deep breath. Recess is coming 🔔'],
+    role_health: ['Heroes need water breaks too 💧', 'Take care of you, too 💚', 'Shift survival kit: snacks + patience 🍫', 'Sit down for a sec, you\'ve earned it 🪑', 'The world\'s lucky to have you 🩺'],
+
+    // ---- "About me": what you're into ----
+    int_music: ['What\'s on your playlist today? 🎧', 'Is this a dance break? 🕺', 'Lo-fi and focus? Perfect combo', 'Hum it, I\'ll pretend I know it 🎶', 'Volume up, worries down 🔊'],
+    int_gaming: ['One more match? …okay, one more 🎮', 'GG! 🏆', 'Respawn after this break? 🔁', 'Save point reached 💾', 'Side quest: drink water 💧', 'Your reflexes are elite, I can tell ⚡'],
+    int_coffee: ['Coffee refill time? ☕', 'Espresso yourself ☕', 'You and coffee: power couple 💑', 'Decaf? I don\'t know her.', 'Smells like a second cup ☕'],
+    int_tea: ['Tea time? 🍵', 'A cuppa fixes everything 🍵', 'Kettle on? I\'ll wait here.', 'Ceylon tea supremacy 🍃', 'Milk tea or plain tea? Important question.'],
+    int_fitness: ['Stretch break! 🙆', 'Hydration is gains 💧', 'Leg day or rest day? 💪', 'Ten squats while that loads? 🏋️', 'Walk it out, champ 🚶'],
+    int_anime: ['Main character energy ✨', 'This feels like an opening theme moment 🎶', 'Ganbatte! 🌸', 'Watching anything new this season? 📺', 'Power of friendship, activate! 💪'],
+    int_food: ['Snack o\'clock? 🍪', 'What\'s for dinner? 🤤', 'I can smell kottu… or is it my imagination? 🍛', 'Food is fuel. Also joy.', 'Lunch break counts as self-care 🥪'],
+    int_travel: ['Dreaming of your next trip? ✈️', 'Window seat or aisle? 🪟', 'Passport, snacks, playlist ✅', 'Somewhere a beach has your name on it 🏝️'],
+    int_reading: ['Just one more chapter? 📖', 'Reading anything good lately? 📚', 'Bookmark saved ✅', 'Plot twist incoming 👀'],
+    int_movies: ['Movie night later? 🍿', 'No spoilers please 🙈', 'Rewatch or something new? 📺', 'This scene needs a soundtrack 🎬'],
+    int_art: ['Doodle break? ✏️', 'Every sketch counts 🖌️', 'Colours make everything better 🎨', 'Your style is so you ✨'],
+    int_pets: ['Give your real pet a pat for me 🐾', 'I\'m the digital pet, they\'re the real boss 🐶', 'Pet tax: one photo, please 📸'],
+    int_sports: ['Score check? 🏏', 'Big match today? ⚽', 'Cheering from your desktop! 📣', 'Practice makes progress 🏸'],
+    int_fashion: ['Outfit check: 10/10 👗', 'Accessories make the look ✨ (I would know)', 'Fit of the day? 📸'],
+    int_photo: ['Golden hour soon? 📷', 'Rule of thirds, always 📐', 'That shot is frame-worthy 🖼️'],
+    int_nature: ['Touch-some-grass break? 🌿', 'Plants need water too 🪴', 'Sky looks nice today? ☁️', 'Fresh air = fresh ideas 🌤️'],
+
+    // ---- "About me": what you're working on right now ({focus}) and what to call you ({nick}) ----
+    focus: ['How\'s {focus} going? 👀', 'Small steps on {focus} still count 🌱', 'You\'re going to nail {focus} 💪', '{focus}: one task at a time ✅', 'I believe in {focus}. And in you.', 'Break from {focus}? Then back at it 🔁', 'Proud of you for working on {focus} 💛'],
+    greetNick: ['Hey {nick}! 👋', 'There you are, {nick} ✨', '{nick}! Ready when you are 💪', 'Hi {nick}, let\'s have a good one 🌈'],
+    backNick: ['Welcome back, {nick}! 👋', '{nick}! I missed you 💛', 'Oh hi {nick}, I kept your desktop warm.'],
+    cheerNick: ['You got this, {nick} 💪', '{nick}, you\'re doing great 💛', 'Go {nick}, go! 📣'],
+    nudge: ['Tell me about you in Nibble Hub → Profile and I\'ll think more like you 💭'],
     petted: ['hehe 💕', 'more scritches!', 'purr.exe running…', '♥', 'eee!', 'you\'re my favourite human'],
     thrown: ['wheee!', 'WHEEEEE!', 'I can fly!', 'aaaaa!', 'to infinity!'],
     landHard: ['oof.', 'I\'m okay!', '10/10 landing', 'ow… my pixels', 'stuck the landing!'],
@@ -127,13 +171,85 @@
     return { cat: 'other', mood: null };
   }
 
-  function pick(cat, vars = {}) {
+  // ---- no-repeat picking ----
+  // Each category is a shuffled deck: every line comes up once before any repeats, and the
+  // last few things said anywhere are skipped, so the pet doesn't parrot itself.
+  const decks = {};
+  const recent = [];
+  function draw(cat) {
     const arr = L[cat];
     if (!arr || !arr.length) return null;
-    let s = arr[Math.floor(Math.random() * arr.length)];
-    for (const [k, v] of Object.entries(vars)) s = s.split('{' + k + '}').join(v);
-    return s;
+    for (let tries = 0; tries < 4; tries++) {
+      let d = decks[cat];
+      if (!d || !d.length) {
+        d = decks[cat] = arr.map((_, i) => i);
+        for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+      }
+      const s = arr[d.pop()];
+      if (s && (!recent.includes(s) || arr.length <= 2 || tries === 3)) {
+        recent.push(s);
+        if (recent.length > 14) recent.shift();
+        return s;
+      }
+    }
+    return null;
   }
 
-  window.NibbleLines = { L, pick, classifyApp };
+  const cap = (t) => (t && /^[a-z]/.test(t) ? t[0].toUpperCase() + t.slice(1) : t);
+  // the user writes "my final project"; the pet should say "your final project"
+  const yourify = (t) => String(t).trim().replace(/^(my|mine)\b/i, 'your').replace(/^i'm\s+/i, '');
+
+  // what "a random thought" means for this person, based on their About me
+  let nudged = false;
+  function thoughtCat(about) {
+    const a = about || {};
+    const roll = Math.random();
+    const role = a.role && L['role_' + a.role] ? 'role_' + a.role : null;
+    const ints = (Array.isArray(a.interests) ? a.interests : []).filter((k) => L['int_' + k]);
+    const hasAny = role || ints.length || a.focus || a.nick;
+    if (!hasAny) {
+      if (!nudged && roll < 0.06) { nudged = true; return 'nudge'; }
+      return 'random';
+    }
+    if (a.focus && roll < 0.16) return 'focus';
+    if (a.nick && roll < 0.22) return 'cheerNick';
+    if (role && roll < 0.47) return role;
+    if (ints.length && roll < 0.74) return 'int_' + ints[Math.floor(Math.random() * ints.length)];
+    return 'random';
+  }
+
+  // pick(cat, vars, about) — about = { nick, role, interests[], focus } from the profile (optional)
+  function pick(cat, vars = {}, about) {
+    const a = about || {};
+    let c = cat;
+    if (c === 'random') c = thoughtCat(a);
+    else if (a.nick && /^greet/.test(c) && Math.random() < 0.5) c = 'greetNick';
+    else if (a.nick && c === 'back' && Math.random() < 0.5) c = 'backNick';
+    const all = { ...vars };
+    if (a.nick) all.nick = a.nick;
+    if (a.focus) all.focus = yourify(a.focus);
+    let s = draw(c) || draw(cat);
+    if (!s) return null;
+    for (const [k, v] of Object.entries(all)) s = s.split('{' + k + '}').join(v);
+    if (/\{(nick|focus)\}/.test(s)) s = draw('random') || ''; // a template we can't fill
+    return cap(s) || null;
+  }
+
+  // sample thoughts for the "About me" preview (doesn't touch the decks the pets use)
+  function sample(about, n = 3) {
+    const out = [];
+    for (let i = 0; i < n * 6 && out.length < n; i++) {
+      const c = thoughtCat(about || {});
+      if (c === 'nudge' || c === 'random') continue;
+      const arr = L[c];
+      let s = arr[Math.floor(Math.random() * arr.length)];
+      if (about && about.nick) s = s.split('{nick}').join(about.nick);
+      if (about && about.focus) s = s.split('{focus}').join(yourify(about.focus));
+      s = cap(s);
+      if (!out.includes(s) && !/\{/.test(s)) out.push(s);
+    }
+    return out;
+  }
+
+  window.NibbleLines = { L, pick, sample, classifyApp };
 })();

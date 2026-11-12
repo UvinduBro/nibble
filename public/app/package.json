@@ -1,7 +1,7 @@
 {
   "name": "nibble-desktop-pet",
   "productName": "Nibble",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "Nibble - a geeky desktop pet that lives on your windows",
   "main": "src/main.js",
   "author": "Uvi"

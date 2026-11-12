@@ -316,7 +316,7 @@
       const c = env.cursor || { x: env.world.w / 2, y: env.world.floor };
       const p = nearestPet(c.x, c.y);
       if (p) {
-        p.say(pick('breakTime', { mins: String(mins), name: p.name }), 6);
+        p.say(pick('breakTime', { mins: String(mins), name: p.name }, env.about), 6);
         if (p.grounded()) { p.dir = Math.sign(c.x - p.x) || 1; p.enter('wave', 2); }
       }
     }
@@ -750,7 +750,7 @@
     }
 
     if (api && api.onSocial) {
-      api.onSocial((s) => { st = s || st; sync(); });
+      api.onSocial((s) => { st = s || st; env.about = (st.me && st.me.about) || null; sync(); });
       api.onSocialEvent(onEvent);
     }
     return { sync, tick, draw, poke, openComposer, overComposer, close, held, bring, sendHome };

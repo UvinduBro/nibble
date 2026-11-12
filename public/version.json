@@ -1,10 +1,10 @@
 {
-  "version": "2.0.6",
+  "version": "2.0.7",
   "date": "2026-11-12",
   "notes": [
-    "Fix: incoming pokes, waves and cuddles are no longer dropped when a PC's clock is off",
-    "Fix: the pet engine can never freeze — one bad frame won't stop the animations anymore",
-    "Fix: customization and action reactions keep playing reliably",
-    "Reinstall/update on every PC, then fully quit and reopen Nibble, to get these"
+    "New: About me in the Hub's Profile tab — tell your pet what you do, what you're into and what you're working on",
+    "Your pet's thoughts now fit you (study tips for students, playlist chat for music lovers, cheering on your current project)",
+    "Far less repetition: every line comes up once before any repeats, and job-specific jokes only show for that job",
+    "Your pet can call you by a nickname"
   ]
 }
