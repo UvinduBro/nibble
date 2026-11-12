@@ -14,7 +14,7 @@
   };
 
   const AIR = new Set(['jump', 'fall', 'thrown', 'flip']);
-  const BUSY = new Set(['drag', 'climb', 'cling', 'crouch', 'land', 'dizzy', 'happy', 'special']);
+  const BUSY = new Set(['drag', 'climb', 'cling', 'crouch', 'land', 'dizzy', 'happy', 'special', 'argue', 'sulk', 'eat', 'snuggle']);
 
   function weighted(list) {
     const total = list.reduce((s, [, w]) => s + Math.max(0, w), 0);
@@ -494,6 +494,12 @@
     }
 
     petted(env) {
+      this.pettedAt = env.time;
+      if (this.state === 'sulk' || this.state === 'argue') {
+        this.setEmote('blush', 1.2);
+        this.say(window.NibbleLines.pick('d_soften', { other: '' }) || '…hmph.', 2.4);
+        return;
+      }
       if (this.state === 'sleep') {
         this.enter('yawn', 1.2);
         this.speak(env, 'woken', { force: env.settings.chatty !== 'silent' });
@@ -807,7 +813,19 @@
         case 'yawn':
         case 'dizzy':
         case 'land':
+        case 'argue':
+        case 'sulk':
+        case 'eat':
+        case 'snuggle':
         case 'sleep': {
+          if (s === 'argue') {
+            this.particleT -= dt;
+            if (this.particleT <= 0) { this.particleT = 0.5; env.emit('bang', this.x + this.dir * 10 * u, this.y - 58 * u); }
+          }
+          if (s === 'snuggle') {
+            this.particleT -= dt;
+            if (this.particleT <= 0) { this.particleT = 0.9; env.emit('heart', this.x + rand(-10, 10) * u, this.y - 50 * u); }
+          }
           if (s === 'look') { lx = Math.sin(this.st * 2.2) * 0.9; ly = -0.2; }
           if (s === 'work') { lx = 0.7 * this.dir; ly = 0.5; if (chance(dt * 0.6)) env.emit('code', this.x + this.dir * 16 * u, this.y - 40 * u); }
           if (s === 'sleep') {
@@ -1013,7 +1031,7 @@
         sx: this.sx, sy: this.sy, walk: this.walk, t: this.t, blink: this.blink,
         look: { x: this.look.x * this.dir, y: this.look.y },
         eyes: 'open', mouth: 'w', arms: 'down', ears: 0, stride: 0, bob: 0, tailWag: 3,
-        alpha: this.alpha, lift: this.liftV, emote: this.emote, fx: this.fx,
+        alpha: this.inCloud ? 0 : this.alpha, lift: this.liftV, emote: this.emote, fx: this.fx,
         air: AIR.has(s), sleep: s === 'sleep',
         acc: this.acc, tint: this.tint, makeup: this.makeup,
       };
@@ -1033,6 +1051,12 @@
         case 'work': p.sit = true; p.laptop = true; p.glasses = true; p.arms = 'type'; p.mouth = 'flat'; p.headphones = this.index % 2 === 1; break;
         case 'dizzy': p.eyes = 'dizzy'; p.mouth = 'o'; p.ears = -0.6; p.rot = Math.sin(this.t * 6) * 0.15; break;
         case 'land': break;
+        case 'argue': p.mouth = Math.floor(this.st * 5) % 2 ? 'open' : 'o'; p.arms = 'up'; p.ears = -0.7; p.emote = 'anger';
+          p.bob = Math.abs(Math.sin(this.st * 11)) * 4; p.rot = Math.sin(this.st * 9) * 0.06; break;
+        case 'sulk': p.sit = true; p.eyes = 'closed'; p.mouth = 'flat'; p.ears = -1; p.tailWag = 0.6;
+          p.emote = Math.floor(this.st / 1.6) % 3 === 0 ? 'anger' : this.emote; break;
+        case 'eat': p.sit = true; p.eyes = 'happy'; p.mouth = Math.floor(this.st * 5) % 2 ? 'open' : 'smile'; p.ears = 1; p.tailWag = 12; p.arms = 'up'; break;
+        case 'snuggle': p.sit = true; p.eyes = 'happy'; p.mouth = 'smile'; p.ears = 0.6; p.tailWag = 10; p.emote = 'blush'; break;
         case 'crouch': p.eyes = 'open'; p.ears = 0.5; break;
         case 'jump': p.stride = 0.8; p.mouth = this.vy < 0 ? 'smile' : 'o'; p.ears = this.vy < 0 ? -0.4 : 0.8; p.arms = this.vy < 0 ? 'up' : 'down';
           if (this.jet) { p.jet = this.vy < 250; p.arms = 'up'; p.eyes = 'wide'; p.mouth = 'open'; p.speed = this.vy < 0; }
@@ -1070,4 +1094,355 @@
   }
 
   window.NibblePet = Pet;
+})();
+
+// ---------- Pets interacting with each other ----------
+// Chats, dance-offs, cuddles, annoying each other, arguments that turn into a cartoon fight
+// cloud, sulking… and making up: feed them ice cream 🍦 (or pat both of them). Shared by the
+// desktop overlay and the web desk:  const d = NibbleDrama.create();  d.tick(env, dt);
+// d.draw(ctx, env, u);  d.hit(x, y);  d.click(x, y, env);  d.force(env, 'argue').
+(function () {
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const chance = (p) => Math.random() < p;
+  const sign = (v) => (v < 0 ? -1 : 1);
+  const LONG = 60; // scene-owned states last "forever"; the scene moves them on
+  const FREE = new Set(['idle', 'look', 'walk', 'run', 'sit', 'wave']);
+  const BROKEN = new Set(['drag', 'crouch', 'jump', 'fall', 'thrown', 'flip', 'climb', 'cling', 'special', 'sleep', 'yawn', 'work']);
+  const GAPS = { chatty: [18, 45], normal: [35, 90], quiet: [70, 150] };
+  const U = (env) => 1.1 * (env.settings.size || 1);
+  const say = (p, cat, other, secs) => {
+    if (!p || (p.friend && p.bubble && !p.dramaSaid)) return; // never talk over a real message from a friend
+    const t = window.NibbleLines && window.NibbleLines.pick(cat, { other: other ? other.name : '' });
+    if (!t) return;
+    if (other && other.dramaSaid && other.bubble) other.bubble = null; // take turns: no overlapping bubbles
+    p.bubble = null; p.say(t, secs || Math.max(2.2, Math.min(4, 1.4 + t.length * 0.05))); p.dramaSaid = true;
+  };
+  const face = (a, b) => { a.dir = sign(b.x - a.x); b.dir = -a.dir; };
+  const hold = (p, st) => p.enter(st, LONG);
+
+  // scripted scenes: [secondsFromStart, (s, env) => …]
+  const SCRIPTS = {
+    chat: [
+      [0, (s) => { face(s.a, s.b); hold(s.a, 'wave'); hold(s.b, 'look'); say(s.a, 'd_chatA', s.b); }],
+      [2.7, (s) => { face(s.a, s.b); hold(s.a, 'look'); hold(s.b, 'wave'); say(s.b, 'd_chatB', s.a); }],
+      [5.3, (s) => { hold(s.b, 'look'); if (chance(0.7)) { hold(s.a, 'happy'); say(s.a, 'd_chatC', s.b); } }],
+      [7, (s) => s.done(3)],
+    ],
+    play: [
+      [0, (s, env) => { face(s.a, s.b); say(s.a, 'd_play', s.b); hold(s.a, 'dance'); hold(s.b, 'dance'); env.sound('hop'); }],
+      [2.6, (s) => say(s.b, 'd_play', s.a)],
+      [5.4, (s, env) => { hold(s.a, 'happy'); hold(s.b, 'happy'); for (let i = 0; i < 4; i++) env.emit('star', (s.a.x + s.b.x) / 2, s.a.y - 50 * U(env), { delay: i * 0.08 }); }],
+      [6.6, (s) => s.done(4)],
+    ],
+    snuggle: [
+      [0, (s) => { face(s.a, s.b); hold(s.a, 'snuggle'); hold(s.b, 'snuggle'); say(s.a, 'd_snuggle', s.b); }],
+      [3.4, (s) => say(s.b, 'd_snuggle', s.a)],
+      [7, (s) => s.done(2)],
+    ],
+    annoy: [ // s.a is the troublemaker
+      [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); say(s.a, 'd_annoy', s.b); hold(s.b, 'dizzy'); s.b.setEmote('anger', 3); env.sound('boing'); env.emit('star', s.b.x, s.b.y - 55 * U(env)); }],
+      [1.3, (s) => { face(s.a, s.b); hold(s.a, 'look'); hold(s.b, 'look'); say(s.b, 'd_annoyed', s.a); }],
+      [3.1, (s) => { s.bond(-8); if (s.getBond() < 50 && chance(0.6)) s.chain('argue'); else s.done(0); }],
+    ],
+    argue: [
+      [0, (s) => { face(s.a, s.b); hold(s.a, 'argue'); hold(s.b, 'argue'); say(s.a, 'd_argue', s.b); s.button = true; }],
+      [1.7, (s) => say(s.b, 'd_argue', s.a)],
+      [3.4, (s) => say(s.a, 'd_argue', s.b)],
+      [5.1, (s) => say(s.b, 'd_argue', s.a)],
+      [6.6, (s, env) => { s.fight(env); s.bond(-12); }],
+      [10.4, (s, env) => { s.unfight(env); hold(s.a, 'dizzy'); hold(s.b, 'dizzy'); }],
+      [11.8, (s) => { s.a.dir = -sign(s.b.x - s.a.x); s.b.dir = -s.a.dir; hold(s.a, 'sulk'); hold(s.b, 'sulk'); say(s.a, 'd_sulk', s.b); s.sulkFrom = s.t; }],
+      [13.6, (s) => { say(s.b, 'd_sulk', s.a); s.hold = true; }], // now they sulk until you help (or they cool off)
+    ],
+    icecream: [
+      [0, (s, env) => { s.unfight(env); s.button = false; face(s.a, s.b); hold(s.a, 'look'); hold(s.b, 'look'); s.dropCones(env); say(s.a, 'd_icecreamSee', s.b); }],
+      [1.1, (s, env) => { s.giveCones(); hold(s.a, 'eat'); hold(s.b, 'eat'); env.sound('nom'); }],
+      [1.5, (s) => say(s.b, 'd_icecream', s.a)],
+      [3.2, (s) => say(s.a, 'd_icecream', s.b)],
+      [5, (s, env) => { s.takeCones(); face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'happy'); say(s.a, 'd_sorry', s.b); for (let i = 0; i < 6; i++) env.emit('heart', (s.a.x + s.b.x) / 2 + rand(-20, 20), s.a.y - 50 * U(env), { delay: i * 0.1 }); env.sound('squeak'); }],
+      [6.8, (s) => { say(s.b, 'd_sorry', s.a); s.closeIn(); hold(s.a, 'snuggle'); hold(s.b, 'snuggle'); }],
+      [11, (s) => s.done(28)],
+    ],
+    patted: [ // both got pats while sulking
+      [0, (s, env) => { s.unfight(env); s.button = false; face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); say(s.a, 'd_sorry', s.b); }],
+      [1.9, (s) => { hold(s.b, 'happy'); say(s.b, 'd_sorry', s.a); }],
+      [3.6, (s) => { s.closeIn(); hold(s.a, 'snuggle'); hold(s.b, 'snuggle'); }],
+      [7, (s) => s.done(14)],
+    ],
+    cooled: [ // nobody helped: they make up on their own, a bit grumpily
+      [0, (s) => { s.button = false; face(s.a, s.b); hold(s.a, 'look'); hold(s.b, 'look'); say(s.a, 'd_cooled', s.b); }],
+      [2.2, (s) => say(s.b, 'd_cooled', s.a)],
+      [4, (s) => s.done(5)],
+    ],
+  };
+  const GAP = { chat: 60, play: 64, snuggle: 34, annoy: 28, argue: 58 };
+
+  function create() {
+    const bonds = new Map();
+    const key = (a, b) => [String(a.id), String(b.id)].sort().join('|');
+    const getBond = (a, b) => (bonds.has(key(a, b)) ? bonds.get(key(a, b)) : 60);
+    const addBond = (a, b, d) => bonds.set(key(a, b), Math.max(0, Math.min(100, getBond(a, b) + d)));
+    let scene = null, wait = rand(15, 30), fight = null, button = null;
+    const cones = []; // { pet, x, y, vy, held }
+
+    function sameSurface(a, b) {
+      return a.support && b.support && a.support.type === b.support.type && a.support.winId === b.support.winId && Math.abs(a.y - b.y) < 6;
+    }
+    function candidates(env) {
+      const u = U(env);
+      const ok = env.pets.filter((p) => p.grounded() && FREE.has(p.state) && !p.inCloud && !p.gone && !(p.friend && p.bubble));
+      const out = [];
+      for (let i = 0; i < ok.length; i++) for (let j = i + 1; j < ok.length; j++) {
+        if (sameSurface(ok[i], ok[j]) && Math.abs(ok[i].x - ok[j].x) < 260 * u) out.push(chance(0.5) ? [ok[i], ok[j]] : [ok[j], ok[i]]);
+      }
+      return out;
+    }
+    function chooseType(a, b) {
+      const bd = getBond(a, b);
+      const w = [['chat', 4], ['play', 1.6], ['annoy', bd < 55 ? 3.2 : 2], ['argue', bd < 35 ? 3 : 0.9], ['snuggle', bd > 78 ? 3.5 : bd > 65 ? 0.8 : 0.2]];
+      const total = w.reduce((t, [, x]) => t + x, 0);
+      let r = Math.random() * total;
+      for (const [k, x] of w) { r -= x; if (r <= 0) return k; }
+      return 'chat';
+    }
+
+    function makeScene(env, type, a, b) {
+      const s = {
+        type, a, b, t: 0, i: 0, phase: 'approach', hold: false, button: false, sulkFrom: 0,
+        bond: (d) => addBond(a, b, d), getBond: () => getBond(a, b),
+        done(d) { if (d) addBond(a, b, d); end(env); },
+        chain(t) { start(env, t, a, b, true); },
+        fight(e) {
+          a.bubble = null; b.bubble = null;
+          a.inCloud = true; b.inCloud = true;
+          fight = { x: (a.x + b.x) / 2, y: a.y - 26 * U(e), t: 0, sk: [a.skinKey, b.skinKey] };
+          for (let i = 0; i < 10; i++) e.emit('dust', fight.x + rand(-20, 20), a.y, { n: 1 });
+        },
+        unfight(e) {
+          if (!fight) return;
+          a.inCloud = false; b.inCloud = false;
+          for (let i = 0; i < 3; i++) e.emit('dust', fight.x, a.y, { n: 6 });
+          fight = null;
+        },
+        dropCones(e) { const u = U(e); for (const p of [a, b]) cones.push({ pet: p, x: p.x + p.dir * 11 * u, y: p.y - 260 * u, vy: 0, held: false }); },
+        giveCones() { for (const c of cones) c.held = true; },
+        takeCones() { cones.length = 0; },
+        closeIn() { // sit right next to each other for the cuddle
+          const u = U(env), mid = (a.x + b.x) / 2, side = sign(b.x - a.x);
+          a.x = mid - side * 19 * u; b.x = mid + side * 19 * u; face(a, b);
+        },
+      };
+      return s;
+    }
+
+    function start(env, type, a, b, already) {
+      if (scene && !already) return false;
+      cleanupCones();
+      scene = makeScene(env, type, a, b);
+      const u = U(env);
+      const gap = (GAP[type] || 40) * u;
+      // the troublemaker walks over to annoy; otherwise the second pet comes over
+      const mover = type === 'annoy' ? a : b, anchor = mover === a ? b : a;
+      const dx = anchor.x - mover.x;
+      if (!already && Math.abs(dx) > gap * 1.25) {
+        const target = anchor.x - sign(dx) * gap;
+        mover.chaseX = target; mover.dir = sign(target - mover.x); mover.enter('walk', 8);
+        anchor.dir = sign(mover.x - anchor.x); anchor.enter('look', LONG);
+      } else {
+        scene.phase = 'run';
+        if (GAP[type] && Math.abs(dx) > gap * 1.6) { mover.x = anchor.x - sign(dx) * gap; } // chained scenes: snap close
+      }
+      return true;
+    }
+
+    function cleanupCones() { cones.length = 0; }
+    function end(env) {
+      if (!scene) return;
+      const { a, b } = scene;
+      if (fight) { a.inCloud = false; b.inCloud = false; fight = null; }
+      cleanupCones();
+      for (const p of [a, b]) {
+        p.inCloud = false; p.dramaSaid = false;
+        if (p.state === 'argue' || p.state === 'sulk' || p.state === 'eat' || p.state === 'snuggle' || p.state === 'look' || p.state === 'happy' || p.state === 'wave' || p.state === 'dance' || p.state === 'dizzy') p.enter('idle', rand(0.6, 1.4));
+      }
+      scene = null;
+      button = null;
+      const g = GAPS[env.settings.chatty] || GAPS.normal;
+      wait = rand(g[0], g[1]);
+    }
+
+    function feed(env) {
+      if (!scene || !(scene.type === 'argue' || scene.type === 'annoy')) return false;
+      const { a, b } = scene;
+      scene = null;
+      fight && (a.inCloud = b.inCloud = false);
+      fight = null;
+      return start(env, 'icecream', a, b, true);
+    }
+
+    return {
+      // can be called any time; picks a nearby pair (or the two given)
+      force(env, type = 'chat', a, b) {
+        if (scene) end(env);
+        let pair = a && b ? [a, b] : null;
+        if (!pair) {
+          const all = env.pets.filter((p) => !p.gone && !p.inCloud && p.grounded());
+          const c = candidates(env);
+          pair = c[0] || (all.length >= 2 ? [all[0], all[1]] : null);
+          if (pair && !sameSurface(pair[0], pair[1])) return false;
+        }
+        if (!pair) return false;
+        return start(env, SCRIPTS[type] && type !== 'icecream' && type !== 'patted' && type !== 'cooled' ? type : 'chat', pair[0], pair[1]);
+      },
+      tick(env, dt) {
+        const off = env.settings.drama === false || env.settings.chatty === 'silent';
+        // falling ice cream cones
+        for (const c of cones) {
+          if (c.held) { const u = U(env); c.x = c.pet.x + c.pet.dir * 11 * u; c.y = c.pet.y - 33 * u; continue; }
+          c.vy += 1400 * dt; c.y += c.vy * dt;
+          const stop = c.pet.y - 33 * U(env);
+          if (c.y >= stop) { c.y = stop; c.vy = 0; }
+        }
+        if (fight) {
+          fight.t += dt;
+          fight.next = (fight.next || 0) - dt;
+          if (fight.next <= 0) { fight.next = rand(0.28, 0.5); env.sound('boing'); env.emit('star', fight.x + rand(-30, 30), fight.y + rand(-24, 10)); }
+        }
+        if (!scene) {
+          if (off || env.pets.length < 2) return;
+          wait -= dt;
+          if (wait > 0) return;
+          const g = GAPS[env.settings.chatty] || GAPS.normal;
+          wait = rand(g[0], g[1]);
+          const c = candidates(env);
+          if (!c.length) { wait = rand(6, 12); return; }
+          const [a, b] = c[Math.floor(Math.random() * c.length)];
+          start(env, chooseType(a, b), a, b);
+          return;
+        }
+        const s = scene, { a, b } = s;
+        // someone grabbed, threw or removed a pet: the scene just stops
+        if (!env.pets.includes(a) || !env.pets.includes(b) || a.gone || b.gone || BROKEN.has(a.state) || BROKEN.has(b.state)) { end(env); return; }
+        if (s.phase === 'approach') {
+          s.t += dt;
+          const gap = (GAP[s.type] || 40) * U(env);
+          if (Math.abs(a.x - b.x) <= gap * 1.3) { a.chaseX = null; b.chaseX = null; s.phase = 'run'; s.t = 0; }
+          else if (s.t > 7 || !sameSurface(a, b)) { end(env); return; }
+          else return;
+        }
+        s.t += dt;
+        const steps = SCRIPTS[s.type];
+        while (scene === s && s.i < steps.length && steps[s.i][0] <= s.t) { const f = steps[s.i][1]; s.i++; f(s, env); }
+        if (scene !== s) return;
+        // keep them from wandering off mid-scene
+        for (const p of [a, b]) if (p.state === 'idle' || p.state === 'walk' || p.state === 'run') { hold(p, s.sulkFrom ? 'sulk' : 'look'); }
+        if (s.type === 'argue') {
+          const u = U(env);
+          button = Object.assign(button && button.s === s ? button : { s }, {
+            left: Math.min(a.x, b.x) - 34 * u, right: Math.max(a.x, b.x) + 34 * u,
+            y: Math.min(a.y, b.y) - 48 * u, maxX: env.world.right - 8, minX: env.world.left + 8,
+          });
+          if (s.hold) {
+            if (a.pettedAt > s.sulkFrom && b.pettedAt > s.sulkFrom) { start(env, 'patted', a, b, true); return; }
+            if (s.t - s.sulkFrom > 80) { start(env, 'cooled', a, b, true); return; }
+          }
+        } else if (s.type === 'annoy') {
+          button = null;
+        } else button = null;
+        if (s.i >= steps.length && !s.hold && scene === s) end(env);
+      },
+      draw(ctx, env, u) {
+        if (fight) drawCloud(ctx, env, u, fight);
+        for (const c of cones) drawCone(ctx, c.x, c.y, u);
+        if (button) drawButton(ctx, u, button);
+      },
+      hit(x, y) { return !!button && button.w > 0 && x > button.x0 && x < button.x0 + button.w && y > button.y && y < button.y + button.h; },
+      click(x, y, env) { if (!this.hit(x, y)) return false; return feed(env); },
+      busy: () => !!scene,
+      bond: (a, b) => getBond(a, b),
+    };
+  }
+
+  // ---------- drawing ----------
+  function drawCloud(ctx, env, u, f) {
+    const t = f.t, R = 34 * u;
+    ctx.save();
+    ctx.translate(f.x + Math.sin(t * 31) * 2.5 * u, f.y + Math.cos(t * 27) * 2 * u);
+    // limbs flailing out of the cloud, in the two pets' colours
+    for (let i = 0; i < 5; i++) {
+      const sk = env.skins[f.sk[i % 2]] || env.skins.mint;
+      const ang = t * (i % 2 ? 7 : -6) + i * 1.3;
+      const r = R * (0.9 + 0.25 * Math.sin(t * 13 + i));
+      ctx.fillStyle = sk.neon ? sk.line : sk.body;
+      ctx.strokeStyle = sk.line; ctx.lineWidth = 1.6 * u;
+      ctx.beginPath(); ctx.ellipse(Math.cos(ang) * r, Math.sin(ang) * r * 0.7, 6 * u, 5 * u, ang, 0, 7); ctx.fill(); ctx.stroke();
+    }
+    // the cloud
+    ctx.fillStyle = '#f4f5fa'; ctx.strokeStyle = '#c3c7d6'; ctx.lineWidth = 2 * u;
+    const puffs = 8;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < puffs; i++) {
+        const a = (i / puffs) * Math.PI * 2 + t * 2.2;
+        const pr = R * (0.42 + 0.08 * Math.sin(t * 9 + i * 2));
+        ctx.beginPath(); ctx.arc(Math.cos(a) * R * 0.55, Math.sin(a) * R * 0.38, pr, 0, 7);
+        pass ? ctx.fill() : ctx.stroke();
+      }
+    }
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.55, 0, 7); ctx.fill();
+    // comic words + stars
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const words = ['POW!', 'BAM!', 'BONK!', '💢', 'ZAP!'];
+    const w = words[Math.floor(t / 0.5) % words.length];
+    ctx.font = `900 ${13 * u}px system-ui, sans-serif`;
+    ctx.fillStyle = '#ff4d6d'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3 * u;
+    const wx = Math.sin(t * 5) * 14 * u, wy = -R * 0.85;
+    ctx.strokeText(w, wx, wy); ctx.fillText(w, wx, wy);
+    ctx.font = `${12 * u}px sans-serif`; ctx.fillStyle = '#ffd23f';
+    for (let i = 0; i < 3; i++) { const a = t * 4 + i * 2.1; ctx.fillText('★', Math.cos(a) * R * 0.9, Math.sin(a) * R * 0.5 - 4 * u); }
+    ctx.restore();
+  }
+
+  function drawCone(ctx, x, y, u) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.lineJoin = 'round';
+    // waffle cone
+    ctx.fillStyle = '#e8a75b'; ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = 1.4 * u;
+    ctx.beginPath(); ctx.moveTo(-5 * u, 0); ctx.lineTo(5 * u, 0); ctx.lineTo(0, 12 * u); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-2.5 * u, 0); ctx.lineTo(2 * u, 8 * u); ctx.moveTo(2.5 * u, 0); ctx.lineTo(-2 * u, 8 * u); ctx.stroke();
+    // two scoops + a cherry
+    ctx.fillStyle = '#ffd1e3'; ctx.strokeStyle = '#d27a9f';
+    ctx.beginPath(); ctx.arc(0, -3 * u, 5.6 * u, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#c9f0e0'; ctx.strokeStyle = '#6fbf9f';
+    ctx.beginPath(); ctx.arc(0, -9 * u, 4.6 * u, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ff4d6d';
+    ctx.beginPath(); ctx.arc(1 * u, -14.2 * u, 1.8 * u, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawButton(ctx, u, b) {
+    const label = '🍦 Give them ice cream';
+    ctx.save();
+    ctx.font = `700 ${12.5}px system-ui, sans-serif`;
+    const w = ctx.measureText(label).width + 26, h = 28;
+    // sit beside the two pets, on whichever side has room
+    let x = b.right;
+    if (x + w > b.maxX) x = b.left - w;
+    if (x < b.minX) x = Math.max(b.minX, Math.min(b.maxX - w, b.right));
+    const y = b.y;
+    b.w = w; b.h = h; b.x0 = x; b.x = x + w / 2;
+    const pulse = 1 + Math.sin(performance.now() / 260) * 0.04;
+    ctx.translate(b.x, y + h / 2); ctx.scale(pulse, pulse); ctx.translate(-b.x, -(y + h / 2));
+    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 14); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = '#ff8fb8'; ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#1b2030'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, b.x, y + h / 2 + 0.5);
+    ctx.restore();
+  }
+
+  window.NibbleDrama = { create };
 })();

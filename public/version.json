@@ -1,10 +1,10 @@
 {
-  "version": "2.0.8",
+  "version": "2.0.9",
   "date": "2026-11-12",
   "notes": [
-    "New: Deadlines — add something that's due and your pet reminds you 1 day before and again 3 hours before",
-    "Your pet delivers reminders itself: it drops in by your cursor, chimes and tells you (and waits if you're away)",
-    "Pets hidden? Reminders still arrive as a Windows notification",
-    "Also in the Profile tab: About me, so your pet's thoughts fit you"
+    "New: pets interact with each other — chats, dance-offs, cuddles, teasing… and squabbles that turn into a cartoon fight cloud",
+    "Make them friends again: click 🍦 Give them ice cream (or pat both of them)",
+    "Hub → Pets: Make them interact buttons; Settings: turn interactions on or off",
+    "Fix: your friends' customized pets (hats, glasses, colours, makeup) now show on your desktop"
   ]
 }

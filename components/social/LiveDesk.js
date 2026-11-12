@@ -238,6 +238,13 @@ export default function LiveDesk({ social, state }) {
         <span className="sa-dot on" /> {online ? `${online} friend${online > 1 ? 's' : ''} here` : 'No friends online yet'}
         <span className="sa-hint">Hold your pet, let go, pick a friend and type · hold a friend's pet to message them · double-click to poke · shake your pet to poof it away</span>
       </div>
+      {online > 0 && (
+        <div className="sa-desk-play">
+          {[['chat', '💬'], ['play', '🕺'], ['snuggle', '🤗'], ['annoy', '😜'], ['argue', '😤']].map(([k, i]) => (
+            <button key={k} title={{ chat: 'Chat', play: 'Dance-off', snuggle: 'Cuddle', annoy: 'Tease', argue: 'Squabble' }[k]} onClick={() => stage.current && stage.current.interact(k)}>{i}</button>
+          ))}
+        </div>
+      )}
       {compose && (
         <form className="sa-compose" style={{ left: compose.x, top: compose.y }} onSubmit={send}>
           {compose.to

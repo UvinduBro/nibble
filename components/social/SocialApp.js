@@ -312,6 +312,13 @@ function Pets({ social, state, desktop, local, toast }) {
           </div>
         </div>
       </div>
+      {desktop && (
+        <div className="sa-card">
+          <h3>🎭 Make them interact</h3>
+          <p className="sa-sub">Pets on the same window or the taskbar chat, play and squabble on their own. Start one now — needs two pets close together (yours or a friend's visiting). If they fight, click <b>🍦 Give them ice cream</b> under them to make them friends again.</p>
+          <div className="sa-interact">{INTERACT.map(([k, l]) => <button key={k} className="btn small ghost" onClick={() => desktop.command({ type: 'drama', kind: k })}>{l}</button>)}</div>
+        </div>
+      )}
       {desktop && local && (
         <div className="sa-card">
           <h3>Pets on this PC <small>{pets.length} of 8</small></h3>
@@ -389,6 +396,7 @@ function Settings({ social, state, desktop, local, toast }) {
           <Toggle label="React to apps I use" on={s.reactToApps} onChange={(v) => set({ reactToApps: v })} />
           <Toggle label="Hide during fullscreen" on={s.hideFullscreen} onChange={(v) => set({ hideFullscreen: v })} />
           <Toggle label="Little sounds" on={s.sounds} onChange={(v) => set({ sounds: v })} />
+          <Toggle label="Pets interact with each other" hint="Chats, dance-offs, cuddles… and the odd squabble you can fix with ice cream 🍦" on={s.drama !== false} onChange={(v) => set({ drama: v })} />
           <Toggle label="Start with Windows" on={s.startWithWindows} onChange={(v) => set({ startWithWindows: v })} />
           <Toggle label="Hide pets" hint="Ctrl + Alt + N" on={s.paused} onChange={(v) => set({ paused: v })} />
         </div>
@@ -408,6 +416,8 @@ function Settings({ social, state, desktop, local, toast }) {
     </div>
   );
 }
+
+const INTERACT = [['chat', '💬 Chat'], ['play', '🕺 Dance-off'], ['snuggle', '🤗 Cuddle'], ['annoy', '😜 Tease'], ['argue', '😤 Squabble']];
 
 // ---------- Deadlines: your pet reminds you 1 day and 3 hours before ----------
 const pad2 = (n) => String(n).padStart(2, '0');
@@ -682,9 +692,10 @@ function useDesktopBridge(desktop, social, state) {
   useEffect(() => {
     if (!desktop) return;
     const payload = state.profile && state.user ? {
-      me: { uid: state.user.uid, username: state.profile.username, skin: state.profile.skin, petName: state.profile.petName, about: state.about || null },
+      me: { uid: state.user.uid, username: state.profile.username, skin: state.profile.skin, petName: state.profile.petName, acc: state.profile.acc || [], tint: state.profile.tint || '', makeup: state.profile.makeup || '', about: state.about || null },
       prefs: state.prefs,
-      friends: state.friends.map((f) => ({ uid: f.uid, username: f.username, skin: f.skin, petName: f.petName, online: f.online, typing: f.typing, dnd: f.dnd, status: f.status })),
+      // include each friend's look (accessories / colour / makeup) so their pet is dressed up on this desktop too
+      friends: state.friends.map((f) => ({ uid: f.uid, username: f.username, skin: f.skin, petName: f.petName, acc: f.acc || [], tint: f.tint || '', makeup: f.makeup || '', online: f.online, typing: f.typing, dnd: f.dnd, status: f.status })),
       requests: state.incoming.length,
     } : { me: null, friends: [], prefs: {}, requests: 0 };
     const j = JSON.stringify(payload);

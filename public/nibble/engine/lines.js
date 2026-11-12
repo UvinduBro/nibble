@@ -185,6 +185,28 @@
   };
   for (const k of Object.keys(MORE)) L[k] = (L[k] || []).concat(MORE[k]);
 
+  // ---- pets talking to each other (NibbleDrama in pet.js). {other} = the other pet's name ----
+  Object.assign(L, {
+    d_chatA: ["Hey {other}! What are you up to?", "Did you see that cursor? So fast 👀", "Nice look today, {other} 😏", "{other}! Guess what?",
+      "Race you to the taskbar?", "Is it snack time yet, {other}?", "I had a dream about pixels again", "{other}, do you ever think about the recycle bin? 🗑️",
+      "Our human is working so hard 🥹", "Psst, {other}… wanna nap?", "Which window is your favourite?", "I just learned a new trick!"],
+    d_chatB: ["Just vibing 😎", "Haha same", "Ooh, tell me!", "You're so random 😂", "Only if you share snacks 🍪", "Not much, you?",
+      "Wait, really?!", "Pfft, I'm faster", "The top one, obviously", "Show me, show me!", "Always 😴", "Big same."],
+    d_chatC: ["Okay bye! 👋", "Best friends 🤝", "Let's hang later!", "Hehe ✨", "Deal!", "You're the best, {other}"],
+    d_play: ["Dance-off! 🎶", "Bet I dance better 😎", "Let's gooo! 🕺", "Follow my moves!", "Okay that was sick 🔥"],
+    d_snuggle: ["Comfy 💕", "Stay here with me 🥰", "Best buddies 🤝", "*happy wiggle*", "You're my favourite, {other} 💗", "Cuddle break 🫶", "Warm and cozy ☁️"],
+    d_annoy: ["Boop! 👉", "Tag, you're it!", "Hehe, poke 😜", "*steps on {other}'s tail*", "Bet you can't catch me!", "Hey {other}, look over there! …made you look", "*blows raspberry* 😛"],
+    d_annoyed: ["HEY! 😠", "Stoppp!", "Rude!", "Not funny, {other}!", "Ugh, {other}…", "Do that again and see 😤", "I'm telling!"],
+    d_argue: ["That was MY window!", "You started it!", "Did not!", "Did too!", "Hmph!", "You're so annoying!", "Take that back!",
+      "I was here first!", "Says who?!", "Fine! FINE!", "You ate my byte! 🍪", "Stop copying me!", "I'm the cute one!", "No, I am!"],
+    d_sulk: ["Hmph. 😤", "Not talking to {other}.", "…", "I'm not crying, you're crying.", "*turns away*", "Whatever."],
+    d_soften: ["…hmph. okay, that was nice.", "…pats help a little", "*sniff* thanks", "…fine, I feel better"],
+    d_icecreamSee: ["Is that… ice cream?! 🍦", "WAIT. Ice cream? 👀", "Ooh, for us? 🍦"],
+    d_icecream: ["Nom nom nom 😋", "Brain freeze! 🥶", "Best. Day. Ever. 🍦", "Mmm, strawberry 🍓", "Okay, I forgive everyone 😌"],
+    d_sorry: ["Sorry, {other} 🥺", "Friends again? 💕", "I didn't mean it…", "Ice cream fixes everything 🍦", "Hug? 🤗", "You're still my best friend, {other}"],
+    d_cooled: ["…okay, I'm over it.", "Fine. Sorry, {other}.", "Truce? 🤝", "Ugh… friends?"],
+  });
+
   const APP_RULES = [
     { test: (p) => /^(code|code - insiders|cursor|windsurf|zed|devenv|idea64|webstorm64|pycharm64|phpstorm64|rider64|clion64|goland64|studio64|sublime_text|notepad\+\+|fleet|atom)$/.test(p), cat: 'code', mood: 'work' },
     { test: (p) => /^(figma|photoshop|illustrator|afterfx|adobe premiere pro|indesign|xd|lightroom|lightroomclassic|affinity.*|canva|framer|sketch|krita|gimp.*|coreldrw|clipstudiopaint|davinci ?resolve|resolve|capcut)$/.test(p), cat: 'design', mood: 'work' },

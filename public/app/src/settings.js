@@ -6,6 +6,7 @@ const DEFAULTS = {
   pets: [{ name: 'Nibble', skin: 'mint' }],
   size: 1,
   chatty: 'normal', // silent | quiet | normal | chatty
+  drama: true, // pets chat, play, squabble and make up with each other
   walkOnWindows: true,
   followCursor: false,
   reactToApps: true,

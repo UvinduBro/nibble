@@ -84,6 +84,9 @@
     env.platforms = plats;
   }
 
+  // pets interacting with each other (chats, fights, ice cream…) — engine lives in pet.js
+  const drama = window.NibbleDrama ? window.NibbleDrama.create() : null;
+
   // ---------- pets ----------
   function syncPets() {
     const cfgs = env.settings.pets || [];
@@ -266,6 +269,7 @@
         pop: ['sine', 900, 260, 0.07],
         hop: ['sine', 420, 760, 0.08],
         chime: ['sine', 880, 1480, 0.32],
+        nom: ['square', 330, 240, 0.05],
       }[name];
       if (!spec) return;
       o.type = spec[0];
@@ -370,7 +374,7 @@
   }
 
   function updateHover(x, y) {
-    const over = !!dragging || !!press || !!petAt(x, y) || social.overComposer(x, y);
+    const over = !!dragging || !!press || !!petAt(x, y) || social.overComposer(x, y) || !!(drama && !hidden && drama.hit(x, y));
     document.body.classList.toggle('grab', over && !dragging);
     document.body.classList.toggle('grabbing', !!dragging);
     if (api && over === ignoring) {
@@ -392,6 +396,7 @@
 
   addEventListener('mousedown', (e) => {
     if (social.overComposer(e.clientX, e.clientY)) return;
+    if (e.button === 0 && drama && drama.click(e.clientX, e.clientY, env)) return; // 🍦 "Give them ice cream"
     const p = petAt(e.clientX, e.clientY);
     if (!p) return;
     if (e.button === 0) press = { pet: p, x: e.clientX, y: e.clientY, t0: performance.now() };
@@ -470,6 +475,7 @@
       }
     });
     api.onCommand((cmd) => {
+      if (cmd.type === 'drama') { if (drama && !drama.force(env, cmd.kind)) { const p = env.pets[0]; if (p) p.say('I need a buddy nearby for that! 🫂', 3); } return; }
       if (cmd.type === 'compose') { const p = env.pets[cmd.pet || 0]; if (p && !p.friend) social.openComposer(p); return; }
       if (cmd.type === 'whisper') { const p = env.pets.find((q) => q.friend && q.friend.uid === cmd.uid); if (p) social.openComposer(p); return; }
       if (cmd.type === 'bring') { social.bring(cmd.uid); return; }
@@ -787,6 +793,7 @@
     const u = 1.1 * (env.settings.size || 1);
 
     for (const p of env.pets) { try { p.update(dt, env); } catch (e) { if (window.console) console.warn('[nibble] update', e); } }
+    if (drama && !hidden) { try { drama.tick(env, dt); } catch (e) { if (window.console) console.warn('[nibble] drama', e); } }
     social.tick(dt);
     updateParts(dt);
     tickHousekeeping(dt);
@@ -821,6 +828,7 @@
       try { drawPet(ctx, p.pose(), skin, u); } catch (e) { if (window.console) console.warn('[nibble] draw', e); }
     }
     renderParts(u);
+    if (drama) { try { drama.draw(ctx, env, u); } catch (e) { if (window.console) console.warn('[nibble] drama draw', e); } }
     for (const p of sorted) if (p.bubble) renderBubble(p, u);
     social.draw(ctx, u, sorted);
    } catch (e) { if (window.console) console.warn('[nibble] frame', e); }

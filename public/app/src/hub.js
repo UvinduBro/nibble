@@ -18,6 +18,7 @@ const LOCAL_KEYS = {
   showFriends: (v) => typeof v === 'boolean',
   startWithWindows: (v) => typeof v === 'boolean',
   paused: (v) => typeof v === 'boolean',
+  drama: (v) => typeof v === 'boolean',
   pets: (v) => Array.isArray(v) && v.length >= 1 && v.length <= 8,
 };
 
@@ -136,6 +137,7 @@ function setupHub(ctx) {
     if (!fromHub(e) || !cmd) return;
     // bring a friend's pet over / send it home
     if ((cmd.type === 'bring' || cmd.type === 'sendhome') && typeof cmd.uid === 'string') return toOverlay('command', { type: cmd.type, uid: cmd.uid });
+    if (cmd.type === 'drama') return toOverlay('command', { type: 'drama', kind: ['chat', 'play', 'annoy', 'argue', 'snuggle'].includes(cmd.kind) ? cmd.kind : 'chat' });
     if (!['dance', 'special', 'flip', 'summon', 'say', 'sleep', 'wake'].includes(cmd.type)) return;
     toOverlay('command', { type: cmd.type, pet: Number.isInteger(cmd.pet) ? cmd.pet : undefined });
   });

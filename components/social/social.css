@@ -507,3 +507,10 @@
 .sa-thought:nth-child(5) { animation-delay: 0.24s; }
 .sa-thought:nth-child(6) { animation-delay: 0.32s; }
 .sa-thought:nth-child(7) { animation-delay: 0.4s; }
+
+/* ---------- pets interacting ---------- */
+.sa-interact { display: flex; flex-wrap: wrap; gap: 8px; }
+.sa-interact .btn.small { color: var(--text) !important; }
+.sa-desk-play { position: absolute; z-index: 5; right: 14px; bottom: 56px; display: flex; gap: 6px; padding: 5px; border-radius: 99px; background: rgba(10, 12, 24, 0.72); border: 1px solid var(--line); backdrop-filter: blur(6px); }
+.sa-desk-play button { all: unset; cursor: pointer; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; font-size: 16px; transition: background 0.12s, transform 0.12s; }
+.sa-desk-play button:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-1px); }
