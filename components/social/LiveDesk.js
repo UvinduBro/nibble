@@ -17,6 +17,22 @@ export default function LiveDesk({ social, state }) {
   const [text, setText] = useState('');
   const [pick, setPick] = useState(''); // who your own pet's message goes to: friend uid or 'all'
   const [ready, setReady] = useState(false);
+  // subtle pet sounds on the web desk (off until you turn them on — browsers need a click first)
+  const [soundOn, setSoundOn] = useState(false);
+  const soundRef = useRef(false);
+  soundRef.current = soundOn;
+  useEffect(() => { try { setSoundOn(localStorage.getItem('nibble-web-sound') === '1'); } catch {} }, []);
+  const toggleSound = () => {
+    const v = !soundOn;
+    setSoundOn(v);
+    try { localStorage.setItem('nibble-web-sound', v ? '1' : '0'); } catch {}
+    if (v && window.NibbleSound) { window.NibbleSound.unlock(); window.NibbleSound.play('happy'); }
+  };
+  const interact = (k) => {
+    const s = stage.current;
+    if (!s) return;
+    if (!s.interact(k)) { const me = s.env.pets.find((p) => p.mine); if (me) { me.bubble = null; me.say('I need a buddy here for that! 🫂', 3); } }
+  };
   const visitors = useRef(new Map()); // uid -> until (ms): friends' pets that stay even when offline
   const [vtick, setVtick] = useState(0);
   const visit = (uid, secs) => { visitors.current.set(uid, Math.max(visitors.current.get(uid) || 0, Date.now() + secs * 1000)); setVtick((n) => n + 1); };
@@ -61,6 +77,7 @@ export default function LiveDesk({ social, state }) {
         },
       });
       s.env.settings.chatty = 'quiet';
+      s.env.sound = (name, opts) => { if (soundRef.current && window.NibbleSound) window.NibbleSound.play(name, opts); };
       stage.current = s;
       ro = new ResizeObserver(() => s.resize());
       ro.observe(wrap.current);
@@ -238,13 +255,12 @@ export default function LiveDesk({ social, state }) {
         <span className="sa-dot on" /> {online ? `${online} friend${online > 1 ? 's' : ''} here` : 'No friends online yet'}
         <span className="sa-hint">Hold your pet, let go, pick a friend and type · hold a friend's pet to message them · double-click to poke · shake your pet to poof it away</span>
       </div>
-      {online > 0 && (
-        <div className="sa-desk-play">
-          {[['chat', '💬'], ['play', '🕺'], ['snuggle', '🤗'], ['annoy', '😜'], ['argue', '😤']].map(([k, i]) => (
-            <button key={k} title={{ chat: 'Chat', play: 'Dance-off', snuggle: 'Cuddle', annoy: 'Tease', argue: 'Squabble' }[k]} onClick={() => stage.current && stage.current.interact(k)}>{i}</button>
-          ))}
-        </div>
-      )}
+      <div className="sa-desk-play">
+        {online > 0 && [['chat', '💬'], ['play', '🕺'], ['snuggle', '🤗'], ['annoy', '😜'], ['argue', '😤']].map(([k, i]) => (
+          <button key={k} title={{ chat: 'Chat', play: 'Dance-off', snuggle: 'Cuddle', annoy: 'Tease', argue: 'Squabble' }[k]} onClick={() => interact(k)}>{i}</button>
+        ))}
+        <button title={soundOn ? 'Sounds on' : 'Sounds off'} onClick={toggleSound} className={soundOn ? '' : 'off'}>{soundOn ? '🔈' : '🔇'}</button>
+      </div>
       {compose && (
         <form className="sa-compose" style={{ left: compose.x, top: compose.y }} onSubmit={send}>
           {compose.to

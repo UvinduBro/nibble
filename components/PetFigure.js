@@ -24,6 +24,27 @@ export function useNibble() {
 }
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// One shared animation clock for every PetFigure on the page (instead of a 60fps loop each):
+// 30fps is plenty for these little previews, and it stops completely when the tab/Hub is hidden.
+const figures = new Set();
+let tickRaf = 0, lastTick = 0;
+const pageHidden = () => (typeof document !== 'undefined' && document.hidden) || (typeof window !== 'undefined' && window.__nibbleHidden);
+function tick(now) {
+  tickRaf = 0;
+  if (!figures.size || pageHidden()) return;
+  if (now - lastTick >= 32) { lastTick = now; for (const f of figures) { try { f(now); } catch { /* one bad figure shouldn't stop the rest */ } } }
+  tickRaf = requestAnimationFrame(tick);
+}
+function wake() { if (!tickRaf && figures.size && !pageHidden()) tickRaf = requestAnimationFrame(tick); }
+if (typeof window !== 'undefined') {
+  document.addEventListener('visibilitychange', wake);
+  window.addEventListener('nibble-visibility', wake);
+}
+function addFigure(f) { figures.add(f); wake(); return () => figures.delete(f); }
+// shared pointer position (one listener for all figures)
+let mouseX = -1e4, mouseY = -1e4;
+if (typeof window !== 'undefined') window.addEventListener('pointermove', (e) => { mouseX = e.clientX; mouseY = e.clientY; }, { passive: true });
 const FX = { sleep: ['z', 'Z'], dance: ['♪', '♫'], work: ['</>', '{ }', '01', '=>'], happy: ['♥'], dizzy: ['★'] };
 const FX_COLOR = { sleep: '#9aa3bd', dance: '#ff6fb5', work: '#4fd1ff', happy: '#ff5d8f', dizzy: '#ffd23f' };
 
@@ -44,18 +65,16 @@ export default function PetFigure({ skin = 'mint', mood = 'idle', size = 1, w = 
     const sk = { ...(window.SKINS[skin] || window.SKINS.mint), neon: skin === 'cyber' };
     const p = new window.NibblePet({ id: 'f', name: 'N', skin, acc: acc || [], tint: tint || '', makeup: makeup || '' }, env, 0);
     p._u = u;
-    let raf, last = performance.now(), visible = true, mouse = null, cur = null, fxT = 0, blinkT = 2, blinkA = 0;
+    let last = performance.now(), visible = true, mouse = null, cur = null, fxT = 0, blinkT = 2, blinkA = 0;
     const fx = [];
     const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; });
     io.observe(c);
-    const onMove = (e) => { const r = c.getBoundingClientRect(); mouse = { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    window.addEventListener('pointermove', onMove);
 
     const loop = (now) => {
-      raf = requestAnimationFrame(loop);
-      const dt = Math.min(0.05, (now - last) / 1000);
+      const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       if (!visible) return;
+      if (mouseX > -1e3) { const r = c.getBoundingClientRect(); mouse = { x: mouseX - r.left, y: mouseY - r.top }; }
       const m = moodRef.current;
       if (m !== cur) {
         cur = m;
@@ -109,8 +128,8 @@ export default function PetFigure({ skin = 'mint', mood = 'idle', size = 1, w = 
       }
       ctx.globalAlpha = 1;
     };
-    raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); io.disconnect(); window.removeEventListener('pointermove', onMove); };
+    const off = addFigure(loop);
+    return () => { off(); io.disconnect(); };
   }, [ready, skin, size, w, h, (acc || []).join(','), tint, makeup]);
 
   return <canvas ref={ref} className={className} style={{ width: w, height: h }} onClick={onClick} title={title} aria-label={`Nibble (${skin}) – ${mood}`} />;

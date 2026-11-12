@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('nibbleDesktop', {
   sendEvent: (msg) => ipcRenderer.send('hub:event', msg),
   onAction: listen('hub:action'),
   onTab: listen('hub:tab'),
+  onVisible: listen('hub:visible'),
   googleSignIn: () => ipcRenderer.invoke('hub:google'),
   update: () => ipcRenderer.send('hub:update'),
   hide: () => ipcRenderer.send('hub:hide'),

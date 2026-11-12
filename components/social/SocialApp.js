@@ -395,7 +395,7 @@ function Settings({ social, state, desktop, local, toast }) {
           <Toggle label="Follow my cursor" on={s.followCursor} onChange={(v) => set({ followCursor: v })} />
           <Toggle label="React to apps I use" on={s.reactToApps} onChange={(v) => set({ reactToApps: v })} />
           <Toggle label="Hide during fullscreen" on={s.hideFullscreen} onChange={(v) => set({ hideFullscreen: v })} />
-          <Toggle label="Little sounds" on={s.sounds} onChange={(v) => set({ sounds: v })} />
+          <Toggle label="Pet sounds" hint="Soft little noises when pets talk, eat, snore, cheer or grumble" on={s.sounds} onChange={(v) => set({ sounds: v })} />
           <Toggle label="Pets interact with each other" hint="Chats, dance-offs, cuddles… and the odd squabble you can fix with ice cream 🍦" on={s.drama !== false} onChange={(v) => set({ drama: v })} />
           <Toggle label="Start with Windows" on={s.startWithWindows} onChange={(v) => set({ startWithWindows: v })} />
           <Toggle label="Hide pets" hint="Ctrl + Alt + N" on={s.paused} onChange={(v) => set({ paused: v })} />
@@ -704,13 +704,15 @@ function useDesktopBridge(desktop, social, state) {
   useEffect(() => {
     if (!desktop || !social) return;
     const off1 = social.onMessage((m) => desktop.sendEvent(m));
+    // things you send (wave, hug, kiss…) play on your own desktop too, not just your friend's
+    const off3 = social.onSent ? social.onSent((m) => { if (m.kind !== 'whisper' && m.kind !== 'poke') desktop.sendEvent({ ...m, echo: true }); }) : null;
     const off2 = desktop.onAction((a) => {
       if (!a || typeof a !== 'object') return;
       if (a.type === 'say') social.say(a.text).catch(() => {});
       else if (a.type === 'typing') social.setTyping(!!a.on, a.to || '').catch(() => {});
       else if (a.type === 'send') social.send(a.to, a.kind, a.text).catch(() => {});
     });
-    return () => { off1(); off2 && off2(); };
+    return () => { off1(); off2 && off2(); off3 && off3(); };
   }, [desktop, social]);
   return local;
 }
@@ -728,6 +730,8 @@ export default function SocialApp({ mode = 'web' }) {
     if (q.get('add')) { setPresetAdd(q.get('add')); setTab('friends'); }
     if (q.get('tab')) setTab(q.get('tab'));
     if (window.nibbleDesktop && window.nibbleDesktop.onTab) window.nibbleDesktop.onTab((t) => setTab(t));
+    // desktop Hub hidden → pause every little animated pet on the page (saves CPU/GPU, less lag)
+    if (window.nibbleDesktop && window.nibbleDesktop.onVisible) window.nibbleDesktop.onVisible((v) => { window.__nibbleHidden = !v; window.dispatchEvent(new Event('nibble-visibility')); });
   }, []);
   const local = useDesktopBridge(desktop, social, state);
   const toast = useMemo(() => (n) => setNote(n), []);

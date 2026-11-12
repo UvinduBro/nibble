@@ -26,6 +26,8 @@
   class Pet {
     constructor(cfg, env, index) {
       this.id = cfg.id;
+      this.env = env;
+      this.voice = 0.85 + (String(cfg.id || cfg.name || '').split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 7) % 35) / 100;
       this.name = cfg.name || 'Nibble';
       this.skinKey = cfg.skin || 'mint';
       this.acc = Array.isArray(cfg.acc) ? cfg.acc : [];
@@ -116,6 +118,7 @@
     say(text, dur) {
       if (!text) return;
       this.bubble = { text, t: 0, dur: dur || clamp(1.6 + text.length * 0.06, 2.2, 5.5) };
+      if (this.env && this.env.sound && !this.inCloud) this.env.sound('babble', { n: Math.ceil(String(text).split(' ').length / 2), pitch: this.voice });
     }
 
     speak(env, cat, { kind = 'event', force = false, vars = {} } = {}) {
@@ -266,7 +269,7 @@
           break;
         case 'dance': this.enter('dance', rand(3, 6)); this.speak(env, 'dance', { kind: 'rand' }); break;
         case 'work': this.enter('work', rand(8, 20)); break;
-        case 'yawn': this.enter('yawn', 1.4); this.speak(env, 'sleepy', { kind: 'rand' }); break;
+        case 'yawn': this.enter('yawn', 1.4); env.sound('yawn'); this.speak(env, 'sleepy', { kind: 'rand' }); break;
         case 'sleep': this.enter('sleep', rand(15, 50)); break;
         case 'wave':
           this.dir = sign(env.cursor.x - this.x);
@@ -508,7 +511,7 @@
       if (!this.grounded() || this.state === 'special') return;
       this.enter('happy', 1.3);
       this.setEmote('blush', 1.6);
-      env.sound('squeak');
+      env.sound('happy');
       for (let i = 0; i < 3; i++) env.emit('heart', this.x + rand(-14, 14) * this.u, this.y - 52 * this.u, { delay: i * 0.12 });
       this.speak(env, 'petted');
     }
@@ -820,7 +823,15 @@
         case 'sleep': {
           if (s === 'argue') {
             this.particleT -= dt;
-            if (this.particleT <= 0) { this.particleT = 0.5; env.emit('bang', this.x + this.dir * 10 * u, this.y - 58 * u); }
+            if (this.particleT <= 0) { this.particleT = 0.5; env.emit('bang', this.x + this.dir * 10 * u, this.y - 58 * u); if (chance(0.45)) env.sound('angry'); }
+          }
+          if (s === 'eat') {
+            this.particleT -= dt;
+            if (this.particleT <= 0) { this.particleT = 0.55; env.sound('nom'); }
+          }
+          if (s === 'sulk') {
+            this.particleT -= dt;
+            if (this.particleT <= 0) { this.particleT = rand(3, 6); env.sound('sigh'); }
           }
           if (s === 'snuggle') {
             this.particleT -= dt;
@@ -831,7 +842,7 @@
           if (s === 'sleep') {
             lx = 0; ly = 0;
             this.particleT -= dt;
-            if (this.particleT <= 0) { this.particleT = 1.3; env.emit('z', this.x + this.dir * 14 * u, this.y - 46 * u); }
+            if (this.particleT <= 0) { this.particleT = 1.3; env.emit('z', this.x + this.dir * 14 * u, this.y - 46 * u); if (chance(0.4)) env.sound('snore'); }
           }
           if (s === 'dance') {
             this.particleT -= dt;
@@ -1012,6 +1023,7 @@
       if (wasThrown && impact > 1300) {
         this.enter('dizzy', 1.8);
         this.setEmote('anger', 3);
+        env.sound('angry');
         this.speak(env, 'landHard');
       } else {
         this.enter('land', 0.16 + impact / 7000);
@@ -1106,8 +1118,9 @@
   const chance = (p) => Math.random() < p;
   const sign = (v) => (v < 0 ? -1 : 1);
   const LONG = 60; // scene-owned states last "forever"; the scene moves them on
-  const FREE = new Set(['idle', 'look', 'walk', 'run', 'sit', 'wave']);
-  const BROKEN = new Set(['drag', 'crouch', 'jump', 'fall', 'thrown', 'flip', 'climb', 'cling', 'special', 'sleep', 'yawn', 'work']);
+  const FREE = new Set(['idle', 'look', 'walk', 'run', 'sit', 'wave', 'work', 'dance']);
+  const AWAKE_OK = new Set(['idle', 'look', 'walk', 'run', 'sit', 'wave', 'work', 'dance', 'happy', 'land', 'sleep', 'yawn', 'dizzy']);
+  const BROKEN = new Set(['drag', 'crouch', 'jump', 'thrown', 'flip', 'climb', 'cling', 'special', 'sleep', 'yawn']);
   const GAPS = { chatty: [18, 45], normal: [35, 90], quiet: [70, 150] };
   const U = (env) => 1.1 * (env.settings.size || 1);
   const say = (p, cat, other, secs) => {
@@ -1159,7 +1172,7 @@
       [1.1, (s, env) => { s.giveCones(); hold(s.a, 'eat'); hold(s.b, 'eat'); env.sound('nom'); }],
       [1.5, (s) => say(s.b, 'd_icecream', s.a)],
       [3.2, (s) => say(s.a, 'd_icecream', s.b)],
-      [5, (s, env) => { s.takeCones(); face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'happy'); say(s.a, 'd_sorry', s.b); for (let i = 0; i < 6; i++) env.emit('heart', (s.a.x + s.b.x) / 2 + rand(-20, 20), s.a.y - 50 * U(env), { delay: i * 0.1 }); env.sound('squeak'); }],
+      [5, (s, env) => { s.takeCones(); face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'happy'); say(s.a, 'd_sorry', s.b); for (let i = 0; i < 6; i++) env.emit('heart', (s.a.x + s.b.x) / 2 + rand(-20, 20), s.a.y - 50 * U(env), { delay: i * 0.1 }); env.sound('happy'); }],
       [6.8, (s) => { say(s.b, 'd_sorry', s.a); s.closeIn(); hold(s.a, 'snuggle'); hold(s.b, 'snuggle'); }],
       [11, (s) => s.done(28)],
     ],
@@ -1255,6 +1268,27 @@
       return true;
     }
 
+    // pets on different windows: one hops over (puff of dust) to land right next to the other
+    function hopOver(env, type, a, b) {
+      const u = U(env), gap = (GAP[type] || 44) * u;
+      const seg = a.currentSeg && a.currentSeg(env);
+      let side = chance(0.5) ? 1 : -1;
+      if (seg) {
+        if (a.x + side * gap > seg.x2 - 16 * u) side = -1;
+        if (a.x + side * gap < seg.x1 + 16 * u) side = 1;
+        if (a.x + side * gap > seg.x2 - 16 * u) return false; // window top too narrow for two
+      }
+      for (const p of [a, b]) if (p.state === 'sleep' || p.state === 'yawn') p.enter('idle', 0.5);
+      env.emit('dust', b.x, b.y, { n: 10 });
+      b.chaseX = null; b.support = null; b.seg = null; b.wall = null; b.baseRot = 0; b.rot = 0;
+      b.x = a.x + side * gap; b.y = a.y - 110 * u; b.vx = 0; b.vy = 0;
+      b.enter('fall');
+      a.dir = side; a.enter('look', LONG);
+      scene = makeScene(env, type, a, b);
+      scene.phase = 'arrive';
+      return true;
+    }
+
     function cleanupCones() { cones.length = 0; }
     function end(env) {
       if (!scene) return;
@@ -1284,15 +1318,24 @@
       // can be called any time; picks a nearby pair (or the two given)
       force(env, type = 'chat', a, b) {
         if (scene) end(env);
+        const kind = SCRIPTS[type] && !['icecream', 'patted', 'cooled'].includes(type) ? type : 'chat';
         let pair = a && b ? [a, b] : null;
         if (!pair) {
-          const all = env.pets.filter((p) => !p.gone && !p.inCloud && p.grounded());
           const c = candidates(env);
-          pair = c[0] || (all.length >= 2 ? [all[0], all[1]] : null);
-          if (pair && !sameSurface(pair[0], pair[1])) return false;
+          if (c.length) pair = c[0];
+          else {
+            // you asked for it: anyone not being dragged or thrown joins in — climbers, nappers, workers…
+            const ok = env.pets.filter((p) => !p.gone && !p.inCloud && p.state !== 'drag' && p.state !== 'thrown');
+            const grounded = ok.filter((p) => p.grounded());
+            const anchor = grounded.find((p) => !p.friend) || grounded[0];
+            const other = anchor && (ok.find((p) => p !== anchor && p.friend) || ok.find((p) => p !== anchor));
+            pair = anchor && other ? [anchor, other] : null;
+          }
         }
         if (!pair) return false;
-        return start(env, SCRIPTS[type] && type !== 'icecream' && type !== 'patted' && type !== 'cooled' ? type : 'chat', pair[0], pair[1]);
+        for (const p of pair) if (p.state === 'sleep' || p.state === 'yawn') p.enter('idle', 0.5);
+        if (!pair[1].grounded() || !sameSurface(pair[0], pair[1])) return hopOver(env, kind, pair[0], pair[1]) || (pair[1].grounded() && hopOver(env, kind, pair[1], pair[0]));
+        return start(env, kind, pair[0], pair[1]);
       },
       tick(env, dt) {
         const off = env.settings.drama === false || env.settings.chatty === 'silent';
@@ -1306,7 +1349,7 @@
         if (fight) {
           fight.t += dt;
           fight.next = (fight.next || 0) - dt;
-          if (fight.next <= 0) { fight.next = rand(0.28, 0.5); env.sound('boing'); env.emit('star', fight.x + rand(-30, 30), fight.y + rand(-24, 10)); }
+          if (fight.next <= 0) { fight.next = rand(0.28, 0.5); env.sound('pow'); env.emit('star', fight.x + rand(-30, 30), fight.y + rand(-24, 10)); }
         }
         if (!scene) {
           if (off || env.pets.length < 2) return;
@@ -1315,7 +1358,16 @@
           const g = GAPS[env.settings.chatty] || GAPS.normal;
           wait = rand(g[0], g[1]);
           const c = candidates(env);
-          if (!c.length) { wait = rand(6, 12); return; }
+          if (!c.length) {
+            const free = env.pets.filter((p) => p.grounded() && FREE.has(p.state) && !p.gone && !p.inCloud && !(p.friend && p.bubble));
+            if (free.length >= 2 && chance(0.45)) {
+              const a = free[Math.floor(Math.random() * free.length)];
+              const b = free.filter((p) => p !== a)[Math.floor(Math.random() * (free.length - 1))];
+              if (hopOver(env, chooseType(a, b), a, b)) return;
+            }
+            wait = rand(8, 16);
+            return;
+          }
           const [a, b] = c[Math.floor(Math.random() * c.length)];
           start(env, chooseType(a, b), a, b);
           return;
@@ -1323,6 +1375,13 @@
         const s = scene, { a, b } = s;
         // someone grabbed, threw or removed a pet: the scene just stops
         if (!env.pets.includes(a) || !env.pets.includes(b) || a.gone || b.gone || BROKEN.has(a.state) || BROKEN.has(b.state)) { end(env); return; }
+        if (s.phase === 'arrive') { // waiting for the hopping pet to land next to its buddy
+          s.t += dt;
+          if (b.grounded() && sameSurface(a, b)) { s.phase = 'run'; s.t = 0; b.dir = sign(a.x - b.x); }
+          else if (s.t > 4) { end(env); return; }
+          else return;
+        }
+        if ((a.state === 'fall' || b.state === 'fall') && s.phase === 'run') { end(env); return; }
         if (s.phase === 'approach') {
           s.t += dt;
           const gap = (GAP[s.type] || 40) * U(env);
@@ -1445,4 +1504,89 @@
   }
 
   window.NibbleDrama = { create };
+})();
+
+// ---------- Nibble sounds: tiny synthesized noises, no audio files ----------
+// NibbleSound.play(name, opts) — quiet on purpose, with per-sound cooldowns so it never gets noisy.
+(function () {
+  let ac = null, master = null, noiseBuf = null;
+  const last = {};
+  const COOL = { babble: 0.22, snore: 2.4, nom: 0.32, happy: 0.7, angry: 0.8, sigh: 2.2, yawn: 2, pow: 0.22, squeak: 0.15, boing: 0.15, pop: 0.08, hop: 0.12, chime: 1, smooch: 0.5 };
+  function ctx() {
+    if (!ac) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ac = new AC();
+      master = ac.createGain(); master.gain.value = 0.55; master.connect(ac.destination);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.6, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    return ac;
+  }
+  // a short tone with a soft attack/decay envelope
+  function tone(type, f0, f1, dur, gain, at = 0, opts = {}) {
+    const t = ac.currentTime + at;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + Math.min(0.025, dur * 0.3));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    let out = g;
+    if (opts.lowpass) { const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = opts.lowpass; g.connect(f); out = f; }
+    if (opts.tremolo) { // wobble for grumbles
+      const l = ac.createOscillator(), lg = ac.createGain();
+      l.frequency.value = opts.tremolo; lg.gain.value = gain * 0.6;
+      l.connect(lg); lg.connect(g.gain); l.start(t); l.stop(t + dur);
+    }
+    o.connect(g); out.connect(master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  // filtered noise: breaths, munches, puffs
+  function noise(dur, gain, freq, q = 1, at = 0, swell = false) {
+    const t = ac.currentTime + at;
+    const s = ac.createBufferSource(); s.buffer = noiseBuf;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + (swell ? dur * 0.55 : 0.012));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(t, Math.random() * 0.2); s.stop(t + dur + 0.02);
+  }
+  const SOUNDS = {
+    squeak: () => tone('sine', 700, 1300, 0.09, 0.08),
+    boing: () => tone('triangle', 320, 140, 0.22, 0.09),
+    pop: () => tone('sine', 900, 260, 0.07, 0.07),
+    hop: () => tone('sine', 420, 760, 0.08, 0.06),
+    chime: () => { tone('sine', 880, 880, 0.35, 0.07); tone('sine', 1320, 1320, 0.45, 0.05, 0.12); },
+    // talking: a few soft "syllables" in this pet's own voice
+    babble: (o = {}) => {
+      const n = Math.max(2, Math.min(6, o.n || 3)), v = o.pitch || 1;
+      for (let i = 0; i < n; i++) { const f = (430 + Math.random() * 260) * v; tone('triangle', f, f * (0.85 + Math.random() * 0.3), 0.06, 0.035, i * 0.085, { lowpass: 2200 }); }
+    },
+    snore: () => { noise(0.9, 0.025, 380, 0.8, 0, true); tone('sine', 95, 80, 0.8, 0.02, 0.1); },
+    nom: () => { noise(0.05, 0.05, 900, 1.2); tone('square', 300, 210, 0.05, 0.018, 0.02, { lowpass: 1200 }); noise(0.05, 0.04, 800, 1.2, 0.13); },
+    happy: () => { tone('sine', 1047, 1047, 0.09, 0.05); tone('sine', 1319, 1319, 0.09, 0.05, 0.08); tone('sine', 1568, 1568, 0.14, 0.05, 0.16); },
+    angry: () => tone('sawtooth', 150, 108, 0.36, 0.045, 0, { lowpass: 900, tremolo: 17 }),
+    sigh: () => { noise(0.6, 0.02, 600, 0.7, 0, true); tone('triangle', 480, 290, 0.45, 0.025, 0.05, { lowpass: 1400 }); },
+    yawn: () => tone('sine', 420, 230, 0.6, 0.035, 0, { lowpass: 1600 }),
+    pow: () => { noise(0.09, 0.07, 1400, 0.9); tone('sine', 140, 60, 0.12, 0.07); },
+    smooch: () => tone('sine', 1500, 2600, 0.06, 0.04),
+  };
+  function play(name, opts) {
+    const f = SOUNDS[name];
+    if (!f) return;
+    try {
+      if (!ctx()) return;
+      const now = ac.currentTime;
+      if (last[name] != null && now - last[name] < (COOL[name] || 0.1)) return;
+      last[name] = now;
+      f(opts);
+    } catch { /* audio is a nice-to-have */ }
+  }
+  window.NibbleSound = { play, unlock: () => { try { ctx(); } catch {} }, setVolume: (v) => { try { ctx(); master.gain.value = Math.max(0, Math.min(1, v)); } catch {} } };
 })();

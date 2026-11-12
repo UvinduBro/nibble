@@ -224,14 +224,14 @@
     ctx.translate(ox, below ? by : by + bh);
     ctx.scale(sc, sc);
     ctx.translate(-ox, -(below ? by : by + bh));
-    ctx.shadowColor = 'rgba(0,0,0,0.18)';
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.16)'; // cheap soft shadow (shadowBlur is costly every frame)
+    ctx.beginPath();
+    ctx.roundRect(bx + 1, by + 3, bw, bh, 11);
+    ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.97)';
     ctx.beginPath();
     ctx.roundRect(bx, by, bw, bh, 11);
     ctx.fill();
-    ctx.shadowColor = 'transparent';
     // tail
     ctx.beginPath();
     if (below) { ctx.moveTo(ox - 6, by + 1); ctx.lineTo(ox, by - 7); ctx.lineTo(ox + 6, by + 1); }
@@ -256,8 +256,9 @@
 
   // ---------- sounds (tiny synthesized blips, no audio files) ----------
   let actx = null;
-  function sound(name) {
+  function sound(name, opts) {
     if (!env.settings.sounds) return;
+    if (window.NibbleSound) return window.NibbleSound.play(name, opts); // the richer shared sound set (engine/pet.js)
     try {
       actx = actx || new AudioContext();
       const o = actx.createOscillator();
@@ -686,8 +687,24 @@
     }
     setInterval(() => { if (pendingRem.length && !hidden && env.idle < 5) remind(pendingRem.shift()); }, 2000);
 
+    // you sent something: your pet acts it out (and the friend's pet reacts, if it's on your screen)
+    function sentEcho(m) {
+      const me = mine();
+      if (!me || !me.grounded()) return;
+      const EMO = { wave: '👋', hug: '🤗', kiss: '😘', heart: '❤️', poke: '👉', highfive: '🙌', tickle: '🤭', cheer: '🎉', snack: '🍪', dance: '🎶', visit: '🏠' };
+      const to = env.pets.find((q) => q.friend && q.friend.uid === m.to);
+      popOn(me, EMO[m.kind] || '✨');
+      me.bubble = null;
+      me.say(SAY[m.kind] ? SAY[m.kind] : `sent @${m.toName || 'friend'} a ${m.kind}`, 3);
+      if (m.kind === 'dance') me.command({ type: 'dance' }, env);
+      else if (['hug', 'kiss', 'heart', 'snack'].includes(m.kind)) { me.enter('happy', 1.6); for (let i = 0; i < 4; i++) emit('heart', me.x + (i - 1.5) * 6, me.y - 40, { delay: i * 0.12 }); sound(m.kind === 'kiss' ? 'smooch' : 'happy'); }
+      else me.enter('wave', 1.4);
+      if (to && to.grounded()) { popOn(to, EMO[m.kind] || '✨'); to.enter(m.kind === 'poke' || m.kind === 'tickle' ? 'dizzy' : 'happy', 1.2); }
+    }
+
     function onEvent(m) {
       if (m && m.kind === 'reminder') { remind(m); return; } // your own reminders ignore do-not-disturb
+      if (m && m.echo) { sentEcho(m); return; }
       if (!m || m.mine || dnd()) return;
       const me = mine();
       // everything a friend sends is delivered by THEIR pet, so it comes over if it isn't here yet
@@ -785,9 +802,24 @@
 
   // ---------- main loop ----------
   let last = performance.now();
+  // Adaptive frame rate: a full-screen transparent window redrawn at 60fps makes Windows recomposite
+  // the whole screen every frame, which can make everything feel laggy. So: 60fps while something
+  // moves, 30fps when pets are just idling, 15fps when you're away, ~4fps while hidden/paused.
+  const STILL = new Set(['idle', 'look', 'sit', 'sleep', 'work', 'yawn', 'sulk', 'snuggle', 'eat', 'wave', 'happy']);
+  let lastDraw = 0;
+  function frameBudget() {
+    if (hidden || env.settings.paused) return 250;
+    const moving = dragging || press || parts.length > 0 || (drama && drama.busy && drama.busy()) ||
+      env.pets.some((p) => !STILL.has(p.state) || (p.bubble && p.bubble.t < 0.5) || (p.hoverT > 0.05 && p.hoverT < 0.95));
+    if (moving) return 0;
+    return (env.idle || 0) > 60 ? 66 : 33;
+  }
   function frame(now) {
+   const budget = frameBudget();
+   if (budget && now - lastDraw < budget - 2) { requestAnimationFrame(frame); return; }
+   lastDraw = now;
    try {
-    const dt = Math.min(0.05, (now - last) / 1000);
+    const dt = Math.min(budget ? 0.1 : 0.05, (now - last) / 1000);
     last = now;
     env.time += dt;
     const u = 1.1 * (env.settings.size || 1);

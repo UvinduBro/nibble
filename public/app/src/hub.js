@@ -57,6 +57,11 @@ function setupHub(ctx) {
     });
     hub.setMenuBarVisibility(false);
     hub.on('close', (e) => { if (!quitting) { e.preventDefault(); hub.hide(); } });
+    // background throttling is off (so messages keep flowing), which also means the page can't tell
+    // it's hidden — tell it, so it can stop drawing its little animated pets while nobody's looking
+    const vis = () => { if (hub && !hub.isDestroyed()) hub.webContents.send('hub:visible', hub.isVisible() && !hub.isMinimized()); };
+    for (const ev of ['show', 'hide', 'minimize', 'restore']) hub.on(ev, vis);
+    hub.webContents.on('did-finish-load', vis);
     // stay on the Nibble site; anything else opens in the normal browser
     hub.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
     hub.webContents.on('will-navigate', (e, url) => {

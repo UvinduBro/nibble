@@ -1,10 +1,10 @@
 {
-  "version": "2.0.9",
+  "version": "2.0.10",
   "date": "2026-11-12",
   "notes": [
-    "New: pets interact with each other — chats, dance-offs, cuddles, teasing… and squabbles that turn into a cartoon fight cloud",
-    "Make them friends again: click 🍦 Give them ice cream (or pat both of them)",
-    "Hub → Pets: Make them interact buttons; Settings: turn interactions on or off",
-    "Fix: your friends' customized pets (hats, glasses, colours, makeup) now show on your desktop"
+    "New: subtle pet sounds — babbling when they talk, snoring, munching, happy jingles, grumbles and sighs (Settings → Pet sounds)",
+    "Smoother and lighter: pets slow their redraws while idle, pause while hidden or in fullscreen games, and the Hub stops animating when it's closed",
+    "Fix: pets on different windows now hop over to interact, and Make them interact always works",
+    "When you send a wave, hug or kiss, your own pet acts it out too"
   ]
 }
