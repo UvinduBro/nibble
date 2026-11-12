@@ -10,6 +10,8 @@ service cloud.firestore {
     function isFriendOf(owner) { return exists(/databases/$(database)/documents/users/$(owner)/friends/$(me())); }
     // admin = a doc exists at admins/{your uid} (add it by hand in the Firebase console)
     function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(me())); }
+    // suspended by an admin = a doc exists at banned/{your uid}
+    function isBanned() { return signedIn() && exists(/databases/$(database)/documents/banned/$(me())); }
     function validName(n) { return n is string && n.matches('^[a-z0-9_]{3,20}$'); }
     function shortText(t, max) { return t is string && t.size() <= max; }
     function incoming() { return request.resource.data; }
@@ -20,29 +22,55 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
-    // a single site-wide announcement banner, set by an admin
+    // suspended accounts. The person can see that they're suspended; only admins manage the list.
+    match /banned/{uid} {
+      allow get: if signedIn() && (uid == me() || isAdmin());
+      allow list, write: if isAdmin();
+    }
+
+    // the live site-wide announcement banner, set by an admin
     match /broadcast/{doc} {
       allow read: if signedIn();
       allow write: if isAdmin()
-        && (!('text' in incoming()) || shortText(incoming().text, 200))
-        && shortText(incoming().get('title', ''), 60);
+        && incoming().keys().hasOnly(['title', 'text', 'level', 'link', 'expiresAt', 'at', 'by', 'id'])
+        && shortText(incoming().get('text', ''), 200)
+        && shortText(incoming().get('title', ''), 60)
+        && shortText(incoming().get('level', 'info'), 10)
+        && shortText(incoming().get('link', ''), 200);
+    }
+
+    // announcement history (admin only)
+    match /broadcasts/{id} {
+      allow read, create, delete: if isAdmin();
+      allow update: if false;
+    }
+
+    // site config: minimum desktop version + pinned notice. Everyone reads, admins write.
+    match /config/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin()
+        && incoming().keys().hasOnly(['minVersion', 'updateMsg', 'notice', 'noticeLevel', 'updatedAt', 'by'])
+        && shortText(incoming().get('minVersion', ''), 12)
+        && shortText(incoming().get('updateMsg', ''), 160)
+        && shortText(incoming().get('notice', ''), 200)
+        && shortText(incoming().get('noticeLevel', 'info'), 10);
     }
 
     // one doc per claimed username → { uid }
     match /usernames/{name} {
       allow get: if signedIn();
       allow list: if false;
-      allow create: if signedIn() && validName(name)
+      allow create: if signedIn() && !isBanned() && validName(name)
         && incoming().keys().hasOnly(['uid']) && incoming().uid == me();
       allow delete: if (signedIn() && resource.data.uid == me()) || isAdmin();
       allow update: if false;
     }
 
-    // public profile: username, pet, character. No emails are stored here.
+    // public profile: username, pet, character, look. No emails are stored here.
     match /users/{uid} {
       allow read: if signedIn();
       allow list: if isAdmin();
-      allow create, update: if signedIn() && uid == me()
+      allow create, update: if signedIn() && uid == me() && !isBanned()
         && incoming().keys().hasOnly(['username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'createdAt', 'updatedAt'])
         && validName(incoming().username)
         && getAfter(/databases/$(database)/documents/usernames/$(incoming().username)).data.uid == me()
@@ -51,12 +79,15 @@ service cloud.firestore {
         && (!('acc' in incoming()) || incoming().acc is list)
         && shortText(incoming().get('tint', ''), 7)
         && shortText(incoming().get('makeup', ''), 12);
+      // admins may only reset someone's look — nothing else on their profile
+      allow update: if isAdmin()
+        && incoming().diff(resource.data).affectedKeys().hasOnly(['acc', 'tint', 'makeup', 'updatedAt']);
       allow delete: if isAdmin();
 
       // friendships are written on both sides when a request is accepted
       match /friends/{fid} {
         allow read: if signedIn() && uid == me();
-        allow create: if signedIn()
+        allow create: if signedIn() && !isBanned()
           && incoming().keys().hasOnly(['username', 'since'])
           && shortText(incoming().username, 20)
           && (
@@ -73,7 +104,7 @@ service cloud.firestore {
     // friend requests: id is "{from}_{to}"
     match /requests/{rid} {
       allow read: if signedIn() && (resource.data.from == me() || resource.data.to == me());
-      allow create: if signedIn()
+      allow create: if signedIn() && !isBanned()
         && incoming().keys().hasOnly(['from', 'to', 'fromName', 'toName', 'at'])
         && incoming().from == me()
         && incoming().to is string && incoming().to != me()
@@ -85,14 +116,17 @@ service cloud.firestore {
       allow update: if false;
     }
 
-    // online status, "thinking…" and the last short message. Only you and your friends can read it.
+    // online status, "thinking…", last short message, look, and which app/version.
+    // Only you, your friends and admins can read it.
     match /presence/{uid} {
       allow read: if signedIn() && (uid == me() || isFriendOf(uid) || isAdmin());
       allow list: if isAdmin();
-      allow create, update: if signedIn() && uid == me()
-        && incoming().keys().hasOnly(['online', 'lastSeen', 'username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'status', 'dnd', 'typing', 'typingAt', 'typingTo', 'say'])
+      allow create, update: if signedIn() && uid == me() && !isBanned()
+        && incoming().keys().hasOnly(['online', 'lastSeen', 'username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'status', 'dnd', 'typing', 'typingAt', 'typingTo', 'say', 'client', 'ver'])
         && shortText(incoming().get('status', ''), 40)
         && shortText(incoming().get('petName', ''), 20)
+        && shortText(incoming().get('client', ''), 10)
+        && shortText(incoming().get('ver', ''), 12)
         && (!('acc' in incoming()) || incoming().acc is list)
         && (!('say' in incoming()) || (incoming().say is map && shortText(incoming().say.text, 80) && shortText(incoming().say.id, 40)));
       allow delete: if (signedIn() && uid == me()) || isAdmin();
@@ -101,7 +135,7 @@ service cloud.firestore {
     // direct pokes, waves, cuddles and whispers. Only friends can send; only you can read.
     match /inbox/{uid}/items/{id} {
       allow read, delete: if signedIn() && uid == me();
-      allow create: if signedIn() && isFriendOf(uid)
+      allow create: if signedIn() && !isBanned() && isFriendOf(uid)
         && incoming().keys().hasOnly(['from', 'fromName', 'kind', 'text', 'at'])
         && incoming().from == me()
         && incoming().kind is string && incoming().kind.matches('^[a-z]{2,12}$')

@@ -6,7 +6,22 @@ import { AuthScreen, Onboard, CharacterGrid } from './Auth';
 import LiveDesk from './LiveDesk';
 import PetFigure from '../PetFigure';
 import { byKey, CHARACTERS } from '../../lib/characters';
-import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError } from '../../lib/social/social';
+import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess } from '../../lib/social/social';
+
+// announcement / notice banner. level: info | update | warn | party | need
+const BANNER_ICON = { info: '📣', update: '⬆️', warn: '⚠️', party: '🎉', need: '⬆️' };
+function Banner({ level = 'info', title, text, link, linkLabel = 'Open', onClose, children }) {
+  const lv = BANNER_ICON[level] ? level : 'info';
+  return (
+    <div className={'sa-bc lvl-' + lv}>
+      <span className="sa-bc-ico">{BANNER_ICON[lv]}</span>
+      <div className="sa-bc-text">{title && <b>{title} </b>}{text}</div>
+      {children}
+      {link && <a className="btn small" href={link} target="_blank" rel="noopener">{linkLabel}</a>}
+      {onClose && <button className="sa-x" onClick={onClose} title="Dismiss">✕</button>}
+    </div>
+  );
+}
 
 const ago = (t) => {
   if (!t) return '';
@@ -487,13 +502,30 @@ export default function SocialApp({ mode = 'web' }) {
   const notified = useRef('');
   const [bcDismissed, setBcDismissed] = useState('');
   useEffect(() => { try { setBcDismissed(localStorage.getItem('nibble-bc-seen') || ''); } catch {} }, []);
+  const bcLive = !!state.broadcast && !(state.broadcast.expiresAt && Date.now() > state.broadcast.expiresAt);
   useEffect(() => {
-    if (!bcId || notified.current === bcId) return;
+    if (!bcId || !bcLive || notified.current === bcId) return;
     notified.current = bcId;
     if (desktop && desktop.notify) desktop.notify({ title: state.broadcast.title || 'Nibble', body: state.broadcast.text });
-  }, [bcId, desktop]);
-  const showBc = state.broadcast && bcId !== bcDismissed;
+  }, [bcId, bcLive, desktop]);
+  const showBc = bcLive && bcId !== bcDismissed;
   const dismissBc = () => { try { localStorage.setItem('nibble-bc-seen', bcId); } catch {} setBcDismissed(bcId); };
+
+  // tell admins which app this is (desktop + version, or web)
+  useEffect(() => {
+    if (!social || !state.profile) return;
+    if (isDesk) { if (local && local.version) social.setClient({ client: 'desktop', ver: local.version }); }
+    else social.setClient({ client: 'web' });
+  }, [social, state.profile, isDesk, local && local.version]);
+
+  // admin-set site notice (dismissable per notice text) and "update needed" for old desktop builds
+  const cfg = state.config || {};
+  const [noticeSeen, setNoticeSeen] = useState('');
+  useEffect(() => { try { setNoticeSeen(localStorage.getItem('nibble-notice-seen') || ''); } catch {} }, []);
+  const showNotice = !!cfg.notice && cfg.notice !== noticeSeen;
+  const dismissNotice = () => { try { localStorage.setItem('nibble-notice-seen', cfg.notice); } catch {} setNoticeSeen(cfg.notice); };
+  const [needHidden, setNeedHidden] = useState(false);
+  const needUpdate = isDesk && local && local.version && cfg.minVersion && verLess(local.version, cfg.minVersion) && !needHidden;
 
   let body;
   if (missing) {
@@ -507,6 +539,16 @@ export default function SocialApp({ mode = 'web' }) {
   } else if (!state.ready || (state.user && state.profile === undefined)) {
     body = <div className="sa-center"><PetFigure skin="mint" mood="sleep" w={140} h={130} /><p className="sa-sub">Waking up…</p></div>;
   } else if (!state.user) body = <AuthScreen social={social} desktop={desktop} />;
+  else if (state.banned) {
+    body = (
+      <div className="sa-center sa-suspended">
+        <PetFigure skin={(state.profile && state.profile.skin) || 'mint'} mood="sleep" w={150} h={140} />
+        <h1>Account paused</h1>
+        <p className="sa-sub">This account has been suspended by the Nibble team, so friends, messages and pokes are switched off for now. Your desktop pets still work offline. If you think this is a mistake, reach out to the Nibble team.</p>
+        <button className="btn small ghost" onClick={() => social.signOut()}>Sign out</button>
+      </div>
+    );
+  }
   else if (!state.profile) body = <Onboard social={social} state={state} initialSkin={local?.settings?.pets?.[0]?.skin} />;
   else {
     const props = { social, state, desktop, local, toast, go: setTab, chatWith, setChatWith };
@@ -520,7 +562,7 @@ export default function SocialApp({ mode = 'web' }) {
       </>
     );
   }
-  const signedIn = state.user && state.profile;
+  const signedIn = state.user && state.profile && !state.banned;
 
   return (
     <div className={'sa' + (isDesk ? ' desk' : '') + (signedIn ? '' : ' solo')}>
@@ -547,13 +589,13 @@ export default function SocialApp({ mode = 'web' }) {
       )}
       <main className="sa-main">
         {!signedIn && !isDesk && <a className="sa-back" href="/">← nibble</a>}
-        {signedIn && showBc && (
-          <div className="sa-bc">
-            <span className="sa-bc-ico">📣</span>
-            <div className="sa-bc-text">{state.broadcast.title && <b>{state.broadcast.title} </b>}{state.broadcast.text}</div>
-            <button className="sa-x" onClick={dismissBc} title="Dismiss">✕</button>
-          </div>
+        {signedIn && needUpdate && (
+          <Banner level="need" title={`Update needed — you're on v${local.version}, v${cfg.minVersion}+ is required.`} text={cfg.updateMsg || 'Some features may not work until you update.'} link="/Nibble-Reinstall-Guide.pdf" linkLabel="How to" onClose={() => setNeedHidden(true)}>
+            {desktop && desktop.update && <button className="btn small" onClick={() => desktop.update()}>Update now</button>}
+          </Banner>
         )}
+        {signedIn && showNotice && <Banner level={cfg.noticeLevel} text={cfg.notice} onClose={dismissNotice} />}
+        {signedIn && showBc && <Banner level={state.broadcast.level} title={state.broadcast.title} text={state.broadcast.text} link={state.broadcast.link} onClose={dismissBc} />}
         {body}
       </main>
       <Notice note={note} onDone={() => setNote(null)} />
