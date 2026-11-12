@@ -1,10 +1,10 @@
 {
-  "version": "2.0.5",
+  "version": "2.0.6",
   "date": "2026-11-12",
   "notes": [
-    "Fix: customization (hats, glasses, colours, makeup) now shows on your desktop pets and your friends'",
-    "Fix: pokes, waves and cuddles no longer get dropped on the way in",
-    "Fix: announcements now pop up as a Windows notification even when the hub is closed",
-    "Updating refreshes the pet engine, so reinstall/update on every PC to get these"
+    "Fix: incoming pokes, waves and cuddles are no longer dropped when a PC's clock is off",
+    "Fix: the pet engine can never freeze — one bad frame won't stop the animations anymore",
+    "Fix: customization and action reactions keep playing reliably",
+    "Reinstall/update on every PC, then fully quit and reopen Nibble, to get these"
   ]
 }

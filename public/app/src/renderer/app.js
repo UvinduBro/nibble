@@ -759,12 +759,13 @@
   // ---------- main loop ----------
   let last = performance.now();
   function frame(now) {
+   try {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     env.time += dt;
     const u = 1.1 * (env.settings.size || 1);
 
-    for (const p of env.pets) p.update(dt, env);
+    for (const p of env.pets) { try { p.update(dt, env); } catch (e) { if (window.console) console.warn('[nibble] update', e); } }
     social.tick(dt);
     updateParts(dt);
     tickHousekeeping(dt);
@@ -796,13 +797,14 @@
         const k = Math.max(0, 1 - (env.world.floor - p.y) / 500);
         if (k > 0) drawShadow(ctx, p.x, env.world.floor, u, k);
       }
-      drawPet(ctx, p.pose(), skin, u);
+      try { drawPet(ctx, p.pose(), skin, u); } catch (e) { if (window.console) console.warn('[nibble] draw', e); }
     }
     renderParts(u);
     for (const p of sorted) if (p.bubble) renderBubble(p, u);
     social.draw(ctx, u, sorted);
-
-    requestAnimationFrame(frame);
+   } catch (e) { if (window.console) console.warn('[nibble] frame', e); }
+   // Always schedule the next frame — a single bad frame must never kill the whole loop.
+   requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 })();
