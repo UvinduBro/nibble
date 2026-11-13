@@ -6,6 +6,8 @@ const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
 const EMO_FONT = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
 function emoji(ctx, e, x, y, size, rot = 0) {
   ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot);
+  // emoji take the current fill colour's transparency: always draw them with a solid colour
+  ctx.fillStyle = '#000'; ctx.shadowBlur = 0;
   ctx.font = `${size}px ${EMO_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(e, 0, 0);
   ctx.restore();
 }

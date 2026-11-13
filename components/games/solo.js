@@ -15,6 +15,8 @@ const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
 const EMO_FONT = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
 function emoji(ctx, e, x, y, size, rot = 0) {
   ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot);
+  // emoji take the current fill colour's transparency: always draw them with a solid colour
+  ctx.fillStyle = '#000'; ctx.shadowBlur = 0;
   ctx.font = `${size}px ${EMO_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(e, 0, 0);
   ctx.restore();
 }
@@ -120,7 +122,7 @@ function hop(ctx, api) {
     },
     draw(dt) {
       bg(ctx, W, H, '#16304a', '#2a3e66');
-      ctx.globalAlpha = 0.5; for (const c of clouds) emoji(ctx, '☁️', c.x, c.y, 36 * c.s); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.7; for (const c of clouds) emoji(ctx, '☁️', c.x, c.y, 36 * c.s); ctx.globalAlpha = 1;
       ctx.fillStyle = '#20263d'; ctx.fillRect(0, floor, W, H - floor);
       ctx.fillStyle = 'rgba(255,255,255,0.12)';
       for (let i = 0; i < 12; i++) { const xx = ((i * 90 - dist * 0.6) % (W + 90) + W + 90) % (W + 90) - 45; ctx.fillRect(xx, floor + 12, 40, 6); }
@@ -271,7 +273,7 @@ function memory(ctx, api) {
         ctx.save(); ctx.translate(x + size / 2, y + size / 2); ctx.scale(Math.max(0.05, k), 1);
         ctx.fillStyle = face ? (c.done ? 'rgba(126,232,198,0.28)' : 'rgba(255,255,255,0.92)') : '#7c6cff';
         ctx.beginPath(); ctx.roundRect(-size / 2, -size / 2, size, size, 12); ctx.fill();
-        if (face) emoji(ctx, c.e, 0, 2, size * 0.58); else { ctx.fillStyle = 'rgba(255,255,255,0.25)'; emoji(ctx, '🐾', 0, 2, size * 0.4); }
+        if (face) emoji(ctx, c.e, 0, 2, size * 0.58); else { ctx.globalAlpha = 0.35; emoji(ctx, '🐾', 0, 2, size * 0.4); ctx.globalAlpha = 1; }
         ctx.restore();
       });
       pops(ctx, fx, dt);
