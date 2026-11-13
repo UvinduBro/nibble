@@ -136,21 +136,26 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
   const savedSig = JSON.stringify([saved.skin, saved.acc, saved.tint, saved.makeup, saved.style.sp, saved.style.of, saved.style.oc, saved.style.sk]);
 
   // changes save on their own (on Nibble's servers and on this PC's pets) — unless something is still locked
-  const timer = useRef(null);
+  const timer = useRef(null), pending = useRef(null);
   useEffect(() => {
-    if (sig === savedSig || locked.length) return;
+    if (sig === savedSig || locked.length) { timer.current = null; return; }
     clearTimeout(timer.current);
     setStatus('saving');
-    timer.current = setTimeout(async () => {
+    const run = async () => {
+      timer.current = null;
       try {
         const pets = (local && local.settings.pets) || [];
         if (desktop && pets.length) desktop.setLocal({ pets: pets.map((p, i) => (i === 0 ? { ...p, skin, acc, tint, makeup, style } : p)) });
         const where = await social.updateProfile({ skin, acc, tint, makeup, style });
         setStatus(where === 'local' ? 'local' : 'saved');
-      } catch (e) { setStatus(''); toast({ err: true, text: niceError(e) }); }
-    }, 650);
+      } catch (e) { setStatus('fail'); toast({ err: true, text: 'Your look didn’t save: ' + niceError(e) }); }
+    };
+    pending.current = run;
+    timer.current = setTimeout(run, 650);
     return () => clearTimeout(timer.current);
-  }, [sig, locked.length]); // only your own changes save (a look changed elsewhere isn't overwritten) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sig, locked.length]);
+  // leaving the page (or closing the Hub) right after a change still saves it
+  useEffect(() => () => { if (timer.current && pending.current) pending.current(); }, []); // only your own changes save (a look changed elsewhere isn't overwritten) // eslint-disable-line react-hooks/exhaustive-deps
 
   const buy = async (id) => {
     const it = ITEMS[id];
@@ -180,7 +185,7 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
   const pickCharacter = (k) => { setSkin(k); setSp(''); setTint(''); poke('special'); };
   const fig = (extra, mood = 'idle') => <PetFigure skin={extra.skin || skin} mood={mood} w={84} h={78} size={0.78} acc={extra.acc ?? []} tint={extra.tint ?? tint} makeup={extra.makeup ?? ''} look={{ ...style, ...extra.style }} />;
   const charSel = special(skin);
-  const statusText = locked.length ? '' : status === 'saving' || sig !== savedSig ? 'Saving…' : status === 'local' ? 'Saved on this PC (friends see it once the new rules are published)' : 'Saved ✓ · friends see this look';
+  const statusText = locked.length ? '' : status === 'fail' ? 'Not saved: check your connection, then change anything to try again' : status === 'saving' || sig !== savedSig ? 'Saving…' : status === 'local' ? 'Saved on this PC (friends see it once the new rules are published)' : 'Saved ✓ · friends see this look';
   const price = (cat, it) => (owns(owned, cat, it.key) ? 0 : it.price);
 
   return (
@@ -213,7 +218,7 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
                   <button className="btn small ghost" onClick={takeOff}>Take off</button>
                 </div>
               </div>
-            ) : <p className={'wd-status' + (status === 'local' ? ' warn' : '')}>{statusText}</p>}
+            ) : <p className={'wd-status' + (status === 'local' || status === 'fail' ? ' warn' : '')}>{statusText}</p>}
             {wallet.error === 'rules' && <p className="wd-warn">Points need the new Firestore rules. Publish <code>firestore.rules</code> in the Firebase console.</p>}
             {desktop && local && local.version && verLess(local.version, '2.0.13') && <p className="wd-warn">Your desktop app (v{local.version}) can’t show animals and outfits yet. Reinstall the latest Nibble to see them on your desktop.</p>}
           </div>

@@ -7,7 +7,7 @@ import LiveDesk from './LiveDesk';
 import { Music, MusicDock, useRoomPlayer } from './Music';
 import PetFigure, { useNibble } from '../PetFigure';
 import { byKey, CHARACTERS } from '../../lib/characters';
-import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess } from '../../lib/social/social';
+import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess, cleanStyleMap } from '../../lib/social/social';
 import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
 import Wardrobe from './Wardrobe';
 import Arcade from './Arcade';
@@ -746,6 +746,20 @@ function useDesktopBridge(desktop, social, state) {
   }, [desktop]);
   const localRef = useRef(local);
   localRef.current = local;
+  // Pet #1 on this PC is you: it always wears your saved look, wherever you changed it
+  // (the website, another PC, an admin reset). Sent once per look so a PC that lacks a skin can't loop.
+  const lookSent = useRef('');
+  useEffect(() => {
+    const pr = state.profile;
+    if (!desktop || !pr || !local || !local.settings || !Array.isArray(local.settings.pets) || !local.settings.pets.length) return;
+    const want = { skin: pr.skin || 'mint', acc: Array.isArray(pr.acc) ? pr.acc.slice(0, 6) : [], tint: pr.tint || '', makeup: pr.makeup || '', style: cleanStyleMap(pr.style) };
+    const p0 = local.settings.pets[0];
+    const have = { skin: p0.skin || 'mint', acc: Array.isArray(p0.acc) ? p0.acc : [], tint: p0.tint || '', makeup: p0.makeup || '', style: cleanStyleMap(p0.style) };
+    const w = JSON.stringify(want);
+    if (w === JSON.stringify(have) || w === lookSent.current) return;
+    lookSent.current = w;
+    desktop.setLocal({ pets: local.settings.pets.map((p, i) => (i === 0 ? { ...p, ...want } : p)) });
+  }, [desktop, local, state.profile]);
   useEffect(() => {
     if (!desktop || !social || !social.onReminder) return;
     return social.onReminder((r) => {
