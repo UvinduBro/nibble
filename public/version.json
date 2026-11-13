@@ -1,10 +1,10 @@
 {
-  "version": "2.0.19",
+  "version": "2.0.20",
   "date": "2026-11-13",
   "notes": [
-    "Nibble for Mac: install with one line in Terminal (macOS 12+, Apple silicon and Intel)",
-    "Windows: the app is called Nibble with the pet icon everywhere (no more Electron), even on older installs, which fix themselves",
-    "Fixed: installs from the Download button were missing the files that draw animals and outfits, so new looks didn't show on the desktop",
-    "Update Nibble in the tray menu always uses the latest installer"
+    "Nibble for Mac as a .dmg: open it and drag Nibble to Applications (Apple silicon and Intel)",
+    "On a Mac, Update Nibble in the menu bar installs the latest .dmg for you",
+    "Windows: the app is called Nibble with the pet icon everywhere, and older installs fix themselves",
+    "Fixed: installs from the Download button were missing the files that draw animals and outfits"
   ]
 }

@@ -1,0 +1,58 @@
+# Builds Nibble.dmg for Mac on every app release and publishes it as the latest GitHub release.
+# Fully trusted (no Gatekeeper warning) once these repository secrets exist:
+#   MAC_CERT_P12_BASE64    your "Developer ID Application" certificate (.p12), base64
+#   MAC_CERT_PASSWORD      the .p12 password
+#   APPLE_API_KEY_P8_BASE64, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID   App Store Connect API key (notarization)
+# Without them it still builds a working (ad-hoc signed) dmg.
+name: Mac app (.dmg)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['public/app/package.json', 'public/app/src/**', 'public/nibble/**', 'public/nibble.icns', 'lib/installer.js', 'tools/mac/**', '.github/workflows/mac-dmg.yml']
+permissions:
+  contents: write
+concurrency:
+  group: mac-dmg
+  cancel-in-progress: true
+jobs:
+  dmg:
+    runs-on: macos-14
+    env:
+      MAC_CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+      MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+      APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tools
+        run: cd tools/mac && npm init -y >/dev/null && npm i --no-audit --no-fund @electron/universal@2 @electron/osx-sign@1
+      - name: Import the Developer ID certificate
+        if: env.MAC_CERT_P12_BASE64 != ''
+        run: |
+          KC="$RUNNER_TEMP/nibble.keychain-db"; KCPW="$(openssl rand -hex 16)"
+          security create-keychain -p "$KCPW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KCPW" "$KC"
+          echo "$MAC_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MAC_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KC"
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KCPW" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          ID="$(security find-identity -v -p codesigning "$KC" | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)"/\1/')"
+          echo "Signing as: $ID"
+          echo "MAC_IDENTITY=$ID" >> "$GITHUB_ENV"
+      - name: Build Nibble.dmg
+        run: node tools/mac/build.mjs
+      - name: Publish (GitHub release, marked latest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="mac-v$MAC_VER"
+          NOTE="Nibble $MAC_VER for Mac (Apple silicon + Intel, macOS 12+). Signed with Developer ID: $MAC_SIGNED. Notarized by Apple: $MAC_NOTARIZED."
+          if gh release view "$TAG" >/dev/null 2>&1; then gh release edit "$TAG" --notes "$NOTE" --latest; else gh release create "$TAG" --title "Nibble $MAC_VER for Mac" --notes "$NOTE" --latest; fi
+          gh release upload "$TAG" dist-mac/Nibble.dmg "dist-mac/Nibble-$MAC_VER.dmg" --clobber

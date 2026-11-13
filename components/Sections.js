@@ -74,6 +74,8 @@ export function Download() {
   const [origin, setOrigin] = useState('https://nibblex.vercel.app');
   const [os, setOs] = useState('win');
   const [copied, setCopied] = useState('');
+  const [mac, setMac] = useState(null); // { ready, version, signed, notarized, size }
+  useEffect(() => { fetch('/api/mac-release').then((r) => r.json()).then(setMac).catch(() => setMac({ ready: false })); }, []);
   useEffect(() => {
     setOrigin(window.location.origin);
     if (/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent)) setOs('mac');
@@ -109,13 +111,20 @@ export function Download() {
           </div>
         ) : (
           <div className="dl-cta">
-            <div className="cmd cmd-big">
-              <span className="cmd-label">Paste this into <b>Terminal</b> and press Return</span>
+            {mac && mac.ready && (
+              <>
+                <a className="btn big" href="/Nibble.dmg">⬇ Download Nibble {mac.version} for Mac (.dmg)</a>
+                <p className="dl-meta">macOS 12 Monterey or newer · Apple silicon and Intel · {mac.size ? Math.round(mac.size / 1048576) + ' MB' : 'about 200 MB'} · free{mac.notarized ? ' · signed and notarized by Apple ✓' : ''}</p>
+                {!mac.notarized && <p className="dl-upd">First time only: macOS may say it can’t check Nibble. Open <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b>.</p>}
+              </>
+            )}
+            <div className={'cmd' + (mac && mac.ready ? '' : ' cmd-big')}>
+              <span className="cmd-label">{mac && mac.ready ? 'or paste this into Terminal (no security prompt)' : <>Paste this into <b>Terminal</b> and press Return</>}</span>
               <code>{macCmd}</code>
               <button onClick={() => copy('mac', macCmd)}>{copied === 'mac' ? 'Copied ✓' : 'Copy'}</button>
             </div>
-            <p className="dl-meta">macOS 12 Monterey or newer · Apple silicon and Intel · ~110 MB runtime · free</p>
-            <p className="dl-upd">Run the same line again to update. Your pets and settings stay.</p>
+            {!(mac && mac.ready) && <p className="dl-meta">macOS 12 Monterey or newer · Apple silicon and Intel · ~110 MB runtime · free</p>}
+            <p className="dl-upd">Updates install from the menu bar icon (<b>Update Nibble</b>). Your pets and settings stay.</p>
           </div>
         )}
       </div>
@@ -134,9 +143,18 @@ export function Download() {
           </ol>
         ) : (
           <ol className="steps">
-            <li><b>Open Terminal:</b> press <i>⌘ Space</i>, type <i>Terminal</i> and press Return.</li>
-            <li><b>Paste the line above</b> and press Return. It downloads the runtime (Electron, ~110 MB, Apple-signed) from GitHub and checks its SHA-256.</li>
-            <li><b>Nibble.app</b> goes into your Applications folder with Nibble's own icon, and the pets drop onto your screen.</li>
+            {mac && mac.ready ? (
+              <>
+                <li><b>Open Nibble.dmg</b> and drag <i>Nibble</i> onto <i>Applications</i>.</li>
+                <li><b>Open Nibble</b> from Applications (or Launchpad). {mac.notarized ? 'It’s signed and checked by Apple, so it opens straight away.' : 'First time only, if macOS says it can’t check it: System Settings → Privacy & Security → Open Anyway.'}</li>
+              </>
+            ) : (
+              <>
+                <li><b>Open Terminal:</b> press <i>⌘ Space</i>, type <i>Terminal</i> and press Return.</li>
+                <li><b>Paste the line above</b> and press Return. It downloads the runtime (Electron, ~110 MB, Apple-signed) from GitHub and checks its SHA-256, then puts <b>Nibble.app</b> in Applications.</li>
+              </>
+            )}
+            <li><b>The pets drop onto your screen.</b> Nibble lives in the menu bar (top right), not the Dock.</li>
             <li><b>Say hi to friends:</b> click the Nibble icon in the menu bar (top right) → <i>Open Nibble Hub</i>, then sign in and add friends.</li>
             <li><b>Uninstall:</b> quit Nibble from the menu bar, then drag <i>Nibble</i> from Applications to the Bin.</li>
           </ol>

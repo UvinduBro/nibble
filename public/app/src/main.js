@@ -357,7 +357,18 @@ function skinMenu(onPick, current, type = 'radio') {
 async function runUpdate() {
   if (IS_MAC) {
     // the same one-line installer as the website, run in the background (it restarts Nibble)
-    spawn('/bin/bash', ['-c', `curl -fsSL ${SITE}/install.sh | bash >/tmp/nibble-update.log 2>&1`], { detached: true, stdio: 'ignore' }).unref();
+    // the latest Nibble.dmg (signed + notarized when available), copied over this app; else the Terminal installer
+    const appPath = path.resolve(process.execPath, '..', '..', '..');
+    if (!/\/Nibble\.app$/.test(appPath)) { spawn('/bin/bash', ['-c', `curl -fsSL ${SITE}/install.sh | bash >/tmp/nibble-update.log 2>&1`], { detached: true, stdio: 'ignore' }).unref(); return; }
+    const sh = `set -e
+D="$(mktemp -d)"; curl -fsSL -o "$D/Nibble.dmg" "${SITE}/Nibble.dmg"
+M="$(hdiutil attach -nobrowse -readonly -noautoopen "$D/Nibble.dmg" | grep -o '/Volumes/.*' | head -1)"
+[ -d "$M/Nibble.app" ]
+pkill -x Nibble || true; sleep 1
+rm -rf "${appPath}"; ditto "$M/Nibble.app" "${appPath}"
+hdiutil detach "$M" -quiet || true; rm -rf "$D"
+open "${appPath}"`;
+    spawn('/bin/bash', ['-c', `( ${sh} ) >/tmp/nibble-update.log 2>&1 || (curl -fsSL ${SITE}/install.sh | bash >>/tmp/nibble-update.log 2>&1)`], { detached: true, stdio: 'ignore' }).unref();
     return;
   }
   if (process.platform !== 'win32') return shell.openExternal(SITE + '/#download');
