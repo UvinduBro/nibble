@@ -140,7 +140,9 @@ service cloud.firestore {
       allow read: if signedIn() && (uid == me() || isFriendOf(uid) || isAdmin());
       allow list: if isAdmin();
       allow create, update: if signedIn() && uid == me() && !isBanned()
-        && incoming().keys().hasOnly(['online', 'lastSeen', 'username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'status', 'dnd', 'typing', 'typingAt', 'typingTo', 'say', 'client', 'ver'])
+        && incoming().keys().hasOnly(['online', 'lastSeen', 'username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'status', 'dnd', 'typing', 'typingAt', 'typingTo', 'say', 'client', 'ver', 'np', 'room', 'wseq'])
+        && (!('np' in incoming()) || incoming().np == null || (incoming().np is map && shortText(incoming().np.get('title', ''), 80) && shortText(incoming().np.get('artist', ''), 60)))
+        && shortText(incoming().get('room', ''), 40)
         && shortText(incoming().get('status', ''), 40)
         && shortText(incoming().get('petName', ''), 20)
         && shortText(incoming().get('client', ''), 10)
@@ -148,6 +150,28 @@ service cloud.firestore {
         && (!('acc' in incoming()) || incoming().acc is list)
         && (!('say' in incoming()) || (incoming().say is map && shortText(incoming().say.text, 80) && shortText(incoming().say.id, 40)));
       allow delete: if (signedIn() && uid == me()) || isAdmin();
+    }
+
+    // Listen Together rooms: id = the host's uid. Only the host and the friends they invited can
+    // see a room. Anyone in it can play / pause / skip / queue; only the host can invite or end it.
+    function roomShape() {
+      return incoming().keys().hasOnly(['host', 'hostName', 'invited', 'names', 'here', 'track', 'playing', 'pos', 'startedAt', 'queue', 'radio', 'updatedAt'])
+        && incoming().invited is list && incoming().invited.size() <= 10
+        && incoming().get('queue', []) is list && incoming().get('queue', []).size() <= 30
+        && shortText(incoming().get('hostName', ''), 20)
+        && incoming().get('names', {}) is map && incoming().get('here', {}) is map;
+    }
+    match /rooms/{rid} {
+      allow get: if signedIn() && (resource == null || resource.data.host == me() || me() in resource.data.invited);
+      allow list: if false;
+      allow create: if signedIn() && !isBanned() && rid == me() && incoming().host == me() && roomShape();
+      allow update: if signedIn() && !isBanned() && roomShape() && (
+        (resource.data.host == me() && incoming().host == me())
+        || (me() in resource.data.invited
+          && incoming().host == resource.data.host
+          && incoming().invited == resource.data.invited
+          && incoming().get('names', {}) == resource.data.get('names', {})));
+      allow delete: if signedIn() && resource.data.host == me();
     }
 
     // direct pokes, waves, cuddles and whispers. Only friends can send; only you can read.

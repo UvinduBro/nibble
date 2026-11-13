@@ -64,7 +64,7 @@ export default function LiveDesk({ social, state }) {
             if (hold && hold.k > 0) D.holdRing(ctx, hold.p, u, Math.min(1, hold.k));
             for (const p of pets) {
               if (p.friend) {
-                D.nameTag(ctx, p, u, '@' + p.friend.username, p.friend.dnd ? '#ffd166' : '#7ee8c6');
+                D.nameTag(ctx, p, u, (p.friend.np || p.music ? '🎧 ' : '') + '@' + p.friend.username, p.friend.dnd ? '#ffd166' : '#7ee8c6');
                 if (p.friend.typing && !p.bubble) D.thought(ctx, p, u, env.time);
               } else if (p.mine) {
                 D.nameTag(ctx, p, u, 'you', '#ff8fd0');
@@ -154,7 +154,10 @@ export default function LiveDesk({ social, state }) {
       p.skinKey = f.skin;
       p.acc = f.acc || []; p.tint = f.tint || ''; p.makeup = f.makeup || '';
     }
-  }, [ready, state.profile, state.friends, state.prefs, state.about, vtick]);
+    const mu = state.music && state.music.room;
+    const room = new Set(mu ? mu.present : []);
+    for (const p of env.pets) p.music = !!(mu && mu.playing && mu.track && (p.mine || (p.friend && room.has(p.friend.uid))));
+  }, [ready, state.profile, state.friends, state.prefs, state.about, state.music && state.music.room, vtick]);
 
   // incoming messages → bubbles & reactions
   useEffect(() => {

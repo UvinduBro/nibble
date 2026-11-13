@@ -1,0 +1,443 @@
+'use client';
+// Listen Together: the synced player (Nibble Beats via <audio>, YouTube via the official IFrame
+// player), the Music tab, and the little "now playing" dock that follows you around the app.
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { niceError } from '../../lib/social/social';
+import { youtubeId, QUEUE_MAX } from '../../lib/social/music';
+
+const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const beatUrl = (id) => '/music/beats/' + encodeURIComponent(id) + '.mp3';
+const SRC_LABEL = { nb: 'Nibble Beats', yt: 'YouTube' };
+
+// ---------- YouTube IFrame API (loaded once) ----------
+let ytReady = null;
+function loadYT() {
+  if (ytReady) return ytReady;
+  ytReady = new Promise((res) => {
+    if (window.YT && window.YT.Player) return res(window.YT);
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { prev && prev(); res(window.YT); };
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    s.async = true;
+    document.head.appendChild(s);
+  });
+  return ytReady;
+}
+
+// ---------- the synced player ----------
+// Watches the room and keeps this device's audio within ~1s of where everyone else is.
+export function useRoomPlayer(social, state, toast) {
+  const music = social && social.music;
+  const room = state.music && state.music.room;
+  const audio = useRef(null);
+  const yt = useRef(null);         // YT.Player
+  const ytHost = useRef(null);     // <div> the player lives in (rendered by the dock)
+  const ytVid = useRef('');
+  const ytState = useRef(-1);
+  const endedFor = useRef('');
+  const roomRef = useRef(room);
+  roomRef.current = room;
+  const [blocked, setBlocked] = useState(false);   // the browser wants a click before playing sound
+  const [now, setNow] = useState(0);
+  const [vol, setVol] = useState(0.8);
+  const [muted, setMuted] = useState(false);
+  const [ytBox, setYtBox] = useState(null);
+  const lvol = useRef(0.8), lmute = useRef(false);
+
+  useEffect(() => {
+    try { const v = parseFloat(localStorage.getItem('nibble-music-vol')); if (v >= 0 && v <= 1) setVol(v); setMuted(localStorage.getItem('nibble-music-mute') === '1'); } catch {}
+  }, []);
+  useEffect(() => {
+    lvol.current = vol; lmute.current = muted;
+    try { localStorage.setItem('nibble-music-vol', String(vol)); localStorage.setItem('nibble-music-mute', muted ? '1' : '0'); } catch {}
+    if (audio.current) audio.current.volume = muted ? 0 : vol;
+    if (yt.current && yt.current.setVolume) { try { yt.current.setVolume(Math.round(vol * 100)); muted ? yt.current.mute() : yt.current.unMute(); } catch {} }
+  }, [vol, muted]);
+
+  const finish = (k) => {
+    if (!k || endedFor.current === k) return;
+    endedFor.current = k;
+    music.next(k).catch(() => {});
+  };
+
+  // build the YouTube player the first time a YouTube song comes up
+  async function ensureYT(vid) {
+    if (!ytBox) return null;
+    const YT = await loadYT();
+    if (yt.current) return yt.current;
+    if (ytHost.current) return null; // being created
+    const el = document.createElement('div');
+    ytBox.innerHTML = ''; ytBox.appendChild(el);
+    ytHost.current = el;
+    return new Promise((res) => {
+      const p = new YT.Player(el, {
+        width: '100%', height: '100%', videoId: vid,
+        playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0, modestbranding: 1, fs: 0, iv_load_policy: 3, origin: location.origin },
+        events: {
+          onReady: () => { yt.current = p; ytVid.current = vid; try { p.setVolume(Math.round(lvol.current * 100)); lmute.current ? p.mute() : p.unMute(); } catch {} res(p); },
+          onStateChange: (e) => {
+            ytState.current = e.data;
+            const r = roomRef.current;
+            if (!r || !r.track || r.track.src !== 'yt') return;
+            if (e.data === 1) { // playing: report the real title + length
+              setBlocked(false);
+              try {
+                const d = p.getVideoData() || {};
+                music.fillInfo(r.track.k, { title: d.title, artist: d.author, dur: p.getDuration() });
+              } catch {}
+            }
+            if (e.data === 0) finish(r.track.k);
+          },
+          onError: (e) => {
+            const r = roomRef.current;
+            if (!r || !r.track) return;
+            const why = e.data === 101 || e.data === 150 ? 'The owner of that video doesn’t allow it to play outside YouTube.' : 'That YouTube video can’t be played.';
+            toast && toast({ err: true, text: why + ' Skipping…' });
+            finish(r.track.k);
+          },
+        },
+      });
+    });
+  }
+
+  // the sync loop
+  useEffect(() => {
+    if (!music) return;
+    if (!audio.current) {
+      const a = new Audio();
+      a.preload = 'auto';
+      a.addEventListener('ended', () => { const r = roomRef.current; if (r && r.track && r.track.src === 'nb') finish(r.track.k); });
+      audio.current = a;
+      window.__nibbleAudio = a; // handy for debugging sync
+    }
+    let alive = true;
+    const step = async () => {
+      if (!alive) return;
+      const r = roomRef.current;
+      const a = audio.current;
+      a.volume = lmute.current ? 0 : lvol.current;
+      const t = r && r.track;
+      setNow(t ? music.position(r) : 0);
+      if (!t) {
+        if (!a.paused) a.pause();
+        if (yt.current) { try { yt.current.pauseVideo(); } catch {} }
+        return;
+      }
+      if (endedFor.current && endedFor.current !== t.k) endedFor.current = '';
+      const want = music.position(r);
+      if (t.src === 'nb') {
+        if (yt.current) { try { if (ytState.current === 1) yt.current.pauseVideo(); } catch {} }
+        const url = beatUrl(t.id);
+        if (!a.src.endsWith(url)) { a.src = url; a.load(); }
+        if (r.playing) {
+          if (t.dur && want >= t.dur - 0.3) { finish(t.k); return; }
+          if (Math.abs(a.currentTime - want) > 1.2 && a.readyState >= 1) { try { a.currentTime = want; } catch {} }
+          if (a.paused) a.play().then(() => setBlocked(false), (e) => { if (e && e.name === 'NotAllowedError') setBlocked(true); });
+        } else {
+          if (!a.paused) a.pause();
+          if (a.readyState >= 1 && Math.abs(a.currentTime - want) > 0.5) { try { a.currentTime = want; } catch {} }
+        }
+      } else {
+        if (!a.paused) a.pause();
+        const p = yt.current || await ensureYT(t.id);
+        if (!p || !alive) return;
+        try {
+          if (ytVid.current !== t.id) { ytVid.current = t.id; r.playing ? p.loadVideoById(t.id, want) : p.cueVideoById(t.id, want); return; }
+          const cur = p.getCurrentTime ? p.getCurrentTime() : 0;
+          if (r.playing) {
+            if (t.dur && want >= t.dur - 0.5) { finish(t.k); return; }
+            if (ytState.current !== 1 && ytState.current !== 3) { p.seekTo(want, true); p.playVideo(); setTimeout(() => { if (ytState.current !== 1 && ytState.current !== 3 && roomRef.current && roomRef.current.playing) setBlocked(true); }, 2500); }
+            else if (Math.abs(cur - want) > 1.6) p.seekTo(want, true);
+          } else {
+            if (ytState.current === 1) p.pauseVideo();
+            if (Math.abs(cur - want) > 0.8) p.seekTo(want, true);
+          }
+        } catch {}
+      }
+    };
+    const id = setInterval(step, 500);
+    step();
+    return () => { alive = false; clearInterval(id); };
+  }, [music, ytBox]);
+
+  // the box the YouTube player lives in changed (dock re-rendered): start a fresh player there
+  useEffect(() => () => {
+    try { yt.current && yt.current.destroy(); } catch {}
+    yt.current = null; ytHost.current = null; ytVid.current = ''; ytState.current = -1;
+  }, [ytBox]);
+
+  // leaving the room / signing out: stop the sound
+  useEffect(() => {
+    if (room) return;
+    if (audio.current && !audio.current.paused) audio.current.pause();
+    if (yt.current) { try { yt.current.stopVideo(); } catch {} }
+    ytVid.current = '';
+  }, [!!room]);
+
+  // a click anywhere counts as permission to play sound
+  const unlock = () => {
+    const r = roomRef.current;
+    if (!r || !r.track) return;
+    if (r.track.src === 'nb' && audio.current) audio.current.play().then(() => setBlocked(false), () => {});
+    if (r.track.src === 'yt' && yt.current) { try { yt.current.playVideo(); setBlocked(false); } catch {} }
+  };
+
+  return { now, blocked, unlock, vol, setVol, muted, setMuted, setYtBox };
+}
+
+// ---------- dock: always-visible mini player (also hosts the YouTube video) ----------
+export function MusicDock({ social, state, player, go, tab }) {
+  const room = state.music && state.music.room;
+  const t = room && room.track;
+  const music = social.music;
+  const video = !!(t && t.src === 'yt');
+  // one stable element hosts the YouTube player, shown at YouTube's minimum 200px height while it plays
+  return (
+    <div className={'mu-float' + (room ? '' : ' none')}>
+      <div className={'mu-ytbox' + (video ? '' : ' hidden')} ref={player.setYtBox} />
+      {room && (
+        <div className="mu-dock">
+          {!video && <div className={'mu-disc' + (room.playing ? ' spin' : '')}>🎧</div>}
+          <button className="mu-dock-info" onClick={() => go('music')} title="Open Music">
+            <b>{t ? t.title : 'Nothing playing'}</b>
+            <small>{t ? `${t.artist || SRC_LABEL[t.src]} · ${fmt(player.now)}${t.dur ? ' / ' + fmt(t.dur) : ''}` : `${room.present.length} listening · pick a song`}</small>
+          </button>
+          {player.blocked && <button className="btn small" onClick={player.unlock}>🔊 Tap to hear</button>}
+          {t && <button className="mu-icon" title={room.playing ? 'Pause for everyone' : 'Play for everyone'} onClick={() => music.toggle()}>{room.playing ? '⏸' : '▶'}</button>}
+          {t && <button className="mu-icon" title="Skip" onClick={() => music.next(t.k)}>⏭</button>}
+          <button className="mu-icon" title={player.muted ? 'Unmute (just for me)' : 'Mute (just for me)'} onClick={() => player.setMuted(!player.muted)}>{player.muted ? '🔇' : '🔈'}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Music tab ----------
+export function Music({ social, state, desktop, toast, player }) {
+  const music = social.music;
+  const m = state.music || {};
+  const room = m.room;
+  const me = state.user.uid;
+  const isHost = room && room.host === me;
+  const [pick, setPick] = useState([]);
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [srcTab, setSrcTab] = useState('nb');
+  useEffect(() => { music.loadBeats(); }, [music]);
+  const err = (e) => toast({ err: true, text: niceError(e) });
+  const run = (p, ok) => { setBusy(true); return Promise.resolve(p).then((x) => { ok && toast({ text: ok }); return x; }, err).finally(() => setBusy(false)); };
+
+  // look up a pasted YouTube link's title (oEmbed; harmless if it fails)
+  const vid = youtubeId(link);
+  useEffect(() => {
+    setPreview(null);
+    if (!vid) return;
+    let dead = false;
+    fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + vid))
+      .then((r) => (r.ok ? r.json() : null)).then((d) => { if (!dead && d) setPreview({ title: d.title, artist: d.author_name }); }).catch(() => {});
+    return () => { dead = true; };
+  }, [vid]);
+  const ytTrack = () => ({ src: 'yt', id: vid, title: (preview && preview.title) || 'YouTube video', artist: (preview && preview.artist) || '' });
+
+  const online = state.friends.filter((f) => f.online);
+  const listening = state.friends.filter((f) => f.np);
+  const t = room && room.track;
+  const pct = t && t.dur ? Math.min(100, (player.now / t.dur) * 100) : 0;
+  const seek = (e) => {
+    if (!t || !t.dur) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    music.seek(((e.clientX - r.left) / r.width) * t.dur).catch(err);
+  };
+  const ytQuery = (n) => encodeURIComponent(`${n.title} ${n.artist || ''}`.trim());
+
+  return (
+    <>
+      <h2>Listen together <small className="sa-ttl">🎧 synced for everyone in the room</small></h2>
+      <p className="sa-sub">Play the same song at the same moment with friends — free Nibble Beats or any YouTube link. Your pets put their headphones on and dance along.</p>
+
+      {m.ended && <div className="sa-card mu-note"><span>🎵 {m.ended}</span><button className="sa-link" onClick={() => music.clearEnded()}>OK</button></div>}
+
+      {(m.invites || []).filter((i) => !room || i.host !== room.id).map((i) => (
+        <div key={i.host} className="sa-card mu-invite">
+          <span className="mu-invite-ico">🎧</span>
+          <div><b>@{i.fromName} invited you to listen together</b><small>Join and you’ll hear exactly what they’re hearing.</small></div>
+          <button className="btn small" disabled={busy} onClick={() => run(music.join(i.host).then(() => player.unlock()))}>Join</button>
+          <button className="sa-link" onClick={() => music.dismissInvite(i.host)}>Not now</button>
+        </div>
+      ))}
+
+      {!room && (
+        <div className="sa-card">
+          <h3>Start a listening room</h3>
+          <p className="sa-sub" style={{ marginTop: 0 }}>Pick who to invite — they’ll get a 🎧 invite (their pet brings it over). You can invite more later.</p>
+          {state.friends.length === 0 ? <p className="sa-empty">Add a friend first, or start a room just for you.</p> : (
+            <div className="mu-pick">
+              {[...online, ...state.friends.filter((f) => !f.online)].map((f) => (
+                <label key={f.uid} className={'mu-pickf' + (pick.includes(f.uid) ? ' on' : '')}>
+                  <input type="checkbox" checked={pick.includes(f.uid)} onChange={(e) => setPick(e.target.checked ? [...pick, f.uid] : pick.filter((x) => x !== f.uid))} />
+                  <span className={'sa-dot' + (f.online ? ' on' : '')} />@{f.username}
+                </label>
+              ))}
+            </div>
+          )}
+          <button className="btn" disabled={busy} onClick={() => run(music.start(pick).then(() => { setPick([]); player.unlock(); }), pick.length ? `Invites sent to ${pick.length} friend${pick.length > 1 ? 's' : ''} 🎧` : 'Room ready 🎧')}>
+            🎧 Start room{pick.length ? ` & invite ${pick.length}` : ''}
+          </button>
+        </div>
+      )}
+
+      {room && (
+        <>
+          <div className="sa-card mu-now">
+            <div className={'mu-art' + (room.playing ? ' spin' : '')}>{t ? (t.src === 'yt' ? '▶' : '♪') : '🎧'}</div>
+            <div className="mu-now-main">
+              <small className="mu-room">{isHost ? 'Your room' : `@${room.hostName}’s room`} · {room.present.length} listening</small>
+              <b className="mu-title">{t ? t.title : 'Nothing playing yet'}</b>
+              <small>{t ? `${t.artist || SRC_LABEL[t.src]}${t.by && t.by !== 'radio' ? ' · added by @' + t.by : t.by === 'radio' ? ' · Nibble radio' : ''}` : 'Pick a Nibble Beat or paste a YouTube link below.'}</small>
+              {t && (
+                <div className="mu-bar-row">
+                  <span>{fmt(player.now)}</span>
+                  <div className="mu-bar" onClick={seek} title="Jump to (for everyone)"><i style={{ width: pct + '%' }} /></div>
+                  <span>{t.dur ? fmt(t.dur) : '–:––'}</span>
+                </div>
+              )}
+              <div className="mu-ctrls">
+                {t && <button className="mu-big" onClick={() => music.toggle().catch(err)}>{room.playing ? '⏸' : '▶'}</button>}
+                {t && <button className="mu-icon" title="Skip" onClick={() => music.next(t.k).catch(err)}>⏭</button>}
+                {player.blocked && <button className="btn small" onClick={player.unlock}>🔊 Tap to hear</button>}
+                <span className="mu-vol">
+                  <button className="mu-icon" onClick={() => player.setMuted(!player.muted)} title="Just for me">{player.muted ? '🔇' : '🔈'}</button>
+                  <input type="range" min="0" max="1" step="0.05" value={player.vol} onChange={(e) => { player.setVol(parseFloat(e.target.value)); player.setMuted(false); }} />
+                </span>
+                <label className="mu-radio" title="When the queue runs out, keep playing Nibble Beats">
+                  <input type="checkbox" checked={room.radio} onChange={(e) => music.setRadio(e.target.checked).catch(err)} /> Radio
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="mu-grid">
+            <div className="sa-card">
+              <h3>Add music</h3>
+              <div className="mu-tabs">
+                <button className={srcTab === 'nb' ? 'on' : ''} onClick={() => setSrcTab('nb')}>🎹 Nibble Beats <small>free</small></button>
+                <button className={srcTab === 'yt' ? 'on' : ''} onClick={() => setSrcTab('yt')}>▶ YouTube</button>
+              </div>
+              {srcTab === 'nb' ? (
+                <ul className="mu-list">
+                  {(m.beats || []).map((b) => (
+                    <li key={b.id} className={t && t.src === 'nb' && t.id === b.id ? 'on' : ''}>
+                      <span className="mu-li-ico">♪</span>
+                      <span className="mu-li-txt"><b>{b.title}</b><small>{b.artist} · {fmt(b.dur)}</small></span>
+                      <button className="mu-icon" title="Play now for everyone" onClick={() => run(music.play(b))}>▶</button>
+                      <button className="mu-icon" title="Add to queue" onClick={() => run(music.add(b), `Queued “${b.title}”`)}>＋</button>
+                    </li>
+                  ))}
+                  {!(m.beats || []).length && <li className="sa-empty">Loading…</li>}
+                </ul>
+              ) : (
+                <div className="mu-yt">
+                  <input placeholder="Paste a YouTube link…" value={link} onChange={(e) => setLink(e.target.value)} />
+                  {link && !vid && <small className="mu-warn">That doesn’t look like a YouTube link.</small>}
+                  {vid && <div className="mu-yt-prev"><img alt="" src={`https://i.ytimg.com/vi/${vid}/mqdefault.jpg`} /><span><b>{preview ? preview.title : 'YouTube video'}</b><small>{preview ? preview.artist : ''}</small></span></div>}
+                  <div className="mu-row">
+                    <button className="btn small" disabled={!vid || busy} onClick={() => run(music.play(ytTrack()).then(() => setLink('')))}>▶ Play now</button>
+                    <button className="btn small ghost" disabled={!vid || busy} onClick={() => run(music.add(ytTrack()).then(() => setLink('')), 'Added to the queue')}>＋ Queue</button>
+                  </div>
+                  <small className="mu-fine">Plays through YouTube’s own player (shown in the mini player). Some videos can’t be played outside YouTube — those get skipped.</small>
+                </div>
+              )}
+            </div>
+
+            <div className="sa-card">
+              <h3>Up next <small>{room.queue.length}/{QUEUE_MAX}</small></h3>
+              {room.queue.length === 0 ? <p className="sa-empty">{room.radio ? 'Queue’s empty — Nibble radio keeps the beats going.' : 'Queue’s empty.'}</p> : (
+                <ul className="mu-list">
+                  {room.queue.map((q, i) => (
+                    <li key={q.k}>
+                      <span className="mu-li-ico">{i + 1}</span>
+                      <span className="mu-li-txt"><b>{q.title}</b><small>{q.src === 'yt' ? 'YouTube' : 'Nibble Beats'}{q.by ? ' · @' + q.by : ''}</small></span>
+                      <button className="mu-icon" title="Play now" onClick={() => music.playFromQueue(q.k).catch(err)}>▶</button>
+                      <button className="mu-icon" title="Remove" onClick={() => music.remove(q.k).catch(err)}>✕</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <h3 style={{ marginTop: 18 }}>In the room</h3>
+              <div className="mu-people">
+                {[room.host, ...room.invited].map((u) => {
+                  const here = room.present.includes(u);
+                  return <span key={u} className={'mu-person' + (here ? ' here' : '')}>{here ? '🎧' : '…'} @{u === me ? (state.profile.username + ' (you)') : room.names[u] || 'friend'}{u === room.host ? ' ★' : ''}</span>;
+                })}
+              </div>
+              {isHost && state.friends.some((f) => !room.invited.includes(f.uid)) && (
+                <div className="mu-inv">
+                  <small>Invite:</small>
+                  {state.friends.filter((f) => !room.invited.includes(f.uid)).map((f) => (
+                    <button key={f.uid} className="sa-chip" onClick={() => run(music.invite(f.uid), `Invite sent to @${f.username}`)}>＋ @{f.username}</button>
+                  ))}
+                </div>
+              )}
+              {!isHost && <small className="mu-fine">Only @{room.hostName} can invite more people.</small>}
+              <div className="mu-row" style={{ marginTop: 14 }}>
+                <button className="btn small ghost" onClick={() => run(music.leave(), isHost ? 'Room ended' : 'You left the room')}>{isHost ? 'End room for everyone' : 'Leave room'}</button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="sa-card">
+        <h3>Friends listening now</h3>
+        {listening.length === 0 ? <p className="sa-empty">Nobody’s sharing a song right now. When friends play music in Spotify, YouTube or a Nibble room, it shows up here.</p> : (
+          <ul className="mu-list">
+            {listening.map((f) => {
+              const inv = (m.invites || []).find((i) => i.host === f.np.room);
+              const theirRoom = f.np.room && room && room.id === f.np.room;
+              return (
+                <li key={f.uid}>
+                  <span className="mu-li-ico">🎧</span>
+                  <span className="mu-li-txt"><b>{f.np.title}</b><small>@{f.username}{f.np.artist ? ' · ' + f.np.artist : ''}{f.np.app ? ' · ' + f.np.app : ''}</small></span>
+                  {theirRoom ? <small className="mu-fine">same room ✓</small> : inv ? (
+                    <button className="btn small" onClick={() => run(music.join(inv.host).then(() => player.unlock()))}>Join</button>
+                  ) : (
+                    <>
+                      <a className="sa-chip" href={`https://www.youtube.com/results?search_query=${ytQuery(f.np)}`} target="_blank" rel="noreferrer" title="Find it on YouTube">▶ YouTube</a>
+                      <a className="sa-chip" href={`https://open.spotify.com/search/${ytQuery(f.np)}`} target="_blank" rel="noreferrer" title="Find it on Spotify">Spotify</a>
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="sa-card">
+        <h3>Share what I’m playing</h3>
+        {desktop && desktop.onNowPlaying ? (
+          <>
+            <Toggle on={m.share} onChange={(v) => music.setShare(v)} label="Show friends what I play on this PC" hint="Song + artist from Spotify, YouTube, Apple Music… (whatever shows in the Windows media controls). Friends get a Listen-along button." />
+            {m.share && <p className="mu-fine">{m.deviceNp ? `Now showing: 🎧 ${m.deviceNp.title}${m.deviceNp.artist ? ' — ' + m.deviceNp.artist : ''}${m.deviceNp.playing === false ? ' (paused, hidden)' : ''}` : 'Nothing playing on this PC right now.'}</p>}
+          </>
+        ) : desktop ? (
+          <p className="sa-empty">Update to Nibble 2.0.12 to share what you play in Spotify, YouTube and other apps.</p>
+        ) : (
+          <p className="sa-empty">Available in the Nibble desktop app — it reads the song from your Windows media controls. Songs you play in a Nibble room show up for friends automatically.</p>
+        )}
+      </div>
+    </>
+  );
+}
+
+function Toggle({ on, onChange, label, hint }) {
+  return (
+    <label className="sa-toggle">
+      <span><b>{label}</b>{hint && <small>{hint}</small>}</span>
+      <input type="checkbox" checked={!!on} onChange={(e) => onChange(e.target.checked)} />
+      <i />
+    </label>
+  );
+}

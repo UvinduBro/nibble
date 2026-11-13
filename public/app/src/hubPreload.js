@@ -25,4 +25,7 @@ contextBridge.exposeInMainWorld('nibbleDesktop', {
   update: () => ipcRenderer.send('hub:update'),
   hide: () => ipcRenderer.send('hub:hide'),
   notify: (data) => ipcRenderer.send('hub:notify', data),
+  // "Now playing" from the Windows media controls (only runs while you share it)
+  watchNowPlaying: (on) => ipcRenderer.send('hub:np-watch', !!on),
+  onNowPlaying: listen('hub:np'),
 });

@@ -12,7 +12,27 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0);
 }
 
+app.setName('Nibble');
 app.setAppUserModelId('lk.uvi.nibble');
+
+// Tag the Start-menu / desktop shortcuts with Nibble's app id, so the taskbar groups the windows
+// under "Nibble" with its own icon (and Windows notifications are labelled Nibble, not Electron).
+function brandShortcuts() {
+  if (process.platform !== 'win32') return;
+  const ico = path.join(path.dirname(process.execPath), 'nibble.ico');
+  const links = [
+    path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Nibble', 'Nibble.lnk'),
+    path.join(app.getPath('desktop'), 'Nibble.lnk'),
+  ];
+  for (const l of links) {
+    try {
+      if (!fs.existsSync(l)) continue;
+      const cur = shell.readShortcutLink(l);
+      if (cur.appUserModelId === 'lk.uvi.nibble') continue;
+      shell.writeShortcutLink(l, 'update', { target: process.execPath, appUserModelId: 'lk.uvi.nibble', ...(fs.existsSync(ico) ? { icon: ico, iconIndex: 0 } : {}), description: 'Nibble - desktop pet' });
+    } catch {}
+  }
+}
 
 const SITE = 'https://nibble-pearl.vercel.app';
 let latest = null; // newer version published on the site, if any
@@ -343,6 +363,14 @@ function petMenu(index) {
     { label: 'Wake up', click: cmd('wake') },
     { label: 'Code with me', click: cmd('work') },
     { label: '🍦 Give ice cream', click: cmd('treat') },
+    ...(social && social.music && social.music.on ? [{
+      label: social.music.title ? `🎧 ${social.music.title.slice(0, 40)}` : '🎧 Listening together',
+      submenu: [
+        ...(social.music.title ? [{ label: social.music.playing ? '⏸ Pause for everyone' : '▶ Play for everyone', click: () => hubCtl && hubCtl.action({ type: 'music', cmd: 'toggle' }) },
+          { label: '⏭ Skip song', click: () => hubCtl && hubCtl.action({ type: 'music', cmd: 'next' }) }] : []),
+        { label: 'Open Music in the Hub', click: () => hubCtl && hubCtl.open('music') },
+      ],
+    }] : []),
     ...(s.pets.length > 1 ? [{
       label: 'With another pet',
       submenu: [
@@ -392,6 +420,7 @@ ipcMain.on('tray-icon', (_e, dataUrl) => {
 
 // ---------- lifecycle ----------
 app.whenReady().then(() => {
+  brandShortcuts();
   settings.load();
   // give pets stable ids
   const s = settings.get();
@@ -440,7 +469,7 @@ app.on('second-instance', () => {
   if (hubCtl) hubCtl.open();
 });
 
-app.on('before-quit', () => { if (hubCtl) hubCtl.quit(); });
+app.on('before-quit', () => { if (hubCtl) { hubCtl.quit(); hubCtl.stopNowPlaying(); } });
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();

@@ -1101,6 +1101,15 @@
         case 'climb': p.arms = 'climb'; p.stride = 1; p.look = { x: 0, y: -0.3 }; break;
         case 'cling': p.arms = 'climb'; p.look = { x: this.look.x, y: 0 }; break;
       }
+      // listening to music together: headphones on, head bopping to the beat
+      if ((this.music || this.musicUntil > this.t) && s !== 'sleep' && s !== 'yawn') {
+        p.headphones = true;
+        if (s === 'idle' || s === 'look' || s === 'sit' || s === 'work') {
+          p.bob = Math.max(p.bob || 0, Math.abs(Math.sin(this.t * 6.3)) * 3.2);
+          p.tailWag = Math.max(p.tailWag, 9);
+          if (s !== 'work' && Math.sin(this.t * 0.9) > 0.3) p.eyes = 'happy';
+        }
+      }
       return p;
     }
   }
@@ -1280,7 +1289,14 @@
       [5.8, (s) => s.done(8)],
     ],
   };
-  const AGAP = { kiss: 30, hug: 34, wave: 70, poke: 30, annoy: 30, highfive: 40, tickle: 30, cheer: 66, heart: 76, snack: 42, dance: 60, icecream: 52 };
+  ACT.listen = [ // "come listen with me": shares a pair of headphones, then they dance
+    [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); s.a.musicUntil = s.a.t + 14; talk(s.a, ['come listen with me! 🎧', 'this song, {other}!! 🎶', 'headphones on!']); s.fly('🎧', s.a, s.b, 0.6); env.sound('chime'); }],
+    [0.8, (s, env) => { s.b.musicUntil = s.b.t + 14; hold(s.a, 'dance'); hold(s.b, 'dance'); for (let i = 0; i < 4; i++) env.emit('note', (s.a.x + s.b.x) / 2, s.a.y - 50 * U(env), { delay: i * 0.18 }); }],
+    [2.4, (s, env) => { talk(s.b, ['ooh I love this 🎶', 'turn it up!', 'vibing 😌']); for (let i = 0; i < 3; i++) env.emit('note', s.b.x, s.b.y - 50 * U(env), { delay: i * 0.2 }); }],
+    [4.4, (s, env) => { for (let i = 0; i < 3; i++) env.emit('note', s.a.x, s.a.y - 50 * U(env), { delay: i * 0.2 }); }],
+    [6, (s) => s.done(5)],
+  ];
+  const AGAP = { kiss: 30, hug: 34, wave: 70, poke: 30, annoy: 30, highfive: 40, tickle: 30, cheer: 66, heart: 76, snack: 42, dance: 60, icecream: 52, listen: 56 };
   for (const k of Object.keys(ACT)) SCRIPTS['x_' + k] = ACT[k];
   // one pet on its own gets a cone (pet menu → "Give ice cream")
   SCRIPTS.x_treat = [
@@ -1295,7 +1311,7 @@
     const key = (a, b) => [String(a.id), String(b.id)].sort().join('|');
     const getBond = (a, b) => (bonds.has(key(a, b)) ? bonds.get(key(a, b)) : 60);
     const addBond = (a, b, d) => bonds.set(key(a, b), Math.max(0, Math.min(100, getBond(a, b) + d)));
-    let scene = null, wait = rand(15, 30), fight = null, button = null;
+    let scene = null, wait = rand(15, 30), fight = null, button = null, musicT = 2;
     const cones = []; // { pet, x, y, vy, held }
     const floats = []; // emoji flying from one pet to another (💋, 🍪, ❤️…)
 
@@ -1507,6 +1523,17 @@
           const f = floats[i]; f.t += dt;
           if (f.to) { const k = Math.min(1, f.t / f.dur), u = U(env); f.x = f.from.x + (f.to.x - f.from.x) * k; f.y = (f.from.y + (f.to.y - f.from.y) * k) - 40 * u - Math.sin(k * Math.PI) * 34 * u; }
           if (f.t > f.dur + 0.45) floats.splice(i, 1);
+        }
+        // pets listening to music groove now and then, with notes floating up
+        musicT -= dt;
+        if (musicT <= 0) {
+          musicT = rand(1.1, 1.8);
+          const ms = env.pets.filter((p) => p.music && !p.gone && p.grounded() && !(scene && (scene.a === p || scene.b === p)));
+          if (ms.length) {
+            const p = ms[Math.floor(Math.random() * ms.length)];
+            env.emit('note', p.x + rand(-8, 8), p.y - 52 * U(env));
+            if (chance(0.18)) for (const q of ms) if (FREE.has(q.state) && q.state !== 'dance' && chance(0.6)) q.enter('dance', rand(3, 6));
+          }
         }
         const off = env.settings.drama === false || env.settings.chatty === 'silent';
         // falling ice cream cones

@@ -532,7 +532,7 @@
     const pops = [];
     const visitors = new Map(); // uid -> until: friends' pets that stay even when the friend is offline
     const sentHome = new Map(); // uid -> until: online friends you sent home for a while
-    const SAY = { wave: 'hi there! 👋', hug: 'cuddle time! 🤗', kiss: 'mwah! 😘', heart: '❤️ ❤️ ❤️', poke: 'poke! 👉', highfive: 'high five! 🙌', tickle: 'tickle tickle 🤭', cheer: 'you got this! 🎉', snack: 'brought you a cookie 🍪', dance: "let's dance! 🎶", annoy: 'boop! 😜', icecream: 'ice cream for you! 🍦' };
+    const SAY = { wave: 'hi there! 👋', hug: 'cuddle time! 🤗', kiss: 'mwah! 😘', heart: '❤️ ❤️ ❤️', poke: 'poke! 👉', highfive: 'high five! 🙌', tickle: 'tickle tickle 🤭', cheer: 'you got this! 🎉', snack: 'brought you a cookie 🍪', dance: "let's dance! 🎶", annoy: 'boop! 😜', icecream: 'ice cream for you! 🍦', listen: 'come listen with me! 🎧' };
     const send = (a) => api && api.socialAction(a);
     const dnd = () => !!(st.prefs && st.prefs.dnd);
     const showFriends = () => env.settings.showFriends !== false && !dnd();
@@ -565,6 +565,10 @@
       }
       keep.forEach((p, k) => { p.index = own.length + k; });
       env.pets = own.concat(keep);
+      // Listen Together: you + everyone in your room wear headphones and groove while it plays
+      const mu = st.music || {};
+      const inRoom = new Set(mu.members || []);
+      for (const p of env.pets) p.music = !!(mu.on && mu.playing && (!p.friend || inRoom.has(p.friend.uid)));
     }
 
     function place() {
@@ -698,7 +702,7 @@
     function sentEcho(m) {
       const me = mine();
       if (!me || !me.grounded()) return;
-      const EMO = { wave: '👋', hug: '🤗', kiss: '😘', heart: '❤️', poke: '👉', highfive: '🙌', tickle: '🤭', cheer: '🎉', snack: '🍪', dance: '🎶', visit: '🏠', annoy: '😜', icecream: '🍦' };
+      const EMO = { wave: '👋', hug: '🤗', kiss: '😘', heart: '❤️', poke: '👉', highfive: '🙌', tickle: '🤭', cheer: '🎉', snack: '🍪', dance: '🎶', visit: '🏠', annoy: '😜', icecream: '🍦', listen: '🎧' };
       // your pet goes over to theirs and acts it out (their pet pops over for a minute if it isn't here)
       const tgt = m.to && m.to !== 'all' && drama ? petOf(m.to, 60) : null;
       if (tgt && drama.act(env, m.kind, me, tgt)) { popOn(me, EMO[m.kind] || '✨'); return; }
@@ -734,13 +738,13 @@
         return;
       }
       if (!me) return;
-      const EM = { wave: '👋', hug: '🤗', kiss: '😘', heart: '❤️', poke: '👉', highfive: '🙌', tickle: '🤭', cheer: '🎉', snack: '🍪', dance: '🎶', annoy: '😜', icecream: '🍦' };
+      const EM = { wave: '👋', hug: '🤗', kiss: '😘', heart: '❤️', poke: '👉', highfive: '🙌', tickle: '🤭', cheer: '🎉', snack: '🍪', dance: '🎶', annoy: '😜', icecream: '🍦', listen: '🎧' };
       popOn(me, EM[m.kind] || '✨');
       // their pet comes over to yours and does it: kisses, cuddles, teases, shares ice cream…
       if (from && drama && drama.act(env, m.kind, from, me)) return;
       if (from) { popOn(from, EM[m.kind] || '✨'); from.bubble = null; from.say(SAY[m.kind] || 'hi!', 3.5); }
       me.bubble = null;
-      const what = { wave: 'waves at you', hug: 'gave you a big cuddle', kiss: 'sent you a smooch', heart: 'sent you a heart', poke: 'poked you!', highfive: 'wants a high five', tickle: 'is tickling you', cheer: 'is cheering you on', snack: 'shared a snack', dance: 'wants to dance', annoy: 'is teasing you 😜', icecream: 'shared ice cream with you 🍦' }[m.kind] || 'says hi';
+      const what = { wave: 'waves at you', hug: 'gave you a big cuddle', kiss: 'sent you a smooch', heart: 'sent you a heart', poke: 'poked you!', highfive: 'wants a high five', tickle: 'is tickling you', cheer: 'is cheering you on', snack: 'shared a snack', dance: 'wants to dance', annoy: 'is teasing you 😜', icecream: 'shared ice cream with you 🍦', listen: 'invited you to listen together 🎧 (open Hub → Music)' }[m.kind] || 'says hi';
       if ((m.kind === 'hug' || m.kind === 'kiss') && from && me.grounded()) {
         // the friend's pet pops over to snuggle up next to yours (or drops in right beside it)
         const u = 1.1 * (env.settings.size || 1), side = from.x < me.x ? -1 : 1;
@@ -789,7 +793,7 @@
       if (!D || hidden) return;
       for (const p of sorted) {
         if (p.friend) {
-          D.nameTag(g, p, u, '@' + p.friend.username, !p.friend.online ? '#9aa3c2' : p.friend.dnd ? '#ffd166' : '#7ee8c6');
+          D.nameTag(g, p, u, (p.friend.np || p.music ? '🎧 ' : '') + '@' + p.friend.username, !p.friend.online ? '#9aa3c2' : p.friend.dnd ? '#ffd166' : '#7ee8c6');
           if (p.friend.typing && !p.bubble) D.thought(g, p, u, env.time);
         } else if (p.typingSelf && !p.bubble) D.thought(g, p, u, env.time);
       }

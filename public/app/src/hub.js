@@ -53,6 +53,7 @@ function setupHub(ctx) {
         preload: path.join(__dirname, 'hubPreload.js'),
         contextIsolation: true, nodeIntegration: false, sandbox: true,
         backgroundThrottling: false, // keeps friends' presence + messages flowing while hidden
+        autoplayPolicy: 'no-user-gesture-required', // Listen Together keeps playing when you join from a pet / invite
       },
     });
     hub.setMenuBarVisibility(false);
@@ -223,8 +224,25 @@ function setupHub(ctx) {
   });
 
   // ---------- re-sync when the overlay reloads ----------
+  // what's playing in Spotify / browsers / … on this PC (only while the user shares it)
+  let np = null;
+  ipcMain.on('hub:np-watch', (e, on) => {
+    if (!fromHub(e)) return;
+    if (on) {
+      if (!np) {
+        const { NowPlaying } = require('./nowPlaying');
+        np = new NowPlaying();
+        np.on('np', (d) => { if (hub && !hub.isDestroyed()) hub.webContents.send('hub:np', d); });
+      }
+      np.start();
+    } else if (np) np.stop();
+  });
+
   return {
     create,
+    // pet menu → Listen Together controls (handled by the Hub page)
+    action: (a) => { if (hub && !hub.isDestroyed()) hub.webContents.send('hub:action', a); },
+    stopNowPlaying: () => { if (np) np.stop(); },
     open,
     pushLocal,
     lastSocial: () => lastSocial,

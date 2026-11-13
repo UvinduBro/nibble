@@ -2,6 +2,7 @@ import Desktop from '../components/Desktop';
 import CharacterSelect from '../components/CharacterSelect';
 import { Features, Quotes, Download } from '../components/Sections';
 import SocialSection from '../components/SocialSection';
+import About from '../components/About';
 
 const CONTROLS = [
   ['Hover', 'Ears perk up and it watches your cursor'],
@@ -35,6 +36,7 @@ export default function Home() {
           <a href="#crew">Characters</a>
           <a href="#social">Social</a>
           <a href="#features">Features</a>
+          <a href="#about">About</a>
           <a href="/app">Sign in</a>
           <a href="#download" className="btn small">Download</a>
         </div>
@@ -121,8 +123,16 @@ export default function Home() {
         <Download />
       </section>
 
+      <section id="about">
+        <div className="sec-head reveal">
+          <span className="kicker">07 · The story</span>
+          <h2>Made by two people who like tiny things that make you smile.</h2>
+        </div>
+        <About />
+      </section>
+
       <footer className="foot">
-        <span><img src="/favicon.svg" alt="" width={22} height={22} /> nibble · made by Uvi</span>
+        <span><img src="/favicon.svg" alt="" width={22} height={22} /> nibble · by Uvindu Rajapakshe &amp; Wageesha Ruvangi</span>
         <span className="mono">4 bits of pure joy · {'</>'}</span>
       </footer>
     </main>

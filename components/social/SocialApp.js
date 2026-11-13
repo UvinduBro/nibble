@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocial } from './useSocial';
 import { AuthScreen, Onboard, CharacterGrid } from './Auth';
 import LiveDesk from './LiveDesk';
+import { Music, MusicDock, useRoomPlayer } from './Music';
 import PetFigure, { useNibble } from '../PetFigure';
 import { byKey, CHARACTERS } from '../../lib/characters';
 import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess } from '../../lib/social/social';
@@ -34,7 +35,7 @@ const ago = (t) => {
 };
 const EMOTE_TITLE = { wave: 'Wave', hug: 'Cuddle', kiss: 'Kiss', poke: 'Poke', annoy: 'Tease', icecream: 'Share ice cream', heart: 'Send a heart', highfive: 'High five', tickle: 'Tickle', cheer: 'Cheer them on', snack: 'Share a snack', dance: 'Dance together' };
 const NAV = [
-  ['home', 'Home', '⌂'], ['profile', 'Profile', '☻'], ['deadlines', 'Deadlines', '⏰'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['pets', 'Pets', '✦'], ['settings', 'Settings', '⚙'],
+  ['home', 'Home', '⌂'], ['profile', 'Profile', '☻'], ['deadlines', 'Deadlines', '⏰'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['pets', 'Pets', '✦'], ['settings', 'Settings', '⚙'],
 ];
 
 function Avatar({ skin, size = 44, mood = 'idle' }) {
@@ -102,6 +103,13 @@ function FriendActions({ social, f, toast, compact }) {
     <div className="sa-acts">
       {kinds.map((k) => <button key={k} title={EMOTE_TITLE[k] || k} onClick={() => act(k)}>{EMOTES[k]}</button>)}
       <button title="Private message" onClick={() => setWhisper('')}>💬</button>
+      {social.music && <button title="Listen together" onClick={() => {
+        const r = social.state.music && social.state.music.room;
+        const mine = r && r.host === social.state.user.uid;
+        (mine ? social.music.invite(f.uid) : social.music.start([f.uid]))
+          .then(() => toast({ text: `🎧 Invited @${f.username} to listen together — open Music to pick a song` }))
+          .catch((e) => toast({ err: true, text: niceError(e) }));
+      }}>🎧</button>}
     </div>
   );
 }
@@ -125,6 +133,7 @@ function FriendRow({ social, f, toast, full, desktop }) {
           {f.typing ? 'thinking…' : f.online ? (f.dnd ? 'busy' : 'online') : f.lastSeen ? 'seen ' + ago(f.lastSeen) : 'offline'}
           {f.petName ? ` · ${f.petName}` : ''}{f.status ? ` · “${f.status}”` : ''}
         </small>
+        {f.np && <small className="sa-np">🎧 {f.np.title}{f.np.artist ? ' — ' + f.np.artist : ''}{f.np.app ? ' · ' + f.np.app : ''}</small>}
       </div>
       <div className="sa-visit">
         <button title={`Bring @${f.username}'s pet to ${desktop ? 'your desktop' : 'your desk'}`} onClick={() => { bringHere(desktop, f); toast({ text: `🏠 @${f.username}'s pet is coming over` }); }}>🏠 Bring here</button>
@@ -696,24 +705,40 @@ function useDesktopBridge(desktop, social, state) {
       me: { uid: state.user.uid, username: state.profile.username, skin: state.profile.skin, petName: state.profile.petName, acc: state.profile.acc || [], tint: state.profile.tint || '', makeup: state.profile.makeup || '', about: state.about || null },
       prefs: state.prefs,
       // include each friend's look (accessories / colour / makeup) so their pet is dressed up on this desktop too
-      friends: state.friends.map((f) => ({ uid: f.uid, username: f.username, skin: f.skin, petName: f.petName, acc: f.acc || [], tint: f.tint || '', makeup: f.makeup || '', online: f.online, typing: f.typing, dnd: f.dnd, status: f.status })),
+      friends: state.friends.map((f) => ({ uid: f.uid, username: f.username, skin: f.skin, petName: f.petName, acc: f.acc || [], tint: f.tint || '', makeup: f.makeup || '', online: f.online, typing: f.typing, dnd: f.dnd, status: f.status, np: f.np ? f.np.title : '' })),
       requests: state.incoming.length,
+      // Listen Together: whose pets wear headphones and dance (you + everyone in your room right now)
+      music: state.music && state.music.room ? { on: true, playing: !!state.music.room.playing && !!state.music.room.track, title: state.music.room.track ? state.music.room.track.title : '', members: state.music.room.present } : { on: false },
     } : { me: null, friends: [], prefs: {}, requests: 0 };
     const j = JSON.stringify(payload);
     if (j !== sent.current) { sent.current = j; desktop.sendSocial(payload); }
   }, [desktop, state]);
+  // only read the Windows media controls while you've chosen to share what you play
+  const share = !!(state.music && state.music.share && state.user);
+  useEffect(() => {
+    if (desktop && desktop.watchNowPlaying) desktop.watchNowPlaying(share);
+    if (!share && social && social.music) social.music.setDeviceNp(null);
+  }, [desktop, share]);
   useEffect(() => {
     if (!desktop || !social) return;
     const off1 = social.onMessage((m) => desktop.sendEvent(m));
     // things you send (wave, hug, kiss…) play on your own desktop too, not just your friend's
     const off3 = social.onSent ? social.onSent((m) => { if (m.kind !== 'whisper' && m.kind !== 'poke') desktop.sendEvent({ ...m, echo: true }); }) : null;
+    // Spotify / YouTube / … playing on this PC (main.js reads the Windows media controls)
+    const off4 = desktop.onNowPlaying ? desktop.onNowPlaying((np) => social.music && social.music.setDeviceNp(np)) : null;
     const off2 = desktop.onAction((a) => {
       if (!a || typeof a !== 'object') return;
       if (a.type === 'say') social.say(a.text).catch(() => {});
       else if (a.type === 'typing') social.setTyping(!!a.on, a.to || '').catch(() => {});
       else if (a.type === 'send') social.send(a.to, a.kind, a.text).catch(() => {});
+      else if (a.type === 'music' && social.music) { // pet menu → music controls
+        const r = social.state.music && social.state.music.room;
+        if (a.cmd === 'toggle' && r) social.music.toggle().catch(() => {});
+        else if (a.cmd === 'next' && r && r.track) social.music.next(r.track.k).catch(() => {});
+        else if (a.cmd === 'join' && a.host) social.music.join(a.host).catch(() => {});
+      }
     });
-    return () => { off1(); off2 && off2(); off3 && off3(); };
+    return () => { off1(); off2 && off2(); off3 && off3(); off4 && off4(); };
   }, [desktop, social]);
   return local;
 }
@@ -736,6 +761,7 @@ export default function SocialApp({ mode = 'web' }) {
   }, []);
   const local = useDesktopBridge(desktop, social, state);
   const toast = useMemo(() => (n) => setNote(n), []);
+  const player = useRoomPlayer(social, state, toast);
   const isDesk = mode === 'desktop' || !!desktop;
 
   // site-wide announcement from an admin: banner for everyone, Windows notification on desktop
@@ -814,6 +840,7 @@ export default function SocialApp({ mode = 'web' }) {
         {tab === 'deadlines' && <Deadlines {...props} />}
         {tab === 'friends' && <Friends {...props} presetAdd={presetAdd} />}
         {tab === 'messages' && <Messages {...props} />}
+        {tab === 'music' && <Music {...props} player={player} />}
         {tab === 'pets' && <Pets {...props} />}
         {tab === 'settings' && <Settings {...props} />}
       </>
@@ -835,6 +862,8 @@ export default function SocialApp({ mode = 'web' }) {
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
                 <span>{i}</span>{l}
                 {k === 'friends' && state.incoming.length > 0 && <em className="sa-badge">{state.incoming.length}</em>}
+                {k === 'music' && state.music && state.music.invites.length > 0 && <em className="sa-badge">{state.music.invites.length}</em>}
+                {k === 'music' && state.music && state.music.room && state.music.room.playing && <em className="sa-eq" aria-hidden><i /><i /><i /></em>}
               </button>
             ))}
           </nav>
@@ -852,10 +881,16 @@ export default function SocialApp({ mode = 'web' }) {
           </Banner>
         )}
         {signedIn && rem && <Banner level="warn" text={rem.text} onClose={() => setRem(null)}>{!rem.test && <button className="btn small" onClick={() => { setTab('deadlines'); setRem(null); }}>View</button>}</Banner>}
+        {signedIn && tab !== 'music' && state.music && state.music.invites.slice(0, 1).map((i) => (
+          <Banner key={i.host} level="party" title={`@${i.fromName} invited you to listen together 🎧`} text="Join to hear the same song at the same moment." onClose={() => social.music.dismissInvite(i.host)}>
+            <button className="btn small" onClick={() => { social.music.join(i.host).then(() => { player.unlock(); setTab('music'); }).catch((e) => toast({ err: true, text: niceError(e) })); }}>Join</button>
+          </Banner>
+        ))}
         {signedIn && showNotice && <Banner level={cfg.noticeLevel} text={cfg.notice} onClose={dismissNotice} />}
         {signedIn && showBc && <Banner level={state.broadcast.level} title={state.broadcast.title} text={state.broadcast.text} link={state.broadcast.link} onClose={dismissBc} />}
         {body}
       </main>
+      {signedIn && social && social.music && <MusicDock social={social} state={state} player={player} go={setTab} tab={tab} />}
       <Notice note={note} onDone={() => setNote(null)} />
     </div>
   );
