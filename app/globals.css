@@ -348,9 +348,39 @@ kbd { font-size: 12.5px; background: var(--card2); border: 1px solid rgba(255, 2
 .about-body { padding: 20px 22px 24px; }
 .about-body h3 { margin: 0; font-size: 23px; letter-spacing: -0.4px; }
 .about-role { display: inline-block; margin-top: 6px; font-family: var(--font-mono); font-size: 12.5px; color: var(--pink); }
-.about-body p { margin: 12px 0 0; color: var(--muted); line-height: 1.6; font-size: 15.5px; }
+@media (hover: hover) { .about-card .glitch img { transition: filter 0.3s; } }
+.about-social { display: flex; gap: 10px; margin-top: 16px; }
+.about-social a { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: var(--text); background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); transition: transform 0.2s, color 0.2s, border-color 0.2s, background 0.2s; }
+.about-social a:hover { transform: translateY(-3px); color: var(--mint); border-color: rgba(126, 232, 198, 0.55); background: rgba(126, 232, 198, 0.1); }
 .about-tag { position: absolute; left: 12px; bottom: 12px; z-index: 4; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 1px; text-transform: uppercase; color: #fff; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.25); padding: 4px 10px; border-radius: 99px; }
 
 .glitch { position: relative; aspect-ratio: 3 / 4; overflow: hidden; background: #000; }
-.glitch img { width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(1); }
+.glitch img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; display: block; filter: grayscale(1) contrast(1.1); }
+.gl { position: absolute; inset: 0; z-index: 2; background-size: cover; background-position: 50% 22%; filter: grayscale(1) contrast(1.1); opacity: 0; pointer-events: none; mix-blend-mode: screen; }
+.gl-a { animation: glA 4.2s infinite steps(1, end); }
+.gl-b { animation: glB 4.2s infinite steps(1, end); }
+.gl-scan { position: absolute; inset: 0; z-index: 3; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px); }
+@keyframes glA {
+  0%, 6%, 100% { opacity: 0; }
+  7% { opacity: 0.9; transform: translateX(-9px); clip-path: inset(12% 0 70% 0); filter: grayscale(1) drop-shadow(3px 0 0 rgba(255, 40, 90, 0.8)); }
+  9% { opacity: 0.9; transform: translateX(8px); clip-path: inset(55% 0 28% 0); filter: grayscale(1) drop-shadow(-3px 0 0 rgba(0, 240, 255, 0.8)); }
+  11% { opacity: 0; }
+  52% { opacity: 0.9; transform: translateX(10px); clip-path: inset(30% 0 52% 0); filter: grayscale(1) drop-shadow(3px 0 0 rgba(255, 40, 90, 0.8)); }
+  54% { opacity: 0.9; transform: translateX(-12px); clip-path: inset(78% 0 6% 0); }
+  56% { opacity: 0; }
+  83% { opacity: 0.9; transform: translateX(-7px); clip-path: inset(5% 0 85% 0); }
+  85% { opacity: 0; }
+}
+@keyframes glB {
+  0%, 20%, 100% { opacity: 0; }
+  21% { opacity: 0.85; transform: translate(7px, 1px); clip-path: inset(40% 0 44% 0); filter: grayscale(1) drop-shadow(-3px 0 0 rgba(0, 240, 255, 0.8)); }
+  23% { opacity: 0.85; transform: translate(-8px, -1px); clip-path: inset(68% 0 18% 0); }
+  25% { opacity: 0; }
+  53% { opacity: 0.85; transform: translateX(-9px); clip-path: inset(18% 0 66% 0); filter: grayscale(1) drop-shadow(3px 0 0 rgba(255, 40, 90, 0.8)); }
+  55% { opacity: 0; }
+  84% { opacity: 0.85; transform: translateX(11px); clip-path: inset(50% 0 36% 0); }
+  86% { opacity: 0; }
+}
+.glitch:hover .gl-a, .glitch:hover .gl-b { animation-duration: 1.6s; }
+@media (prefers-reduced-motion: reduce) { .gl { animation: none; } }
 @media (max-width: 760px) { .about-cards { grid-template-columns: minmax(0, 380px); } }
