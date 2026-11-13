@@ -15,6 +15,11 @@ service cloud.firestore {
     function validName(n) { return n is string && n.matches('^[a-z0-9_]{3,20}$'); }
     function shortText(t, max) { return t is string && t.size() <= max; }
     function incoming() { return request.resource.data; }
+    // wardrobe look: { sp: species, of: outfit, oc: outfit colour, sk: skill }
+    function validStyle(st) {
+      return st is map && st.keys().hasOnly(['sp', 'of', 'oc', 'sk'])
+        && shortText(st.get('sp', ''), 12) && shortText(st.get('of', ''), 12) && shortText(st.get('oc', ''), 7) && shortText(st.get('sk', ''), 12);
+    }
 
     // admins: one doc per admin uid. Created only in the Firebase console; readable only by that admin.
     match /admins/{uid} {
@@ -71,17 +76,18 @@ service cloud.firestore {
       allow read: if signedIn();
       allow list: if isAdmin();
       allow create, update: if signedIn() && uid == me() && !isBanned()
-        && incoming().keys().hasOnly(['username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'createdAt', 'updatedAt'])
+        && incoming().keys().hasOnly(['username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'style', 'createdAt', 'updatedAt'])
         && validName(incoming().username)
         && getAfter(/databases/$(database)/documents/usernames/$(incoming().username)).data.uid == me()
         && shortText(incoming().get('petName', ''), 20)
         && shortText(incoming().get('skin', ''), 20)
         && (!('acc' in incoming()) || incoming().acc is list)
         && shortText(incoming().get('tint', ''), 7)
-        && shortText(incoming().get('makeup', ''), 12);
+        && shortText(incoming().get('makeup', ''), 12)
+        && (!('style' in incoming()) || validStyle(incoming().style));
       // admins may only reset someone's look — nothing else on their profile
       allow update: if isAdmin()
-        && incoming().diff(resource.data).affectedKeys().hasOnly(['acc', 'tint', 'makeup', 'updatedAt']);
+        && incoming().diff(resource.data).affectedKeys().hasOnly(['acc', 'tint', 'makeup', 'style', 'updatedAt']);
       allow delete: if isAdmin();
 
       // friendships are written on both sides when a request is accepted
@@ -140,7 +146,7 @@ service cloud.firestore {
       allow read: if signedIn() && (uid == me() || isFriendOf(uid) || isAdmin());
       allow list: if isAdmin();
       allow create, update: if signedIn() && uid == me() && !isBanned()
-        && incoming().keys().hasOnly(['online', 'lastSeen', 'username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'status', 'dnd', 'typing', 'typingAt', 'typingTo', 'say', 'client', 'ver', 'np', 'room', 'wseq'])
+        && incoming().keys().hasOnly(['online', 'lastSeen', 'username', 'petName', 'skin', 'acc', 'tint', 'makeup', 'status', 'dnd', 'typing', 'typingAt', 'typingTo', 'say', 'client', 'ver', 'np', 'room', 'wseq', 'style'])
         && (!('np' in incoming()) || incoming().np == null || (incoming().np is map && shortText(incoming().np.get('title', ''), 80) && shortText(incoming().np.get('artist', ''), 60)))
         && shortText(incoming().get('room', ''), 40)
         && shortText(incoming().get('status', ''), 40)
@@ -148,6 +154,7 @@ service cloud.firestore {
         && shortText(incoming().get('client', ''), 10)
         && shortText(incoming().get('ver', ''), 12)
         && (!('acc' in incoming()) || incoming().acc is list)
+        && (!('style' in incoming()) || validStyle(incoming().style))
         && (!('say' in incoming()) || (incoming().say is map && shortText(incoming().say.text, 80) && shortText(incoming().say.id, 40)));
       allow delete: if (signedIn() && uid == me()) || isAdmin();
     }
@@ -157,7 +164,7 @@ service cloud.firestore {
     function roomShape() {
       return incoming().keys().hasOnly(['host', 'hostName', 'invited', 'names', 'here', 'track', 'playing', 'pos', 'startedAt', 'queue', 'radio', 'updatedAt'])
         && incoming().invited is list && incoming().invited.size() <= 10
-        && incoming().get('queue', []) is list && incoming().get('queue', []).size() <= 30
+        && incoming().get('queue', []) is list && incoming().get('queue', []).size() <= 60
         && shortText(incoming().get('hostName', ''), 20)
         && incoming().get('names', {}) is map && incoming().get('here', {}) is map;
     }
@@ -172,6 +179,113 @@ service cloud.firestore {
           && incoming().invited == resource.data.invited
           && incoming().get('names', {}) == resource.data.get('names', {})));
       allow delete: if signedIn() && resource.data.host == me();
+    }
+
+    // ---------- points (⭐) ----------
+    // wallets/{uid}: points, owned shop items, daily bonus, best game scores. Anyone signed in can
+    // read (friends' leaderboards); only you can write, and only in these ways:
+    //   earn: +1…60 points (≤160 when claiming the daily bonus), ≥ 5 s after the last write, ≤ 1500 a day
+    //   spend: owned items grow and points drop by at least 25 per new item
+    //   gift out / gift in: matched against a gifts/{id} doc written in the same batch
+    //   best: only personal best scores change
+    function today() { return math.floor(request.time.toMillis() / 86400000.0); }
+    function wpath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
+    function gpath(gid) { return /databases/$(database)/documents/gifts/$(gid); }
+    function walletShape() {
+      return incoming().keys().hasOnly(['points', 'owned', 'day', 'earned', 'streak', 'daily', 'gin', 'gout', 'best', 'at'])
+        && incoming().points is int && incoming().points >= 0
+        && incoming().owned is list && incoming().owned.size() <= 200
+        && incoming().day is int && incoming().earned is int && incoming().streak is int && incoming().daily is int
+        && incoming().gin is string && incoming().gout is string
+        && incoming().best is map && incoming().best.size() <= 20
+        && incoming().at == request.time;
+    }
+    function unchanged(keys) { return !incoming().diff(resource.data).affectedKeys().hasAny(keys); }
+    function earnOk() {
+      let d = incoming().points - resource.data.points;
+      let claimDaily = incoming().daily != resource.data.daily;
+      return d > 0
+        && unchanged(['owned', 'gin', 'gout'])
+        && request.time > resource.data.at + duration.value(5, 's')
+        && incoming().day == today()
+        && incoming().earned == (resource.data.day == today() ? resource.data.earned : 0) + d
+        && incoming().earned <= 1500
+        && (claimDaily
+          ? (incoming().daily == today() && resource.data.daily != today() && d <= 160
+             && incoming().streak == (resource.data.daily == today() - 1 ? resource.data.streak + 1 : 1))
+          : (d <= 60 && unchanged(['streak'])));
+    }
+    function spendOk() {
+      let n = incoming().owned.size() - resource.data.owned.size();
+      return n >= 1 && incoming().owned.hasAll(resource.data.owned)
+        && incoming().points <= resource.data.points - 25 * n
+        && unchanged(['day', 'earned', 'streak', 'daily', 'gin', 'gout']);
+    }
+    function giftOutOk() {
+      return incoming().gout != resource.data.gout
+        && !exists(gpath(incoming().gout))
+        && existsAfter(gpath(incoming().gout))
+        && getAfter(gpath(incoming().gout)).data.from == me()
+        && incoming().points == resource.data.points - getAfter(gpath(incoming().gout)).data.amount
+        && unchanged(['owned', 'day', 'earned', 'streak', 'daily', 'gin']);
+    }
+    function giftInOk() {
+      return incoming().gin != resource.data.gin
+        && get(gpath(incoming().gin)).data.to == me()
+        && get(gpath(incoming().gin)).data.claimed == false
+        && getAfter(gpath(incoming().gin)).data.claimed == true
+        && incoming().points == resource.data.points + get(gpath(incoming().gin)).data.amount
+        && unchanged(['owned', 'day', 'earned', 'streak', 'daily', 'gout']);
+    }
+    function bestOnly() { return incoming().diff(resource.data).affectedKeys().hasOnly(['best', 'at']); }
+    match /wallets/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && uid == me() && !isBanned() && walletShape()
+        && incoming().points == 100 && incoming().owned.size() == 0 && incoming().earned == 0
+        && incoming().streak == 0 && incoming().daily == 0 && incoming().gin == '' && incoming().gout == '';
+      allow update: if signedIn() && uid == me() && !isBanned() && walletShape()
+        && (earnOk() || spendOk() || giftOutOk() || giftInOk() || bestOnly());
+      allow delete: if isAdmin();
+    }
+    // a gift of points between friends: the sender's wallet drops by `amount` in the same batch,
+    // and the receiver adds it to theirs when they mark it claimed.
+    match /gifts/{gid} {
+      allow read: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+      allow create: if signedIn() && !isBanned()
+        && incoming().keys().hasOnly(['from', 'fromName', 'to', 'amount', 'note', 'claimed', 'at'])
+        && incoming().from == me() && incoming().to is string && incoming().to != me()
+        && isFriendOf(incoming().to)
+        && incoming().amount is int && incoming().amount >= 1 && incoming().amount <= 500
+        && incoming().claimed == false
+        && shortText(incoming().get('note', ''), 60) && shortText(incoming().get('fromName', ''), 20)
+        && getAfter(wpath(me())).data.gout == gid;
+      allow update: if signedIn() && resource.data.to == me() && resource.data.claimed == false
+        && incoming().diff(resource.data).affectedKeys().hasOnly(['claimed'])
+        && incoming().claimed == true
+        && getAfter(wpath(me())).data.gin == gid;
+      allow delete: if signedIn() && resource.data.to == me() && resource.data.claimed == true;
+    }
+
+    // live friend games (tic-tac-toe, connect four). Only the two players can see or touch a match;
+    // you can only change the board on your own turn.
+    function matchShape() {
+      return incoming().keys().hasOnly(['game', 'players', 'names', 'board', 'turn', 'status', 'winner', 'moves', 'last', 'at'])
+        && incoming().game in ['ttt', 'c4']
+        && incoming().players is list && incoming().players.size() == 2
+        && incoming().names is map
+        && incoming().board is string && incoming().board.size() <= 64
+        && incoming().status in ['invite', 'live', 'done']
+        && shortText(incoming().get('turn', ''), 40) && shortText(incoming().get('winner', ''), 40);
+    }
+    match /matches/{mid} {
+      allow read: if signedIn() && (resource == null || me() in resource.data.players);
+      allow create: if signedIn() && !isBanned() && matchShape()
+        && incoming().players[0] == me() && incoming().players[1] != me()
+        && isFriendOf(incoming().players[1]) && incoming().status == 'invite';
+      allow update: if signedIn() && !isBanned() && me() in resource.data.players && matchShape()
+        && incoming().players == resource.data.players && incoming().game == resource.data.game
+        && (resource.data.turn == me() || incoming().board == resource.data.board);
+      allow delete: if signedIn() && me() in resource.data.players;
     }
 
     // direct pokes, waves, cuddles and whispers. Only friends can send; only you can read.

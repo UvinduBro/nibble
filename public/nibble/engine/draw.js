@@ -644,6 +644,17 @@
       } else if (f.type === 'ghost') {
         ctx.globalAlpha = 0.35 * (1 - k);
         drawPet(ctx, { ...f.pose, fx: null, alpha: 0.35 * (1 - k) }, skin, u);
+      } else if (f.type === 'rainbow') {
+        const cols = ['#ff5e7e', '#ffb347', '#ffe066', '#7ee8a1', '#6ec6ff', '#b39dff'];
+        ctx.globalAlpha = 0.75 * (1 - k);
+        cols.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(f.x - 7 * u, f.y - (30 - i * 4.2) * u, 14 * u, 4.4 * u); });
+      } else if (f.type === 'confetti') {
+        const tt = f.t;
+        ctx.translate(f.x + f.vx * tt, f.y + f.vy * tt + 160 * u * tt * tt);
+        ctx.rotate(f.seed + tt * 9);
+        ctx.scale(1, Math.abs(Math.cos(f.seed + tt * 7)) + 0.2);
+        ctx.fillStyle = f.color || '#ffd166';
+        ctx.fillRect(-2.4 * u, -1.4 * u, 4.8 * u, 2.8 * u);
       } else if (f.type === 'sfx') {
         const sc = 1 + Math.min(1, f.t / 0.12) * 0.25 - k * 0.15;
         ctx.translate(f.x, f.y - k * 12 * u);
@@ -811,7 +822,7 @@
     ctx.restore();
   }
 
-  function accessory(ctx, name, skin, u) {
+  function accessory(ctx, name, skin, u, pose) {
     ctx.save();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
@@ -870,7 +881,7 @@
         ellipse(ctx, fx, fy, 2.4 * u, 2.4 * u); ctx.fillStyle = '#ffd166'; ctx.fill(); ctx.stroke();
         break;
       }
-      default: break;
+      default: if (window.NibbleWardrobe) window.NibbleWardrobe.hat(ctx, name, skin, u, pose); break;
     }
     ctx.restore();
   }
@@ -903,7 +914,7 @@
       if (a === 'sunglasses') sunglasses(ctx, u);
       else if (a === 'glasses') glasses(ctx, pose, u);
       else if (a === 'headphones') headphones(ctx, skin, u);
-      else accessory(ctx, a, skin, u);
+      else accessory(ctx, a, skin, u, pose);
     }
   }
 
@@ -1237,16 +1248,23 @@
   }
 
   function drawPet(ctx, pose, skin, u) {
-    if (skin.chibi) return drawChibi(ctx, pose, skin, u);
+    // the hand-drawn chibi (Mojo) keeps his own outfit — unless you pick an animal or an outfit for him
+    if (skin.chibi && !(pose.style && (pose.style.sp || pose.style.of))) return drawChibi(ctx, pose, skin, u);
     const t = pose.t || 0;
     const kit = skin.kit || {};
     // user colour customization: recolour the body, keep outline/eyes for contrast
     if (pose.tint && /^#[0-9a-fA-F]{6}$/.test(pose.tint)) {
       skin = Object.assign({}, skin, { body: pose.tint, belly: shade(pose.tint, 0.55), ear: shade(pose.tint, -0.12) });
     }
+    // animal species, outfits, natural colours (wardrobe.js)
+    const W = window.NibbleWardrobe;
+    const look = W && pose.style ? W.prep(pose, skin) : null;
+    if (look) skin = look.skin;
+    const sp = look ? look.sp : '';
     ctx.save();
     ctx.globalAlpha = pose.alpha ?? 1;
     ctx.translate(pose.x, pose.y - (pose.lift || 0) * u);
+    if (pose.scale && pose.scale !== 1) ctx.scale(pose.scale, pose.scale);
     if (pose.baseRot) ctx.rotate(pose.baseRot);
     if (pose.rot) {
       ctx.translate(0, -20 * u);
@@ -1271,7 +1289,8 @@
 
     // --- tail(s) (behind)
     const wag = Math.sin(t * (pose.tailWag || 3)) * 0.35;
-    for (let k = 0; k < (kit.tails || 1); k++) {
+    if (sp) { ctx.shadowBlur = 0; W.tail(ctx, pose, skin, sp, u, sx, sy); }
+    else for (let k = 0; k < (kit.tails || 1); k++) {
       ctx.save();
       ctx.translate(-19 * u * sx, (-9 + k * 4) * u * sy);
       ctx.rotate(-0.4 + wag * (k ? -1 : 1) + k * 0.75);
@@ -1300,6 +1319,7 @@
     kitBack(ctx, pose, skin, kit, u);
     ctx.strokeStyle = skin.line;
     ctx.lineWidth = 2.3 * u;
+    if (look) { W.back(ctx, pose, skin, look, u, sx, sy); ctx.strokeStyle = skin.line; ctx.lineWidth = 2.3 * u; }
 
     // --- back foot
     const fA = Math.sin(walk) * 4.5 * u * stride;
@@ -1308,21 +1328,22 @@
     const liftB = Math.max(0, Math.cos(walk + Math.PI)) * 2.5 * u * stride;
     const sitting = pose.sit;
     ellipse(ctx, -8 * u + fB, -2.6 * u - liftB, 5 * u, 3 * u);
-    ctx.fillStyle = shade(skin.body, -0.08);
+    ctx.fillStyle = shade(skin.feet || skin.limb || skin.body, -0.08);
     ctx.fill();
     ctx.stroke();
 
     // --- ears
     const earTilt = pose.ears ?? 0; // -1 droopy … 1 perky
     const earT = Math.sin(t * 1.3) * 0.04;
-    if (!kit.kasa) {
+    if (sp) { if (!kit.kasa) W.earsBack(ctx, pose, skin, sp, u, sx, sy); ctx.lineWidth = 2.3 * u; ctx.strokeStyle = skin.line; }
+    else if (!kit.kasa) {
       ear(ctx, -11 * u * sx, -33 * u * sy, 13 * u, 13 * u * (1 + earTilt * 0.12), -0.35 - earTilt * -0.1 + earT - (earTilt < 0 ? 0.5 : 0), skin, u);
       ear(ctx, 13 * u * sx, -33 * u * sy, 13 * u, 13 * u * (1 + earTilt * 0.12), 0.32 + earTilt * -0.1 - earT + (earTilt < 0 ? 0.5 : 0), skin, u);
     }
 
     // --- antenna
     const sway = Math.sin(t * 2.1) * 2.5 * u + (pose.antennaSway || 0) * u;
-    if (kit.antenna !== false) {
+    if (kit.antenna !== false && !sp) {
     ctx.beginPath();
     ctx.moveTo(1 * u, -38 * u * sy);
     ctx.quadraticCurveTo(1 * u + sway * 0.4, -46 * u * sy, 4 * u + sway, -51 * u * sy);
@@ -1359,12 +1380,21 @@
     ellipse(ctx, -9 * u, -31 * u, 4.5 * u, 2.2 * u, -0.5);
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fill();
+    if (look) {
+      const bodyPath = () => blob(ctx, 1.5 * u, -19.5 * u, 23 * u, 19.5 * u);
+      if (sp) { ctx.save(); bodyPath(); ctx.clip(); W.faceUnder(ctx, pose, skin, sp, u); ctx.restore(); }
+      ctx.strokeStyle = skin.line;
+      if (look.of) W.outfit(ctx, pose, skin, look, u, bodyPath);
+      bodyPath(); ctx.strokeStyle = skin.line; ctx.lineWidth = 2.3 * u; ctx.stroke();
+    }
     ctx.restore();
+    if (sp) { ctx.save(); ctx.lineWidth = 2.1 * u; ctx.strokeStyle = skin.line; ctx.shadowBlur = 0; W.earsFront(ctx, pose, skin, sp, u, sx, sy); ctx.restore(); }
 
     // --- face
     ctx.save();
     ctx.scale(sx, sy);
     eyes(ctx, pose, skin, u);
+    if (sp) W.faceOver(ctx, pose, skin, sp, u);
     ctx.lineWidth = 2.3 * u;
     ctx.strokeStyle = skin.line;
     kitFace(ctx, pose, skin, kit, u);
@@ -1390,12 +1420,13 @@
     ctx.lineWidth = 2 * u;
     if (skin.neon) { ctx.shadowColor = skin.line; ctx.shadowBlur = 5 * u; }
     const arms = pose.arms || 'down';
+    const armFill = (look && look.sleeve) || skin.limb || skin.body;
     const armDraw = (x, y, rot, len = 7) => {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(rot);
       ellipse(ctx, 0, len * 0.5 * u, 3.2 * u, len * 0.62 * u);
-      ctx.fillStyle = skin.body;
+      ctx.fillStyle = armFill;
       ctx.fill();
       ctx.stroke();
       ctx.restore();
@@ -1423,7 +1454,7 @@
       armDraw(19 * u * sx, -14 * u * sy, -0.3 + s);
     }
 
-    if (pose.wand && kit.wand) {
+    if (pose.wand && (kit.wand || pose.wandColor)) {
       ctx.save();
       ctx.translate(22 * u, -18 * u);
       ctx.rotate(-0.5 + Math.sin(t * 8) * 0.25);
@@ -1438,7 +1469,7 @@
       ctx.stroke();
       ctx.translate(0, -19 * u);
       ctx.rotate(t * 2);
-      ctx.shadowColor = kit.wand;
+      ctx.shadowColor = kit.wand || pose.wandColor;
       ctx.shadowBlur = 10 * u;
       ctx.beginPath();
       for (let k = 0; k < 10; k++) {
@@ -1447,7 +1478,7 @@
         ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
       }
       ctx.closePath();
-      ctx.fillStyle = kit.wand;
+      ctx.fillStyle = kit.wand || pose.wandColor;
       ctx.fill();
       ctx.lineWidth = 1.2 * u;
       ctx.strokeStyle = skin.line;
@@ -1482,12 +1513,12 @@
     } else {
       ellipse(ctx, 9 * u + fA, -2.6 * u - liftA, 5 * u, 3 * u);
     }
-    ctx.fillStyle = skin.body;
+    ctx.fillStyle = skin.feet || skin.limb || skin.body;
     ctx.fill();
     ctx.stroke();
 
     if (pose.laptop) laptop(ctx, pose, skin, u);
-    if (pose.cloud && kit.cloud) cloud(ctx, pose, skin, kit, u);
+    if (pose.cloud) cloud(ctx, pose, skin, kit.cloud ? kit : Object.assign({}, kit, { cloud: '#ffffff' }), u);
 
     ctx.restore();
     if (pose.fx && pose.fx.length) drawFx(ctx, pose.fx, skin, u);

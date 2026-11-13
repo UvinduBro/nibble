@@ -6,6 +6,12 @@ const crypto = require('crypto');
 const path = require('path');
 
 // settings the Hub may change, with simple validators
+// wardrobe look for a local pet: { sp, of, oc, sk } (letters only / a #rrggbb colour)
+const cleanStyle = (st) => {
+  if (!st || typeof st !== 'object') return null;
+  const w = (v) => String(v || '').replace(/[^a-z]/g, '').slice(0, 12);
+  return { sp: w(st.sp), of: w(st.of), oc: /^#[0-9a-fA-F]{6}$/.test(st.oc || '') ? st.oc : '', sk: w(st.sk) };
+};
 const LOCAL_KEYS = {
   size: (v) => [0.65, 0.82, 1, 1.3, 1.65].includes(v),
   chatty: (v) => ['silent', 'quiet', 'normal', 'chatty'].includes(v),
@@ -132,7 +138,7 @@ function setupHub(ctx) {
     if (!fromHub(e) || !patch || typeof patch !== 'object') return;
     const ok = {};
     for (const [k, v] of Object.entries(patch)) if (LOCAL_KEYS[k] && LOCAL_KEYS[k](v)) ok[k] = v;
-    if (ok.pets) ok.pets = ok.pets.map((p, i) => ({ id: String(p.id || Date.now().toString(36) + i), name: String(p.name || 'Nibble').slice(0, 20), skin: SKINS[p.skin] ? p.skin : 'mint', acc: Array.isArray(p.acc) ? p.acc.filter((a) => typeof a === 'string').slice(0, 6) : [], tint: typeof p.tint === 'string' ? p.tint.slice(0, 7) : '', makeup: typeof p.makeup === 'string' ? p.makeup.slice(0, 12) : '' }));
+    if (ok.pets) ok.pets = ok.pets.map((p, i) => ({ id: String(p.id || Date.now().toString(36) + i), name: String(p.name || 'Nibble').slice(0, 20), skin: SKINS[p.skin] ? p.skin : 'mint', acc: Array.isArray(p.acc) ? p.acc.filter((a) => typeof a === 'string').slice(0, 6) : [], tint: typeof p.tint === 'string' ? p.tint.slice(0, 7) : '', makeup: typeof p.makeup === 'string' ? p.makeup.slice(0, 12) : '', style: cleanStyle(p.style) }));
     if ('startWithWindows' in ok) { setStartup(ok.startWithWindows); delete ok.startWithWindows; }
     if ('paused' in ok) { setPaused(ok.paused); delete ok.paused; }
     if (Object.keys(ok).length) applySettings(ok);

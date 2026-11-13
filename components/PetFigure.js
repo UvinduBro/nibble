@@ -5,7 +5,7 @@ let loading;
 export function loadNibble() {
   if (typeof window === 'undefined') return Promise.resolve();
   if (window.NibblePet) return Promise.resolve();
-  loading ||= ['skins', 'lines', 'draw', 'pet', 'social-draw'].reduce(
+  loading ||= ['skins', 'lines', 'wardrobe', 'draw', 'pet', 'social-draw'].reduce(
     (p, f) => p.then(() => new Promise((res, rej) => {
       const s = document.createElement('script');
       s.src = `/nibble/engine/${f}.js`;
@@ -49,7 +49,7 @@ const FX = { sleep: ['z', 'Z'], dance: ['♪', '♫'], work: ['</>', '{ }', '01'
 const FX_COLOR = { sleep: '#9aa3bd', dance: '#ff6fb5', work: '#4fd1ff', happy: '#ff5d8f', dizzy: '#ffd23f' };
 
 // A single animated Nibble in a given mood – used for the crew gallery & feature cards.
-export default function PetFigure({ skin = 'mint', mood = 'idle', size = 1, w = 170, h = 150, className, onClick, title, acc, tint, makeup }) {
+export default function PetFigure({ skin = 'mint', mood = 'idle', size = 1, w = 170, h = 150, className, onClick, title, acc, tint, makeup, look }) {
   const ref = useRef(null);
   const moodRef = useRef(mood);
   moodRef.current = mood;
@@ -63,7 +63,7 @@ export default function PetFigure({ skin = 'mint', mood = 'idle', size = 1, w = 
     const u = 1.1 * size, floor = h - 14;
     const env = { world: { w, h, left: 0, right: w, top: 0, floor }, settings: { size, chatty: 'silent', pets: [] }, skins: window.SKINS, platforms: [], winsById: new Map(), pets: [], time: 0, emit() {}, sound() {}, onFirstLanding() {} };
     const sk = { ...(window.SKINS[skin] || window.SKINS.mint), neon: skin === 'cyber' };
-    const p = new window.NibblePet({ id: 'f', name: 'N', skin, acc: acc || [], tint: tint || '', makeup: makeup || '' }, env, 0);
+    const p = new window.NibblePet({ id: 'f', name: 'N', skin, acc: acc || [], tint: tint || '', makeup: makeup || '', style: look || null }, env, 0);
     p._u = u;
     let last = performance.now(), visible = true, mouse = null, cur = null, fxT = 0, blinkT = 2, blinkA = 0;
     const fx = [];
@@ -130,7 +130,7 @@ export default function PetFigure({ skin = 'mint', mood = 'idle', size = 1, w = 
     };
     const off = addFigure(loop);
     return () => { off(); io.disconnect(); };
-  }, [ready, skin, size, w, h, (acc || []).join(','), tint, makeup]);
+  }, [ready, skin, size, w, h, (acc || []).join(','), tint, makeup, look ? [look.sp, look.of, look.oc, look.sk].join('|') : '']);
 
   return <canvas ref={ref} className={className} style={{ width: w, height: h }} onClick={onClick} title={title} aria-label={`Nibble (${skin}) – ${mood}`} />;
 }

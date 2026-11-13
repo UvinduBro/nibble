@@ -14,6 +14,8 @@
   };
 
   const AIR = new Set(['jump', 'fall', 'thrown', 'flip']);
+  // special moves any pet can learn (unlocked in the shop); the anime crew bring their own
+  const SKILLS = new Set(['shadowstep', 'transform', 'iai', 'rage', 'float', 'surf', 'boost', 'rainbow', 'giant', 'confetti']);
   const BUSY = new Set(['drag', 'climb', 'cling', 'crouch', 'land', 'dizzy', 'happy', 'special', 'argue', 'sulk', 'eat', 'snuggle']);
 
   function weighted(list) {
@@ -33,6 +35,7 @@
       this.acc = Array.isArray(cfg.acc) ? cfg.acc : [];
       this.tint = cfg.tint || '';
       this.makeup = cfg.makeup || '';
+      this.setStyle(cfg.style);
       this.index = index;
       const w = env.world;
       this.x = rand(w.left + 120, w.right - 120);
@@ -81,6 +84,16 @@
       const sk = window.SKINS && window.SKINS[this.skinKey];
       return (sk && sk.kit) || null;
     }
+    // look extras from the wardrobe: { sp: species, of: outfit, oc: outfit colour, sk: skill }
+    setStyle(st) {
+      this.style = st && typeof st === 'object' ? { sp: String(st.sp || ''), of: String(st.of || ''), oc: String(st.oc || ''), sk: String(st.sk || '') } : null;
+    }
+    // the special move: an unlocked skill wins over the character's own move
+    specialType() {
+      if (this.style && SKILLS.has(this.style.sk)) return this.style.sk;
+      const k = this.kit();
+      return (k && k.special) || '';
+    }
 
     addFx(f) {
       f.t = 0;
@@ -97,6 +110,7 @@
 
     // ---------- helpers ----------
     enter(state, dur = 0) {
+      if (state !== 'special' && this.grow && this.grow !== 1) this.grow = 1;
       this.state = state;
       this.st = 0;
       this.dur = dur;
@@ -247,7 +261,7 @@
         ['yawn', 0.3 + (userIdle > 120 ? 2 : 0) + (hour < 5 ? 1 : 0)],
         ['sleep', 0.2 + (userIdle > 150 ? 6 : 0) + (hour < 5 ? 1.5 : 0)],
         ['wave', cursorNear ? 1.5 : 0],
-        ['special', this.kit() && this.kit().special ? 0.9 : 0],
+        ['special', this.specialType() ? 0.9 : 0],
       ]);
 
       switch (next) {
@@ -554,13 +568,26 @@
 
     // ---------- special moves (anime crew) ----------
     special(env) {
-      const kit = this.kit();
-      if (!kit || !kit.special || !this.grounded() || this.state === 'special') return false;
+      const type = this.specialType();
+      if (!type || !this.grounded() || this.state === 'special') return false;
       const u = this.u;
       const seg = this.currentSeg(env);
-      this.sp = { type: kit.special, done: false, ghostT: 0, sparkT: 0 };
-      this.speak(env, 'sp_' + kit.special, { force: env.settings.chatty !== 'silent' });
-      switch (kit.special) {
+      this.sp = { type, done: false, ghostT: 0, sparkT: 0 };
+      this.speak(env, 'sp_' + type, { force: env.settings.chatty !== 'silent' });
+      switch (type) {
+        case 'rainbow':
+          this.addFx({ type: 'sfx', x: this.x, y: this.y - 70 * u, text: 'ピュー', max: 0.9, color: '#ff7ab8', size: 18 });
+          if (seg) { const room = this.dir > 0 ? seg.x2 - this.x : this.x - seg.x1; if (room < 80 * u) this.dir = -this.dir; }
+          this.enter('special', 1.5);
+          return true;
+        case 'giant':
+          this.addFx({ type: 'sfx', x: this.x, y: this.y - 110 * u, text: 'ドーン', max: 1.1, color: '#ffd23f', size: 22 });
+          this.enter('special', 3.4);
+          return true;
+        case 'confetti':
+          this.addFx({ type: 'sfx', x: this.x, y: this.y - 80 * u, text: 'パーン', max: 1, color: '#7ee8c6', size: 20 });
+          this.enter('special', 1.7);
+          return true;
         case 'shadowstep': {
           const opts = env.platforms.filter((p) => p !== seg && p.x2 - p.x1 > 60 * u);
           const dest = opts.length && chance(0.8) ? opts[Math.floor(Math.random() * opts.length)] : env.floorSeg;
@@ -743,6 +770,31 @@
           }
           break;
         }
+        case 'rainbow': {
+          const seg = this.currentSeg(env);
+          let nx = this.x + this.dir * 520 * Math.sqrt(u) * dt;
+          if (seg) { const m = seg === env.floorSeg ? 20 * u : 4 * u; if (nx > seg.x2 - m || nx < seg.x1 + m) { nx = clamp(nx, seg.x1 + m, seg.x2 - m); this.dir = -this.dir; } }
+          this.x = nx;
+          this.walk += dt * 30;
+          sp.sparkT -= dt;
+          if (sp.sparkT <= 0) { sp.sparkT = 0.03; this.addFx({ type: 'rainbow', x: this.x - this.dir * 14 * u, y: this.y, max: 0.7 }); }
+          break;
+        }
+        case 'giant': {
+          const e = k < 0.5 ? k / 0.5 : k > 2.9 ? Math.max(0, (3.4 - k) / 0.5) : 1;
+          this.grow = 1 + 0.9 * (e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2);
+          if (k > 0.5 && !sp.done) { sp.done = true; this.addFx({ type: 'ring', x: this.x, y: this.y + 20 * u, max: 0.6, color: '#ffd23f' }); env.sound && env.sound('boing'); }
+          break;
+        }
+        case 'confetti':
+          this.liftV = Math.sin(Math.min(1, k / 0.9) * Math.PI) * 36;
+          this.rot = k < 0.9 ? (k / 0.9) * Math.PI * 2 * this.dir : 0;
+          if (k > 0.45 && !sp.done) {
+            sp.done = true;
+            const cols = ['#ff7ab8', '#ffd166', '#7ee8c6', '#7aa2ff', '#b9a3ff', '#ff6b3d'];
+            for (let i = 0; i < 34; i++) { const a = rand(-Math.PI, 0); const v = rand(60, 170) * u; this.addFx({ type: 'confetti', x: this.x, y: this.y - 40 * u - this.liftV * u, vx: Math.cos(a) * v, vy: Math.sin(a) * v, max: rand(1, 1.6), color: cols[i % cols.length], seed: Math.random() * 6 }); }
+          }
+          break;
         case 'float':
           this.liftV = Math.sin(Math.min(1, k / 3) * Math.PI) * 42;
           this.alpha = 0.78 + Math.sin(k * 6) * 0.12;
@@ -751,7 +803,7 @@
           break;
       }
       if (this.st >= this.dur) {
-        this.alpha = 1; this.liftV = 0; this.rot = 0; this.shake = 0;
+        this.alpha = 1; this.liftV = 0; this.rot = 0; this.shake = 0; this.grow = 1;
         this.sp = null;
         this.enter('idle', 0.9);
       }
@@ -1045,7 +1097,8 @@
         eyes: 'open', mouth: 'w', arms: 'down', ears: 0, stride: 0, bob: 0, tailWag: 3,
         alpha: this.inCloud ? 0 : this.alpha, lift: this.liftV, emote: this.emote, fx: this.fx,
         air: AIR.has(s), sleep: s === 'sleep',
-        acc: this.acc, tint: this.tint, makeup: this.makeup,
+        acc: this.acc, tint: this.tint, makeup: this.makeup, style: this.style,
+        scale: this.grow && this.grow !== 1 ? this.grow : 1,
       };
       if (this.shake) p.x += this.shake;
       if (this.hoverT > 0.05 && s !== 'sleep') { p.ears = 1; p.tailWag = 9; }
@@ -1081,7 +1134,10 @@
           const t2 = this.sp ? this.sp.type : '';
           const k = this.st;
           if (t2 === 'shadowstep') { p.arms = 'up'; p.eyes = 'open'; }
-          else if (t2 === 'transform') { p.wand = true; p.arms = 'wave'; p.eyes = k > 1.25 ? 'star' : 'happy'; p.mouth = 'open'; p.ears = 1; }
+          else if (t2 === 'rainbow') { p.speed = true; p.stride = 1.5; p.walk = this.walk; p.eyes = 'happy'; p.mouth = 'open'; p.ears = -0.3; p.tailWag = 14; }
+          else if (t2 === 'giant') { p.arms = k > 0.5 && k < 2.9 ? 'up' : 'down'; p.eyes = k > 0.5 && k < 2.9 ? 'wide' : 'open'; p.mouth = 'open'; p.ears = 1; }
+          else if (t2 === 'confetti') { p.arms = 'up'; p.eyes = 'happy'; p.mouth = 'open'; p.ears = 1; }
+          else if (t2 === 'transform') { p.wand = true; p.wandColor = '#fff27a'; p.arms = 'wave'; p.eyes = k > 1.25 ? 'star' : 'happy'; p.mouth = 'open'; p.ears = 1; }
           else if (t2 === 'iai') {
             if (k < 0.35) { p.eyes = 'open'; p.mouth = 'flat'; p.ears = -0.3; }
             else if (k < 0.58) { p.speed = true; p.stride = 1.4; p.walk = this.t * 30; p.mouth = 'flat'; }
@@ -1296,7 +1352,72 @@
     [4.4, (s, env) => { for (let i = 0; i < 3; i++) env.emit('note', s.a.x, s.a.y - 50 * U(env), { delay: i * 0.2 }); }],
     [6, (s) => s.done(5)],
   ];
-  const AGAP = { kiss: 30, hug: 34, wave: 70, poke: 30, annoy: 30, highfive: 40, tickle: 30, cheer: 66, heart: 76, snack: 42, dance: 60, icecream: 52, listen: 56 };
+  // shop emotes (unlocked with points)
+  ACT.boop = [
+    [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); talk(s.a, ['boop! 👆', 'boop the snoot!', '*boop*']); s.lean(24); env.sound('pop'); }],
+    [0.5, (s, env) => { s.burst('👆'); hold(s.b, 'happy'); s.b.setEmote('blush', 2.5); stars(env, s.b.x, s.b.y - 48 * U(env), 3); }],
+    [1.4, (s) => talk(s.b, ['hehe boop 🥰', 'my nose!!', 'boop back! 👆'])],
+    [2.8, (s) => s.done(4)],
+  ];
+  ACT.flower = [
+    [0, (s) => { face(s.a, s.b); hold(s.a, 'wave'); hold(s.b, 'look'); talk(s.a, ['picked this for you 🌷', 'a flower for {other} 🌸']); }],
+    [0.8, (s, env) => { s.fly('🌷', s.a, s.b, 0.7); env.sound('chime'); }],
+    [1.6, (s, env) => { hold(s.b, 'happy'); s.b.setEmote('blush', 3); hearts(env, s, 5); }],
+    [2.3, (s) => talk(s.b, ['it\'s beautiful 🥹', 'for me?! 🌸', 'I\'ll keep it forever'])],
+    [3.8, (s) => s.done(6)],
+  ];
+  ACT.cake = [
+    [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); talk(s.a, ['surprise!! 🎂', 'I baked you a cake!', 'cake time 🍰']); s.burst('🎂'); env.sound('chime'); }],
+    [1.1, (s, env) => { hold(s.a, 'dance'); hold(s.b, 'dance'); stars(env, (s.a.x + s.b.x) / 2, s.a.y - 55 * U(env), 8); }],
+    [2.2, (s) => talk(s.b, ['best surprise ever 🥳', 'cake!!! 🍰', 'make a wish!'])],
+    [3.4, (s, env) => { hold(s.a, 'eat'); hold(s.b, 'eat'); env.sound('nom'); }],
+    [5.2, (s, env) => { hold(s.a, 'happy'); hold(s.b, 'happy'); hearts(env, s, 5); }],
+    [6.2, (s) => s.done(6)],
+  ];
+  ACT.fistbump = [
+    [0, (s) => { face(s.a, s.b); hold(s.a, 'wave'); hold(s.b, 'look'); talk(s.a, ['fist bump! 👊', 'bump it {other}!']); }],
+    [0.7, (s) => { hold(s.b, 'wave'); s.lean(30); }],
+    [1.05, (s, env) => { s.burst('👊'); s.burst('💥'); env.sound('pop'); stars(env, (s.a.x + s.b.x) / 2, s.a.y - 40 * U(env), 6); hold(s.a, 'happy'); hold(s.b, 'happy'); }],
+    [2, (s) => talk(s.b, ['boom 💥', 'respect 👊', 'legends only'])],
+    [3.2, (s) => s.done(4)],
+  ];
+  ACT.pillow = [
+    [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); talk(s.a, ['PILLOW FIGHT! 🛏', 'en garde, {other}!']); s.fly('☁️', s.a, s.b, 0.45); env.sound('boing'); }],
+    [0.5, (s, env) => { hold(s.b, 'dizzy'); s.burst('🪶'); stars(env, s.b.x, s.b.y - 50 * U(env), 3); }],
+    [1.2, (s, env) => { hold(s.b, 'happy'); talk(s.b, ['oh it\'s ON 😤', 'take this!']); s.fly('☁️', s.b, s.a, 0.45); env.sound('boing'); }],
+    [1.7, (s) => { hold(s.a, 'dizzy'); s.burst('🪶'); }],
+    [2.4, (s, env) => { s.fight(env); }],
+    [4.6, (s, env) => { s.unfight(env); hold(s.a, 'happy'); hold(s.b, 'happy'); s.burst('🪶'); talk(s.a, ['hahaha truce 😂', 'you win… this time']); }],
+    [6, (s) => s.done(5)],
+  ];
+  ACT.serenade = [
+    [0, (s, env) => { face(s.a, s.b); hold(s.a, 'dance'); hold(s.b, 'look'); s.a.musicUntil = s.a.t + 7; talk(s.a, ['♪ this one\'s for {other} ♪', '♪ la la laaa ♪', '🎸 ♪♫']); env.sound('chime'); }],
+    [0.8, (s, env) => { for (let i = 0; i < 4; i++) env.emit('note', s.a.x, s.a.y - 50 * U(env), { delay: i * 0.25 }); s.fly('🎵', s.a, s.b, 0.8); }],
+    [2.2, (s, env) => { hold(s.b, 'happy'); s.b.setEmote('blush', 3.5); for (let i = 0; i < 4; i++) env.emit('note', s.a.x, s.a.y - 50 * U(env), { delay: i * 0.25 }); }],
+    [3.4, (s, env) => { talk(s.b, ['encore!! 👏', 'you sing so well 🥹', '*swoons*']); hearts(env, s, 5); }],
+    [5, (s) => s.done(6)],
+  ];
+  ACT.gift = [
+    [0, (s) => { face(s.a, s.b); hold(s.a, 'wave'); hold(s.b, 'look'); talk(s.a, ['I got you something 🎁', 'open it, {other}!']); }],
+    [0.8, (s, env) => { s.fly('🎁', s.a, s.b, 0.7); env.sound('pop'); }],
+    [1.6, (s, env) => { hold(s.b, 'happy'); s.burst('✨'); stars(env, s.b.x, s.b.y - 50 * U(env), 8); env.sound('chime'); }],
+    [2.4, (s) => talk(s.b, ['no wayyy 😍', 'I love it!!', 'you shouldn\'t have 🥹'])],
+    [3.9, (s, env) => { hearts(env, s, 4); s.done(6); }],
+  ];
+  ACT.bubbles = [
+    [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); talk(s.a, ['bubbles! 🫧', 'catch them {other}!']); env.sound('pop'); }],
+    [0.5, (s) => { s.fly('🫧', s.a, s.b, 0.9); }],
+    [0.9, (s) => { s.fly('🫧', s.a, s.b, 1); }],
+    [1.3, (s, env) => { s.fly('🫧', s.a, s.b, 1.1); hold(s.b, 'dance'); env.sound('pop'); }],
+    [2.4, (s, env) => { s.burst('🫧'); env.sound('pop'); talk(s.b, ['pop pop pop!', 'so pretty 🫧', 'wheee']); }],
+    [3.6, (s) => s.done(4)],
+  ];
+  ACT.game = [ // "wanna play?" — a friend-game challenge
+    [0, (s, env) => { face(s.a, s.b); hold(s.a, 'happy'); hold(s.b, 'look'); talk(s.a, ['wanna play? 🎮', 'game on, {other}! 🎮', 'I challenge you!']); s.fly('🎮', s.a, s.b, 0.6); env.sound('chime'); }],
+    [1.2, (s) => { hold(s.b, 'happy'); talk(s.b, ['you\'re ON 😤', 'prepare to lose 😎', 'let\'s gooo']); }],
+    [2.8, (s) => s.done(3)],
+  ];
+  const AGAP = { kiss: 30, hug: 34, wave: 70, poke: 30, annoy: 30, highfive: 40, tickle: 30, cheer: 66, heart: 76, snack: 42, dance: 60, icecream: 52, listen: 56, boop: 26, flower: 44, cake: 46, fistbump: 34, pillow: 42, serenade: 56, gift: 46, bubbles: 54, game: 50 };
   for (const k of Object.keys(ACT)) SCRIPTS['x_' + k] = ACT[k];
   // one pet on its own gets a cone (pet menu → "Give ice cream")
   SCRIPTS.x_treat = [

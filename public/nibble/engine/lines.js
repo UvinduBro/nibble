@@ -121,6 +121,9 @@
     sp_float: ['Floaty time~', 'Boo~ 👻', 'Wheee, no gravity~'],
     sp_surf: ['Surf\'s up! 🏄', 'Cloud, come here!', 'Catch you on the next window~'],
     sp_beat: ['Drop the beat! 🎧', 'Bass check… one, two!', 'Everybody, vibe!'],
+    sp_rainbow: ['Rainbow dash! 🌈', 'Taste the speed!', 'Zoom zoom~ 🌈'],
+    sp_giant: ['MEGA MODE! 💪', 'Who\'s tiny now?', 'Big pet energy!'],
+    sp_confetti: ['Party time! 🎉', 'Surprise!! 🎊', 'Celebrate everything!'],
 
     // anime-style crew: personality lines
     char_kaze: ['You didn\'t see me.', 'Silent as a merge with no conflicts.', 'Ninja rule #1: never leave unused imports.', 'I was here the whole time.', 'Shh… stealth mode.'],

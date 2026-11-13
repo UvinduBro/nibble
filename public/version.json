@@ -1,12 +1,13 @@
 {
-  "version": "2.0.12",
+  "version": "2.0.13",
   "date": "2026-11-13",
   "notes": [
-    "New: 🎧 Listen together — start a room, invite friends and hear the same song at the same moment. Anyone can play, pause, skip and queue",
-    "New: Nibble Beats — 10 free lo-fi tracks made for Nibble, plus any YouTube link",
-    "New: pets put on headphones and dance while you listen, and a friend's 🎧 invite is delivered by their pet",
-    "New: share what you're playing in Spotify, YouTube, Apple Music… — friends see it with a Listen along button (Music → Share what I'm playing)",
-    "Fix: the app now shows as Nibble with its own icon in the taskbar, not Electron",
-    "Fix: more accurate clock sync with friends"
+    "New: 12 animals to choose from: cat, puppy, bunny, mouse, piglet, bear, frog, fox, panda, penguin, dragon and unicorn",
+    "New: Customize page: outfits in any colour (hoodie, dress, kimono, suit, cape and more), 24 hats and glasses, body colour picker",
+    "New: Games: 6 solo mini games starring your pet, plus live Tic-tac-toe and Connect Four with friends",
+    "New: ⭐ points: earn them from games, a daily bonus and friend actions, spend them on animals, outfits, emotes and skills, or gift them to friends",
+    "New: 8 more friend emotes (boop, flower, cake, fist bump, pillow fight, serenade, gift, bubbles) and 10 special moves any pet can learn",
+    "New: Music plays YouTube playlists and Spotify links",
+    "Better: refreshed Hub design"
   ]
 }

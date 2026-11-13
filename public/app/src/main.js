@@ -296,6 +296,10 @@ function trayTemplate() {
       click: () => hubCtl && hubCtl.open(social.me ? 'friends' : null),
     },
     ...(social.me ? [{ label: 'Talk to friends…', click: () => send('command', { type: 'compose', pet: 0 }) }] : []),
+    ...(social.me ? [
+      { label: '🎮 Mini games & points', click: () => hubCtl && hubCtl.open('games') },
+      { label: '✿ Customize your pet', click: () => hubCtl && hubCtl.open('style') },
+    ] : []),
     { type: 'separator' },
     { label: s.paused ? 'Show pets' : 'Hide pets', accelerator: 'CommandOrControl+Alt+N', click: () => setPaused(!s.paused) },
     { label: 'Call pets to cursor', click: () => send('command', { type: 'summon' }) },

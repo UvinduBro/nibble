@@ -2,13 +2,17 @@
 import './social.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocial } from './useSocial';
-import { AuthScreen, Onboard, CharacterGrid } from './Auth';
+import { AuthScreen, Onboard } from './Auth';
 import LiveDesk from './LiveDesk';
 import { Music, MusicDock, useRoomPlayer } from './Music';
 import PetFigure, { useNibble } from '../PetFigure';
 import { byKey, CHARACTERS } from '../../lib/characters';
 import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess } from '../../lib/social/social';
 import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
+import Wardrobe from './Wardrobe';
+import Arcade from './Arcade';
+import { EMOTES as SHOP_EMOTES, PT, owns } from '../../lib/shop';
+import { GAMES } from '../../lib/social/games';
 
 // announcement / notice banner. level: info | update | warn | party | need
 const BANNER_ICON = { info: '📣', update: '⬆️', warn: '⚠️', party: '🎉', need: '⬆️' };
@@ -33,13 +37,14 @@ const ago = (t) => {
   if (s < 86400) return Math.floor(s / 3600) + 'h ago';
   return Math.floor(s / 86400) + 'd ago';
 };
-const EMOTE_TITLE = { wave: 'Wave', hug: 'Cuddle', kiss: 'Kiss', poke: 'Poke', annoy: 'Tease', icecream: 'Share ice cream', heart: 'Send a heart', highfive: 'High five', tickle: 'Tickle', cheer: 'Cheer them on', snack: 'Share a snack', dance: 'Dance together' };
+const EMOTE_TITLE = { wave: 'Wave', hug: 'Cuddle', kiss: 'Kiss', poke: 'Poke', annoy: 'Tease', icecream: 'Share ice cream', heart: 'Send a heart', highfive: 'High five', tickle: 'Tickle', cheer: 'Cheer them on', snack: 'Share a snack', dance: 'Dance together', boop: 'Boop', flower: 'Give a flower', cake: 'Birthday cake', fistbump: 'Fist bump', pillow: 'Pillow fight', serenade: 'Serenade', gift: 'Gift box', bubbles: 'Bubbles' };
 const NAV = [
-  ['home', 'Home', '⌂'], ['profile', 'Profile', '☻'], ['deadlines', 'Deadlines', '⏰'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['pets', 'Pets', '✦'], ['settings', 'Settings', '⚙'],
+  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['deadlines', 'Deadlines', '⏰'], ['profile', 'Profile', '☻'], ['pets', 'My pets', '✦'], ['settings', 'Settings', '⚙'],
 ];
 
-function Avatar({ skin, size = 44, mood = 'idle' }) {
-  return <span className="sa-ava" style={{ width: size, height: size }}><PetFigure skin={skin || 'mint'} mood={mood} w={size} h={size} size={size / 92} /></span>;
+// `who` = a profile or friend: their accessories, colour, makeup and wardrobe look show on the avatar
+function Avatar({ skin, size = 44, mood = 'idle', who }) {
+  return <span className="sa-ava" style={{ width: size, height: size }}><PetFigure skin={skin || 'mint'} mood={mood} w={size} h={size} size={size / 92} acc={who && who.acc} tint={who && who.tint} makeup={who && who.makeup} look={who && who.style} /></span>;
 }
 
 function Toggle({ on, onChange, label, hint }) {
@@ -98,11 +103,13 @@ function FriendActions({ social, f, toast, compact }) {
       </form>
     );
   }
-  const kinds = compact ? ['wave', 'hug', 'kiss', 'icecream'] : ['wave', 'hug', 'kiss', 'poke', 'annoy', 'icecream', 'heart', 'highfive', 'tickle', 'cheer', 'snack', 'dance'];
+  const owned = (social.state.wallet && social.state.wallet.owned) || [];
+  const kinds = compact ? ['wave', 'hug', 'kiss', 'icecream'] : SHOP_EMOTES.filter((e) => owns(owned, 'em', e.key)).map((e) => e.key);
   return (
     <div className="sa-acts">
       {kinds.map((k) => <button key={k} title={EMOTE_TITLE[k] || k} onClick={() => act(k)}>{EMOTES[k]}</button>)}
       <button title="Private message" onClick={() => setWhisper('')}>💬</button>
+      {!compact && social.games && <button title="Challenge to Tic-tac-toe (open Games to play)" onClick={() => social.games.challenge(f.uid, 'ttt').then(() => toast({ text: `🎮 Challenged @${f.username} to ${GAMES.ttt.label}. Open Games to play.` })).catch((e) => toast({ err: true, text: niceError(e) }))}>🎮</button>}
       {social.music && <button title="Listen together" onClick={() => {
         const r = social.state.music && social.state.music.room;
         const mine = r && r.host === social.state.user.uid;
@@ -125,7 +132,7 @@ function FriendRow({ social, f, toast, full, desktop }) {
   const [confirm, setConfirm] = useState(false);
   return (
     <div className={'sa-friend' + (f.online ? ' on' : '')}>
-      <Avatar skin={f.skin} mood={f.online ? (f.typing ? 'work' : 'idle') : 'sleep'} />
+      <Avatar skin={f.skin} who={f} mood={f.online ? (f.typing ? 'work' : 'idle') : 'sleep'} />
       <div className="sa-friend-main">
         <b>@{f.username}</b>
         <small>
@@ -273,53 +280,24 @@ function Messages({ social, state, chatWith, setChatWith }) {
   );
 }
 
-const ACCS = [['cap', '🧢 Cap'], ['tophat', '🎩 Top hat'], ['party', '🥳 Party hat'], ['crown', '👑 Crown'], ['bow', '🎀 Bow'], ['flower', '🌸 Flower'], ['sunglasses', '🕶 Shades'], ['glasses', '👓 Glasses'], ['headphones', '🎧 Headphones']];
-const TINTS = ['#7ee8c6', '#ff8fab', '#ffd166', '#b9a3ff', '#4cc9f0', '#ff6b3d', '#a3ff12', '#f4f6fb'];
-const MAKEUPS = [['', 'None'], ['blush', '😊 Blush'], ['freckles', '🙂 Freckles'], ['star', '⭐ Star'], ['all', '✨ Full glam']];
 
-function Pets({ social, state, desktop, local, toast }) {
+function Pets({ social, state, desktop, local, toast, go }) {
   const [petName, setPetName] = useState(state.profile.petName || '');
   const save = (patch) => social.updateProfile(patch).then(() => toast({ text: 'Saved — friends see the update' })).catch((e) => toast({ err: true, text: niceError(e) }));
   const pets = (local && local.settings.pets) || [];
   const [sel, setSel] = useState(0);
-  const [acc, setAcc] = useState(state.profile.acc || []);
-  const [tint, setTint] = useState(state.profile.tint || '');
-  const [makeup, setMakeup] = useState(state.profile.makeup || '');
-  const toggleAcc = (k) => setAcc((cur) => (cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k].slice(0, 6)));
-  const saveLook = () => {
-    save({ acc, tint, makeup });
-    if (desktop && pets.length) desktop.setLocal({ pets: pets.map((p) => ({ ...p, acc, tint, makeup })) });
-  };
   return (
     <div className="sa-page">
-      <h2>Pets</h2>
+      <h2>My pets</h2>
       <div className="sa-card sa-profile">
-        <Avatar skin={state.profile.skin} size={96} mood="happy" />
+        <Avatar skin={state.profile.skin} who={state.profile} size={96} mood="happy" />
         <div>
           <h3>What your friends see</h3>
           <p className="sa-sub">This pet visits your friends’ desktops when you’re online.</p>
           <form className="sa-inline" onSubmit={(e) => { e.preventDefault(); save({ petName }); }}>
             Pet name <input value={petName} maxLength={20} onChange={(e) => setPetName(e.target.value)} /> <button className="btn small">Save</button>
           </form>
-        </div>
-      </div>
-      <CharacterGrid value={state.profile.skin} onPick={(k) => { save({ skin: k }); if (desktop && pets.length) desktop.setLocal({ pets: pets.map((p, i) => (i === 0 ? { ...p, skin: k } : p)) }); }} compact />
-      <div className="sa-card">
-        <h3>Customize <small>hats, glasses, colour &amp; makeup — friends see it too</small></h3>
-        <div className="sa-custom">
-          <div className="sa-custom-prev"><PetFigure skin={state.profile.skin} mood="wave" acc={acc} tint={tint} makeup={makeup} w={132} h={132} size={1.15} /></div>
-          <div className="sa-custom-opts">
-            <div className="sa-coltitle">Accessories <small>up to 6</small></div>
-            <div className="sa-chips">{ACCS.map(([k, label]) => <button key={k} className={'sa-chip' + (acc.includes(k) ? ' on' : '')} onClick={() => toggleAcc(k)}>{label}</button>)}</div>
-            <div className="sa-coltitle">Colour</div>
-            <div className="sa-swatches">
-              <button className={'sa-sw sa-sw-none' + (!tint ? ' on' : '')} onClick={() => setTint('')} title="Original colour">∅</button>
-              {TINTS.map((c) => <button key={c} className={'sa-sw' + (tint === c ? ' on' : '')} style={{ background: c }} onClick={() => setTint(c)} title={c} />)}
-            </div>
-            <div className="sa-coltitle">Makeup</div>
-            <div className="sa-chips">{MAKEUPS.map(([k, label]) => <button key={k || 'none'} className={'sa-chip' + (makeup === k ? ' on' : '')} onClick={() => setMakeup(k)}>{label}</button>)}</div>
-            <button className="btn small" onClick={saveLook} style={{ marginTop: 10 }}>Save look</button>
-          </div>
+          <button className="btn small ghost" style={{ marginTop: 10 }} onClick={() => go('style')}>✿ Change animal, outfit &amp; colours →</button>
         </div>
       </div>
       {desktop && (
@@ -569,7 +547,7 @@ function Profile({ social, state, desktop, local, toast }) {
     <div className="sa-page">
       <h2>Profile</h2>
       <div className="sa-card sa-prof">
-        <div className="sa-prof-pet"><PetFigure skin={state.profile.skin} mood="happy" acc={state.profile.acc} tint={state.profile.tint} makeup={state.profile.makeup} w={120} h={116} size={1.05} /></div>
+        <div className="sa-prof-pet"><PetFigure skin={state.profile.skin} mood="happy" acc={state.profile.acc} tint={state.profile.tint} makeup={state.profile.makeup} look={state.profile.style} w={120} h={116} size={1.05} /></div>
         <div className="sa-prof-main">
           <b>{saved.nick || '@' + state.profile.username}</b>
           <small>@{state.profile.username}{state.profile.petName ? ` · pet: ${state.profile.petName}` : ''}</small>
@@ -636,6 +614,20 @@ function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith 
           <button className="btn small" onClick={() => go('profile')}>Set up</button>
         </div>
       )}
+      <div className="sa-quick">
+        <button className="sa-card sa-q q-pts" onClick={() => go('games')}>
+          <span className="sa-q-ico">{PT}</span>
+          <span><b>{state.wallet && state.wallet.ready ? state.wallet.points : '…'} points</b><small>{state.wallet && state.wallet.canDaily ? '🎁 Daily bonus waiting' : 'Play games to earn more'}</small></span>
+        </button>
+        <button className="sa-card sa-q q-games" onClick={() => go('games')}>
+          <span className="sa-q-ico">🎮</span>
+          <span><b>{myTurns(state) ? `${myTurns(state)} game${myTurns(state) > 1 ? 's' : ''} waiting` : 'Mini games'}</b><small>{myTurns(state) ? 'A friend is waiting on your move' : '6 solo games + play with friends'}</small></span>
+        </button>
+        <button className="sa-card sa-q q-style" onClick={() => go('style')}>
+          <span className="sa-q-ico">✿</span>
+          <span><b>Customize</b><small>12 animals, outfits in any colour</small></span>
+        </button>
+      </div>
       {(() => {
         const next = (state.deadlines || []).filter((d) => !d.done && d.due > Date.now()).sort((a, b) => a.due - b.due)[0];
         if (!next) return null;
@@ -651,7 +643,7 @@ function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith 
       {!desktop && <LiveDesk social={social} state={state} />}
       {desktop && (
         <div className="sa-card sa-hero">
-          <Avatar skin={state.profile.skin} size={84} mood="wave" />
+          <Avatar skin={state.profile.skin} who={state.profile} size={84} mood="wave" />
           <div>
             <h3>{local && local.settings.paused ? 'Your pets are hidden' : 'Your pets are on your desktop'}</h3>
             <p className="sa-sub"><b>Click and hold</b> your pet, then let go, pick a friend and type. Only that friend sees it (or choose All friends). <b>Hold a friend’s pet</b> to message them, <b>double-click</b> it to poke.</p>
@@ -680,6 +672,9 @@ function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith 
 }
 
 // ---------- desktop bridge (only inside the Nibble app's Hub window) ----------
+// friend games waiting on you: invites to accept + your turn
+const myTurns = (state) => (state.matches || []).filter((m) => (m.status === 'invite' && m.players[1] === state.user.uid) || (m.status === 'live' && m.turn === state.user.uid)).length;
+
 function useDesktopBridge(desktop, social, state) {
   const [local, setLocal] = useState(null);
   useEffect(() => {
@@ -702,10 +697,10 @@ function useDesktopBridge(desktop, social, state) {
   useEffect(() => {
     if (!desktop) return;
     const payload = state.profile && state.user ? {
-      me: { uid: state.user.uid, username: state.profile.username, skin: state.profile.skin, petName: state.profile.petName, acc: state.profile.acc || [], tint: state.profile.tint || '', makeup: state.profile.makeup || '', about: state.about || null },
+      me: { uid: state.user.uid, username: state.profile.username, skin: state.profile.skin, petName: state.profile.petName, acc: state.profile.acc || [], tint: state.profile.tint || '', makeup: state.profile.makeup || '', style: state.profile.style || null, about: state.about || null },
       prefs: state.prefs,
       // include each friend's look (accessories / colour / makeup) so their pet is dressed up on this desktop too
-      friends: state.friends.map((f) => ({ uid: f.uid, username: f.username, skin: f.skin, petName: f.petName, acc: f.acc || [], tint: f.tint || '', makeup: f.makeup || '', online: f.online, typing: f.typing, dnd: f.dnd, status: f.status, np: f.np ? f.np.title : '' })),
+      friends: state.friends.map((f) => ({ uid: f.uid, username: f.username, skin: f.skin, petName: f.petName, acc: f.acc || [], tint: f.tint || '', makeup: f.makeup || '', style: f.style || null, online: f.online, typing: f.typing, dnd: f.dnd, status: f.status, np: f.np ? f.np.title : '' })),
       requests: state.incoming.length,
       // Listen Together: whose pets wear headphones and dance (you + everyone in your room right now)
       music: state.music && state.music.room ? { on: true, playing: !!state.music.room.playing && !!state.music.room.track, title: state.music.room.track ? state.music.room.track.title : '', members: state.music.room.present } : { on: false },
@@ -842,6 +837,8 @@ export default function SocialApp({ mode = 'web' }) {
         {tab === 'messages' && <Messages {...props} />}
         {tab === 'music' && <Music {...props} player={player} />}
         {tab === 'pets' && <Pets {...props} />}
+        {tab === 'style' && <Wardrobe {...props} />}
+        {tab === 'games' && <Arcade {...props} />}
         {tab === 'settings' && <Settings {...props} />}
       </>
     );
@@ -854,14 +851,19 @@ export default function SocialApp({ mode = 'web' }) {
         <aside className="sa-side">
           <a className="logo" href={isDesk ? undefined : '/'}><span className="sa-logo">◕‿◕</span> Nibble</a>
           <div className="sa-me">
-            <Avatar skin={state.profile.skin} size={52} mood="happy" />
+            <Avatar skin={state.profile.skin} who={state.profile} size={52} mood="happy" />
             <div><b>@{state.profile.username}</b><small><span className={'sa-dot' + (state.prefs.invisible ? '' : ' on') + (state.prefs.dnd ? ' dnd' : '')} />{state.prefs.invisible ? 'appearing offline' : state.prefs.dnd ? 'do not disturb' : 'online'}</small></div>
           </div>
+          <button className="sa-pts" onClick={() => setTab('games')} title="Your points: earn them in Games, spend them in Customize">
+            <span>{PT}</span><b>{state.wallet && state.wallet.ready ? state.wallet.points : '…'}</b><small>points</small>
+            {state.wallet && state.wallet.canDaily && <em>🎁 bonus</em>}
+          </button>
           <nav>
             {NAV.map(([k, l, i]) => (
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
                 <span>{i}</span>{l}
                 {k === 'friends' && state.incoming.length > 0 && <em className="sa-badge">{state.incoming.length}</em>}
+                {k === 'games' && myTurns(state) > 0 && <em className="sa-badge">{myTurns(state)}</em>}
                 {k === 'music' && state.music && state.music.invites.length > 0 && <em className="sa-badge">{state.music.invites.length}</em>}
                 {k === 'music' && state.music && state.music.room && state.music.room.playing && <em className="sa-eq" aria-hidden><i /><i /><i /></em>}
               </button>
@@ -884,6 +886,11 @@ export default function SocialApp({ mode = 'web' }) {
         {signedIn && tab !== 'music' && state.music && state.music.invites.slice(0, 1).map((i) => (
           <Banner key={i.host} level="party" title={`@${i.fromName} invited you to listen together 🎧`} text="Join to hear the same song at the same moment." onClose={() => social.music.dismissInvite(i.host)}>
             <button className="btn small" onClick={() => { social.music.join(i.host).then(() => { player.unlock(); setTab('music'); }).catch((e) => toast({ err: true, text: niceError(e) })); }}>Join</button>
+          </Banner>
+        ))}
+        {signedIn && tab !== 'games' && (state.matches || []).filter((m) => m.status === 'invite' && m.players[1] === state.user.uid).slice(0, 1).map((m) => (
+          <Banner key={m.id} level="party" title={`@${m.names[m.players[0]] || 'A friend'} challenged you to ${GAMES[m.game].label} ${GAMES[m.game].emoji}`} text="Play live, turn by turn. Winner gets 40 ⭐." onClose={() => social.games.decline(m.id)}>
+            <button className="btn small" onClick={() => social.games.accept(m.id).then(() => setTab('games')).catch((e) => toast({ err: true, text: niceError(e) }))}>Play</button>
           </Banner>
         ))}
         {signedIn && showNotice && <Banner level={cfg.noticeLevel} text={cfg.notice} onClose={dismissNotice} />}

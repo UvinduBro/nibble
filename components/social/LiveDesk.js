@@ -139,7 +139,7 @@ export default function LiveDesk({ social, state }) {
     }
     mine.skinKey = state.profile.skin || 'mint';
     mine.name = state.profile.petName || 'Nibble';
-    mine.acc = state.profile.acc || []; mine.tint = state.profile.tint || ''; mine.makeup = state.profile.makeup || '';
+    mine.acc = state.profile.acc || []; mine.tint = state.profile.tint || ''; mine.makeup = state.profile.makeup || ''; mine.setStyle && mine.setStyle(state.profile.style);
     const show = state.prefs.dnd ? [] : state.friends.filter((f) => f.online || (visitors.current.get(f.uid) || 0) > Date.now());
     const ids = new Set(show.map((f) => f.uid));
     for (const p of env.pets.slice()) if (p.friend && !ids.has(p.friend.uid)) s.removePetObj(p);
@@ -152,7 +152,7 @@ export default function LiveDesk({ social, state }) {
       }
       p.friend = f;
       p.skinKey = f.skin;
-      p.acc = f.acc || []; p.tint = f.tint || ''; p.makeup = f.makeup || '';
+      p.acc = f.acc || []; p.tint = f.tint || ''; p.makeup = f.makeup || ''; p.setStyle && p.setStyle(f.style);
     }
     const mu = state.music && state.music.room;
     const room = new Set(mu ? mu.present : []);

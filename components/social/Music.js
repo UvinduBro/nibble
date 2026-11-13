@@ -3,11 +3,60 @@
 // player), the Music tab, and the little "now playing" dock that follows you around the app.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { niceError } from '../../lib/social/social';
-import { youtubeId, QUEUE_MAX } from '../../lib/social/music';
+import { youtubeId, youtubeList, spotifyId, QUEUE_MAX } from '../../lib/social/music';
 
 const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 const beatUrl = (id) => '/music/beats/' + encodeURIComponent(id) + '.mp3';
-const SRC_LABEL = { nb: 'Nibble Beats', yt: 'YouTube' };
+const SRC_LABEL = { nb: 'Nibble Beats', yt: 'YouTube', sp: 'Spotify' };
+
+// ---------- Spotify embed (iFrame API, loaded once) ----------
+let spReady = null;
+function loadSpotify() {
+  if (spReady) return spReady;
+  spReady = new Promise((res) => {
+    if (window.__nibbleSpotifyAPI) return res(window.__nibbleSpotifyAPI);
+    const prev = window.onSpotifyIframeApiReady;
+    window.onSpotifyIframeApiReady = (api) => { window.__nibbleSpotifyAPI = api; prev && prev(api); res(api); };
+    const s = document.createElement('script');
+    s.src = 'https://open.spotify.com/embed/iframe-api/v1';
+    s.async = true;
+    document.head.appendChild(s);
+  });
+  return spReady;
+}
+const spUri = (id) => 'spotify:' + id;
+const spSyncable = (id) => /^(track|episode):/.test(id); // albums/playlists: play/pause only
+
+// every video id in a YouTube playlist, read with a hidden player (no API key needed)
+export function youtubePlaylist(list) {
+  return loadYT().then((YT) => new Promise((res) => {
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;';
+    const el = document.createElement('div'); host.appendChild(el); document.body.appendChild(host);
+    let done = false, p = null;
+    const finish = (ids) => { if (done) return; done = true; try { p && p.destroy(); } catch {} host.remove(); res(ids || []); };
+    const tryGet = (n) => {
+      let ids = null;
+      try { ids = p.getPlaylist(); } catch {}
+      if (ids && ids.length) finish(ids);
+      else if (n === 6) { try { p.cuePlaylist({ listType: 'playlist', list }); } catch {} setTimeout(() => tryGet(n + 1), 400); }
+      else if (n < 24) setTimeout(() => tryGet(n + 1), 400);
+      else finish([]);
+    };
+    p = new YT.Player(el, { width: 2, height: 2, playerVars: { listType: 'playlist', list, autoplay: 0, origin: location.origin }, events: { onReady: () => tryGet(0), onError: () => finish([]) } });
+    setTimeout(() => finish([]), 15000);
+  }));
+}
+const ytTitle = (id) => fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id))
+  .then((r) => (r.ok ? r.json() : null)).then((d) => (d ? { title: d.title, artist: d.author_name } : null)).catch(() => null);
+// Spotify link → { title, thumb } (direct first, then through our own /api/oembed)
+function spotifyInfo(id) {
+  const url = 'https://open.spotify.com/' + id.replace(':', '/');
+  const parse = (d) => (d && d.title ? { title: d.title, thumb: d.thumbnail_url || '' } : null);
+  return fetch('https://open.spotify.com/oembed?url=' + encodeURIComponent(url)).then((r) => (r.ok ? r.json() : null)).then(parse)
+    .catch(() => null)
+    .then((x) => x || fetch('/api/oembed?url=' + encodeURIComponent(url)).then((r) => (r.ok ? r.json() : null)).then(parse).catch(() => null));
+}
 
 // ---------- YouTube IFrame API (loaded once) ----------
 let ytReady = null;
@@ -43,6 +92,12 @@ export function useRoomPlayer(social, state, toast) {
   const [vol, setVol] = useState(0.8);
   const [muted, setMuted] = useState(false);
   const [ytBox, setYtBox] = useState(null);
+  const [spBox, setSpBox] = useState(null);
+  const sp = useRef(null);          // Spotify EmbedController
+  const spHost = useRef(null);
+  const spCur = useRef('');         // uri loaded in the controller
+  const spSt = useRef({ paused: true, pos: 0, dur: 0, at: 0, ready: false });
+  const spKick = useRef(0);
   const lvol = useRef(0.8), lmute = useRef(false);
 
   useEffect(() => {
@@ -101,6 +156,33 @@ export function useRoomPlayer(social, state, toast) {
     });
   }
 
+  async function ensureSP(id) {
+    if (!spBox) return null;
+    const API = await loadSpotify();
+    if (sp.current) return sp.current;
+    if (spHost.current) return null; // being created
+    const el = document.createElement('div');
+    spBox.innerHTML = ''; spBox.appendChild(el);
+    spHost.current = el;
+    return new Promise((res) => {
+      API.createController(el, { uri: spUri(id), width: '100%', height: 152 }, (c) => {
+        spCur.current = id;
+        c.addListener('playback_update', (e) => {
+          const d = (e && e.data) || {};
+          spSt.current = { paused: !!d.isPaused, pos: (d.position || 0) / 1000, dur: (d.duration || 0) / 1000, at: performance.now(), ready: true, buffering: !!d.isBuffering };
+          if (!d.isPaused) setBlocked(false);
+          const r = roomRef.current;
+          if (!r || !r.track || r.track.src !== 'sp') return;
+          // full tracks only: a 30-second preview (not logged in to Spotify) shouldn't skip for everyone
+          if (spSyncable(r.track.id) && d.duration > 35000 && d.position >= d.duration - 900) finish(r.track.k);
+          if (d.duration > 35000 && !r.track.dur) music.fillInfo(r.track.k, { dur: d.duration / 1000 });
+        });
+        sp.current = c;
+        res(c);
+      });
+    });
+  }
+
   // the sync loop
   useEffect(() => {
     if (!music) return;
@@ -119,13 +201,36 @@ export function useRoomPlayer(social, state, toast) {
       a.volume = lmute.current ? 0 : lvol.current;
       const t = r && r.track;
       setNow(t ? music.position(r) : 0);
+      const pauseSp = () => { if (sp.current && !spSt.current.paused) { try { sp.current.pause(); } catch {} spSt.current.paused = true; } };
       if (!t) {
         if (!a.paused) a.pause();
         if (yt.current) { try { yt.current.pauseVideo(); } catch {} }
+        pauseSp();
         return;
       }
+      if (t.src !== 'sp') pauseSp();
       if (endedFor.current && endedFor.current !== t.k) endedFor.current = '';
       const want = music.position(r);
+      if (t.src === 'sp') {
+        if (!a.paused) a.pause();
+        if (yt.current) { try { if (ytState.current === 1) yt.current.pauseVideo(); } catch {} }
+        const c = sp.current || await ensureSP(t.id);
+        if (!c || !alive) return;
+        try {
+          if (spCur.current !== t.id) { spCur.current = t.id; spSt.current = { paused: true, pos: 0, dur: 0, at: performance.now(), ready: false }; c.loadUri(spUri(t.id)); if (r.playing) setTimeout(() => { try { c.play(); } catch {} }, 700); return; }
+          const st = spSt.current;
+          const est = st.pos + (st.paused ? 0 : (performance.now() - st.at) / 1000);
+          if (r.playing) {
+            if (st.paused && !st.buffering && performance.now() - spKick.current > 2500) {
+              spKick.current = performance.now();
+              if (spSyncable(t.id) && want > 1) c.seek(want);
+              c.resume ? c.resume() : c.play();
+              setTimeout(() => { if (spSt.current.paused && roomRef.current && roomRef.current.playing && roomRef.current.track && roomRef.current.track.src === 'sp') setBlocked(true); }, 2500);
+            } else if (spSyncable(t.id) && st.ready && Math.abs(est - want) > 2.5 && (!st.dur || want < st.dur)) c.seek(want);
+          } else if (!st.paused) c.pause();
+        } catch {}
+        return;
+      }
       if (t.src === 'nb') {
         if (yt.current) { try { if (ytState.current === 1) yt.current.pauseVideo(); } catch {} }
         const url = beatUrl(t.id);
@@ -159,7 +264,12 @@ export function useRoomPlayer(social, state, toast) {
     const id = setInterval(step, 500);
     step();
     return () => { alive = false; clearInterval(id); };
-  }, [music, ytBox]);
+  }, [music, ytBox, spBox]);
+
+  useEffect(() => () => {
+    try { sp.current && sp.current.destroy && sp.current.destroy(); } catch {}
+    sp.current = null; spHost.current = null; spCur.current = '';
+  }, [spBox]);
 
   // the box the YouTube player lives in changed (dock re-rendered): start a fresh player there
   useEffect(() => () => {
@@ -172,6 +282,7 @@ export function useRoomPlayer(social, state, toast) {
     if (room) return;
     if (audio.current && !audio.current.paused) audio.current.pause();
     if (yt.current) { try { yt.current.stopVideo(); } catch {} }
+    if (sp.current) { try { sp.current.pause(); } catch {} }
     ytVid.current = '';
   }, [!!room]);
 
@@ -181,9 +292,10 @@ export function useRoomPlayer(social, state, toast) {
     if (!r || !r.track) return;
     if (r.track.src === 'nb' && audio.current) audio.current.play().then(() => setBlocked(false), () => {});
     if (r.track.src === 'yt' && yt.current) { try { yt.current.playVideo(); setBlocked(false); } catch {} }
+    if (r.track.src === 'sp' && sp.current) { try { sp.current.resume ? sp.current.resume() : sp.current.play(); } catch {} }
   };
 
-  return { now, blocked, unlock, vol, setVol, muted, setMuted, setYtBox };
+  return { now, blocked, unlock, vol, setVol, muted, setMuted, setYtBox, setSpBox };
 }
 
 // ---------- dock: always-visible mini player (also hosts the YouTube video) ----------
@@ -192,10 +304,12 @@ export function MusicDock({ social, state, player, go, tab }) {
   const t = room && room.track;
   const music = social.music;
   const video = !!(t && t.src === 'yt');
+  const spot = !!(t && t.src === 'sp');
   // one stable element hosts the YouTube player, shown at YouTube's minimum 200px height while it plays
   return (
     <div className={'mu-float' + (room ? '' : ' none')}>
       <div className={'mu-ytbox' + (video ? '' : ' hidden')} ref={player.setYtBox} />
+      <div className={'mu-spbox' + (spot ? '' : ' hidden')} ref={player.setSpBox} />
       {room && (
         <div className="mu-dock">
           {!video && <div className={'mu-disc' + (room.playing ? ' spin' : '')}>🎧</div>}
@@ -240,6 +354,41 @@ export function Music({ social, state, desktop, toast, player }) {
     return () => { dead = true; };
   }, [vid]);
   const ytTrack = () => ({ src: 'yt', id: vid, title: (preview && preview.title) || 'YouTube video', artist: (preview && preview.artist) || '' });
+  const list = youtubeList(link);
+  const [listInfo, setListInfo] = useState(null);
+  useEffect(() => {
+    setListInfo(null);
+    if (!list) return;
+    let dead = false;
+    fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/playlist?list=' + list))
+      .then((r) => (r.ok ? r.json() : null)).then((d) => { if (!dead && d) setListInfo({ title: d.title, artist: d.author_name, thumb: d.thumbnail_url }); }).catch(() => {});
+    return () => { dead = true; };
+  }, [list]);
+  const addPlaylist = () => run((async () => {
+    const ids = (await youtubePlaylist(list)).slice(0, QUEUE_MAX);
+    if (!ids.length) throw Object.assign(new Error('empty'), { friendly: 'Couldn’t read that playlist. Is it public (or unlisted)?' });
+    const tracks = [];
+    for (let i = 0; i < ids.length; i += 6) {
+      const infos = await Promise.all(ids.slice(i, i + 6).map(ytTitle));
+      infos.forEach((info, j) => tracks.push({ src: 'yt', id: ids[i + j], title: (info && info.title) || 'YouTube video', artist: (info && info.artist) || '' }));
+    }
+    const n = await music.addMany(tracks);
+    setLink('');
+    return n;
+  })()).then((n) => n && toast({ text: `Added ${n} song${n > 1 ? 's' : ''} from the playlist 🎶` }));
+  // Spotify links
+  const [spLink, setSpLink] = useState('');
+  const sid = spotifyId(spLink);
+  const [spInfo, setSpInfo] = useState(null);
+  useEffect(() => {
+    setSpInfo(null);
+    if (!sid) return;
+    let dead = false;
+    spotifyInfo(sid).then((d) => { if (!dead && d) setSpInfo(d); });
+    return () => { dead = true; };
+  }, [sid]);
+  const spKind = sid ? sid.split(':')[0] : '';
+  const spTrack = () => ({ src: 'sp', id: sid, title: (spInfo && spInfo.title) || 'Spotify ' + spKind, artist: spKind === 'track' || spKind === 'episode' ? '' : 'Spotify ' + spKind });
 
   const online = state.friends.filter((f) => f.online);
   const listening = state.friends.filter((f) => f.np);
@@ -255,7 +404,7 @@ export function Music({ social, state, desktop, toast, player }) {
   return (
     <>
       <h2>Listen together <small className="sa-ttl">🎧 synced for everyone in the room</small></h2>
-      <p className="sa-sub">Play the same song at the same moment with friends — free Nibble Beats or any YouTube link. Your pets put their headphones on and dance along.</p>
+      <p className="sa-sub">Play the same song at the same moment with friends — free Nibble Beats, any YouTube video or playlist, or Spotify links. Your pets put their headphones on and dance along.</p>
 
       {m.ended && <div className="sa-card mu-note"><span>🎵 {m.ended}</span><button className="sa-link" onClick={() => music.clearEnded()}>OK</button></div>}
 
@@ -291,7 +440,7 @@ export function Music({ social, state, desktop, toast, player }) {
       {room && (
         <>
           <div className="sa-card mu-now">
-            <div className={'mu-art' + (room.playing ? ' spin' : '')}>{t ? (t.src === 'yt' ? '▶' : '♪') : '🎧'}</div>
+            <div className={'mu-art' + (room.playing ? ' spin' : '')}>{t ? (t.src === 'yt' ? '▶' : t.src === 'sp' ? '🟢' : '♪') : '🎧'}</div>
             <div className="mu-now-main">
               <small className="mu-room">{isHost ? 'Your room' : `@${room.hostName}’s room`} · {room.present.length} listening</small>
               <b className="mu-title">{t ? t.title : 'Nothing playing yet'}</b>
@@ -324,6 +473,7 @@ export function Music({ social, state, desktop, toast, player }) {
               <div className="mu-tabs">
                 <button className={srcTab === 'nb' ? 'on' : ''} onClick={() => setSrcTab('nb')}>🎹 Nibble Beats <small>free</small></button>
                 <button className={srcTab === 'yt' ? 'on' : ''} onClick={() => setSrcTab('yt')}>▶ YouTube</button>
+                <button className={srcTab === 'sp' ? 'on' : ''} onClick={() => setSrcTab('sp')}>🟢 Spotify</button>
               </div>
               {srcTab === 'nb' ? (
                 <ul className="mu-list">
@@ -337,10 +487,25 @@ export function Music({ social, state, desktop, toast, player }) {
                   ))}
                   {!(m.beats || []).length && <li className="sa-empty">Loading…</li>}
                 </ul>
+              ) : srcTab === 'sp' ? (
+                <div className="mu-yt">
+                  <input placeholder="Paste a Spotify song, album or playlist link…" value={spLink} onChange={(e) => setSpLink(e.target.value)} />
+                  {spLink && !sid && <small className="mu-warn">That doesn’t look like a Spotify link (open.spotify.com/track/…).</small>}
+                  {sid && <div className="mu-yt-prev">{spInfo && spInfo.thumb ? <img alt="" src={spInfo.thumb} /> : <span className="mu-sp-ico">🟢</span>}<span><b>{spInfo ? spInfo.title : 'Spotify ' + spKind}</b><small>Spotify {spKind}</small></span></div>}
+                  <div className="mu-row">
+                    <button className="btn small" disabled={!sid || busy} onClick={() => run(music.play(spTrack()).then(() => setSpLink('')))}>▶ Play now</button>
+                    <button className="btn small ghost" disabled={!sid || busy} onClick={() => run(music.add(spTrack()).then(() => setSpLink('')), 'Added to the queue')}>＋ Queue</button>
+                  </div>
+                  <small className="mu-fine">Plays in Spotify’s own player (in the mini player). Everyone hears full songs when they’re logged in to Spotify in their browser; otherwise Spotify plays a 30-second preview. Albums and playlists play from the start for everyone.</small>
+                </div>
               ) : (
                 <div className="mu-yt">
-                  <input placeholder="Paste a YouTube link…" value={link} onChange={(e) => setLink(e.target.value)} />
-                  {link && !vid && <small className="mu-warn">That doesn’t look like a YouTube link.</small>}
+                  <input placeholder="Paste a YouTube video or playlist link…" value={link} onChange={(e) => setLink(e.target.value)} />
+                  {link && !vid && !list && <small className="mu-warn">That doesn’t look like a YouTube link.</small>}
+                  {list && (
+                    <div className="mu-yt-prev">{listInfo && listInfo.thumb ? <img alt="" src={listInfo.thumb} /> : <span className="mu-sp-ico">📃</span>}<span><b>{listInfo ? listInfo.title : 'YouTube playlist'}</b><small>Playlist{listInfo && listInfo.artist ? ' · ' + listInfo.artist : ''} · up to {QUEUE_MAX} songs</small></span></div>
+                  )}
+                  {list && <div className="mu-row"><button className="btn small" disabled={busy} onClick={addPlaylist}>{busy ? 'Reading playlist…' : '📃 Add whole playlist'}</button>{vid && <small className="mu-fine">or just this video ↓</small>}</div>}
                   {vid && <div className="mu-yt-prev"><img alt="" src={`https://i.ytimg.com/vi/${vid}/mqdefault.jpg`} /><span><b>{preview ? preview.title : 'YouTube video'}</b><small>{preview ? preview.artist : ''}</small></span></div>}
                   <div className="mu-row">
                     <button className="btn small" disabled={!vid || busy} onClick={() => run(music.play(ytTrack()).then(() => setLink('')))}>▶ Play now</button>
@@ -358,7 +523,7 @@ export function Music({ social, state, desktop, toast, player }) {
                   {room.queue.map((q, i) => (
                     <li key={q.k}>
                       <span className="mu-li-ico">{i + 1}</span>
-                      <span className="mu-li-txt"><b>{q.title}</b><small>{q.src === 'yt' ? 'YouTube' : 'Nibble Beats'}{q.by ? ' · @' + q.by : ''}</small></span>
+                      <span className="mu-li-txt"><b>{q.title}</b><small>{SRC_LABEL[q.src] || 'Nibble Beats'}{q.by ? ' · @' + q.by : ''}</small></span>
                       <button className="mu-icon" title="Play now" onClick={() => music.playFromQueue(q.k).catch(err)}>▶</button>
                       <button className="mu-icon" title="Remove" onClick={() => music.remove(q.k).catch(err)}>✕</button>
                     </li>
