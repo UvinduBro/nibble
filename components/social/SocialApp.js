@@ -11,7 +11,7 @@ import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess } from '../../lib/soci
 import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
 import Wardrobe from './Wardrobe';
 import Arcade from './Arcade';
-import { EMOTES as SHOP_EMOTES, PT, owns } from '../../lib/shop';
+import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
 import { GAMES } from '../../lib/social/games';
 
 // announcement / notice banner. level: info | update | warn | party | need
@@ -281,7 +281,16 @@ function Messages({ social, state, chatWith, setChatWith }) {
 }
 
 
+// extra desktop pets: an animal (natural colours) or a special character
+const localPetValue = (p) => (p.style && p.style.sp ? 'sp:' + p.style.sp : CHARACTERS.some((c) => c.group === 'anime' && c.key === p.skin) ? 'ch:' + p.skin : 'sp:');
+const applyLocalPet = (p, v) => {
+  const [kind, key] = v.split(':');
+  if (kind === 'ch') return { ...p, skin: key, tint: '', style: { sp: '', of: '', oc: '', sk: '' } };
+  return { ...p, skin: 'mint', tint: key ? 'nat' : '', style: { sp: key, of: '', oc: '', sk: '' } };
+};
+
 function Pets({ social, state, desktop, local, toast, go }) {
+  const ownedItems = (state.wallet && state.wallet.owned) || [];
   const [petName, setPetName] = useState(state.profile.petName || '');
   const save = (patch) => social.updateProfile(patch).then(() => toast({ text: 'Saved — friends see the update' })).catch((e) => toast({ err: true, text: niceError(e) }));
   const pets = (local && local.settings.pets) || [];
@@ -309,11 +318,11 @@ function Pets({ social, state, desktop, local, toast, go }) {
       )}
       {desktop && local && (
         <div className="sa-card">
-          <h3>Pets on this PC <small>{pets.length} of 8</small></h3>
+          <h3>Pets on this PC <small>{pets.length} of 8 · the first one is you</small></h3>
           <div className="sa-localpets">
             {pets.map((p, i) => (
               <button key={p.id || i} className={'sa-lp' + (sel === i ? ' on' : '')} onClick={() => setSel(i)}>
-                <Avatar skin={p.skin} size={58} /><span>{p.name}</span>
+                <Avatar skin={p.skin} who={p} size={58} /><span>{p.name}{i === 0 ? ' (you)' : ''}</span>
               </button>
             ))}
             {pets.length < 8 && <button className="sa-lp add" onClick={() => desktop.addPet()}>＋<span>Add pet</span></button>}
@@ -321,9 +330,14 @@ function Pets({ social, state, desktop, local, toast, go }) {
           {pets[sel] && (
             <div className="sa-lp-edit">
               <label className="sa-inline">Name <input key={pets[sel].id} defaultValue={pets[sel].name} maxLength={20} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== pets[sel].name) desktop.setLocal({ pets: pets.map((p, i) => (i === sel ? { ...p, name: v } : p)) }); }} /></label>
-              <select value={pets[sel].skin} onChange={(e) => desktop.setLocal({ pets: pets.map((p, i) => (i === sel ? { ...p, skin: e.target.value } : p)) })}>
-                {CHARACTERS.map((c) => <option key={c.key} value={c.key}>{c.name} · {c.role}</option>)}
-              </select>
+              {sel === 0 ? (
+                <button className="btn small" onClick={() => go('style')}>✿ Change look in Customize</button>
+              ) : (
+                <select aria-label="Pet" value={localPetValue(pets[sel])} onChange={(e) => desktop.setLocal({ pets: pets.map((p, i) => (i === sel ? applyLocalPet(p, e.target.value) : p)) })}>
+                  <optgroup label="Animals">{SHOP_SPECIES.filter((x) => owns(ownedItems, 'sp', x.key)).map((x) => <option key={x.key || 'nibble'} value={'sp:' + x.key}>{x.emoji} {x.label}</option>)}</optgroup>
+                  <optgroup label="Special characters">{CHARACTERS.filter((c) => c.group === 'anime').map((c) => <option key={c.key} value={'ch:' + c.key}>{c.name} · {c.role}</option>)}</optgroup>
+                </select>
+              )}
               <button className="btn small ghost" onClick={() => desktop.command({ type: 'special', pet: sel })}>Special move</button>
               <button className="btn small ghost" onClick={() => desktop.command({ type: 'dance', pet: sel })}>Dance</button>
               <button className="btn small ghost" disabled={pets.length < 2} onClick={() => { desktop.removePet(sel); setSel(0); }}>Send home</button>

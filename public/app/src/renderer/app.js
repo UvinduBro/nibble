@@ -431,15 +431,17 @@
     const c = document.createElement('canvas');
     c.width = c.height = 64;
     const g = c.getContext('2d');
-    const skin = env.skins[(env.settings.pets[0] || {}).skin] || env.skins.mint;
-    drawPet(g, { x: 33, y: 55, dir: 1, sx: 1, sy: 1, walk: 0, t: 0.4, blink: 1, look: { x: 0, y: 0 }, eyes: 'open', mouth: 'w', arms: 'down', ears: 1, stride: 0, bob: 0, tailWag: 0.01 }, skin, 0.82);
+    const p0 = env.settings.pets[0] || {};
+    const skin = env.skins[p0.skin] || env.skins.mint;
+    drawPet(g, { x: 33, y: 55, dir: 1, sx: 1, sy: 1, walk: 0, t: 0.4, blink: 1, look: { x: 0, y: 0 }, eyes: 'open', mouth: 'w', arms: 'down', ears: 1, stride: 0, bob: 0, tailWag: 0.01, acc: p0.acc || [], tint: p0.tint || '', makeup: p0.makeup || '', style: p0.style || null }, skin, 0.82);
     api.trayIcon(c.toDataURL('image/png'));
   }
 
   // ---------- IPC ----------
   function applySettings(s) {
     const sizeChanged = s.size !== env.settings.size;
-    const skinChanged = (s.pets[0] || {}).skin !== (env.settings.pets[0] || {}).skin;
+    const lookOf = (p) => JSON.stringify(p ? [p.skin, p.acc, p.tint, p.makeup, p.style] : null);
+    const skinChanged = lookOf(s.pets[0]) !== lookOf(env.settings.pets[0]);
     env.settings = s;
     syncPets();
     social.sync();

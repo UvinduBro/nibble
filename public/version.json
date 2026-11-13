@@ -1,10 +1,10 @@
 {
-  "version": "2.0.14",
+  "version": "2.0.15",
   "date": "2026-11-13",
   "notes": [
-    "Fix: the app now really shows as Nibble with its own icon. The installer brands the app itself instead of downloading a separate tool",
-    "Fix: friends showing as offline when they were online (especially when signed in on both the web and desktop)",
-    "New games: Block Blast, Fruit Merge, 2048 Pets, Flappy Pet, Pet Wordle (a new word every day) and Snack Snake",
-    "Fix: Home page layout in the app"
+    "Simpler Customize: pick a Pet (an animal or a special character), then colours, outfit, hats and moves. Changes save by themselves",
+    "Your new look now shows on your desktop pet and in the tray icon right away",
+    "Fix: game objects (snacks, bugs, obstacles) were see-through",
+    "Includes 2.0.14: the app shows as Nibble with its own icon, online-status fixes, 6 new games"
   ]
 }

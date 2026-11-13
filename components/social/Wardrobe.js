@@ -5,10 +5,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import PetFigure, { useNibble } from '../PetFigure';
 import { CHARACTERS } from '../../lib/characters';
 import { SPECIES, OUTFITS, ACCS, MAKEUPS, EMOTES, SKILLS, BODY_COLORS, OUTFIT_COLORS, PT, owns, itemId, ITEMS } from '../../lib/shop';
-import { niceError } from '../../lib/social/social';
+import { niceError, verLess } from '../../lib/social/social';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
-const TABS = [['animal', '🐾', 'Animal'], ['crew', '🎭', 'Character'], ['colour', '🎨', 'Colour'], ['outfit', '👕', 'Outfit'], ['hats', '🎩', 'Hats & glasses'], ['face', '😊', 'Face'], ['emotes', '💌', 'Emotes'], ['skills', '⚡', 'Skills']];
+const TABS = [['pet', '🐾', 'Pet'], ['colour', '🎨', 'Colours'], ['outfit', '👕', 'Outfit'], ['hats', '🎩', 'Hats & face'], ['moves', '⚡', 'Moves']];
+// colour themes = the classic Nibble palettes
+const PALETTES = ['mint', 'midnight', 'peach', 'lavender', 'cyber', 'goldie', 'ghost', 'lava', 'ocean'];
 
 // A live little room running the real engine: the pet wanders, and buttons trigger moves.
 export function PetStage({ look, cmd, height = 300 }) {
@@ -100,65 +102,93 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
   const prof = state.profile;
   const wallet = state.wallet || {};
   const owned = wallet.owned || [];
-  const st0 = prof.style || {};
-  const [skin, setSkin] = useState(prof.skin || 'mint');
-  const [acc, setAcc] = useState(prof.acc || []);
-  const [tint, setTint] = useState(prof.tint || '');
-  const [makeup, setMakeup] = useState(prof.makeup || '');
-  const [sp, setSp] = useState(st0.sp || '');
-  const [of, setOf] = useState(st0.of || '');
-  const [oc, setOc] = useState(st0.oc || '');
-  const [sk, setSk] = useState(st0.sk || '');
-  const [tab, setTab] = useState('animal');
+  const saved = useMemo(() => ({ skin: prof.skin || 'mint', acc: prof.acc || [], tint: prof.tint || '', makeup: prof.makeup || '', style: { sp: '', of: '', oc: '', sk: '', ...(prof.style || {}) } }), [prof]);
+  const [skin, setSkin] = useState(saved.skin);
+  const [acc, setAcc] = useState(saved.acc);
+  const [tint, setTint] = useState(saved.tint);
+  const [makeup, setMakeup] = useState(saved.makeup);
+  const [sp, setSp] = useState(saved.style.sp);
+  const [of, setOf] = useState(saved.style.of);
+  const [oc, setOc] = useState(saved.style.oc);
+  const [sk, setSk] = useState(saved.style.sk);
+  const [tab, setTab] = useState('pet');
   const [cmd, setCmd] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(''); // '' | 'saving' | 'saved' | 'local'
   const style = useMemo(() => ({ sp, of, oc, sk }), [sp, of, oc, sk]);
   const look = { skin, acc, tint, makeup, style };
   const poke = (type) => setCmd({ type, n: Date.now() });
+  const shopOff = state.config && state.config.shop === false;
+  const SK = typeof window !== 'undefined' && window.SKINS ? window.SKINS : {};
+  const special = (k) => !!(SK[k] && (SK[k].kit || SK[k].chibi)); // anime crew: own costume + move
+  const crew = CHARACTERS.filter((c) => c.group === 'anime');
 
   // everything in the current look that isn't unlocked yet
-  const locked = [
-    ...(sp && !owns(owned, 'sp', sp) ? [itemId('sp', sp)] : []),
-    ...(of && !owns(owned, 'of', of) ? [itemId('of', of)] : []),
-    ...acc.filter((a) => !owns(owned, 'acc', a)).map((a) => itemId('acc', a)),
-    ...(sk && !owns(owned, 'sk', sk) ? [itemId('sk', sk)] : []),
+  const lockedList = [
+    ...(sp && !owns(owned, 'sp', sp) ? [['sp', sp]] : []),
+    ...(of && !owns(owned, 'of', of) ? [['of', of]] : []),
+    ...acc.filter((a) => !owns(owned, 'acc', a)).map((a) => ['acc', a]),
+    ...(sk && !owns(owned, 'sk', sk) ? [['sk', sk]] : []),
   ];
+  const locked = lockedList.map(([c, k]) => itemId(c, k));
   const lockedCost = locked.reduce((t, id) => t + (ITEMS[id] ? ITEMS[id].price : 0), 0);
-  const dirty = skin !== (prof.skin || 'mint') || tint !== (prof.tint || '') || makeup !== (prof.makeup || '') || acc.join() !== (prof.acc || []).join()
-    || sp !== (st0.sp || '') || of !== (st0.of || '') || oc !== (st0.oc || '') || sk !== (st0.sk || '');
+  const sig = JSON.stringify([skin, acc, tint, makeup, sp, of, oc, sk]);
+  const savedSig = JSON.stringify([saved.skin, saved.acc, saved.tint, saved.makeup, saved.style.sp, saved.style.of, saved.style.oc, saved.style.sk]);
 
-  const shopOff = state.config && state.config.shop === false;
+  // changes save on their own (on Nibble's servers and on this PC's pets) — unless something is still locked
+  const timer = useRef(null);
+  useEffect(() => {
+    if (sig === savedSig || locked.length) return;
+    clearTimeout(timer.current);
+    setStatus('saving');
+    timer.current = setTimeout(async () => {
+      try {
+        const pets = (local && local.settings.pets) || [];
+        if (desktop && pets.length) desktop.setLocal({ pets: pets.map((p, i) => (i === 0 ? { ...p, skin, acc, tint, makeup, style } : p)) });
+        const where = await social.updateProfile({ skin, acc, tint, makeup, style });
+        setStatus(where === 'local' ? 'local' : 'saved');
+      } catch (e) { setStatus(''); toast({ err: true, text: niceError(e) }); }
+    }, 650);
+    return () => clearTimeout(timer.current);
+  }, [sig, locked.length]); // only your own changes save (a look changed elsewhere isn't overwritten) // eslint-disable-line react-hooks/exhaustive-deps
+
   const buy = async (id) => {
     const it = ITEMS[id];
-    if (shopOff) { toast({ err: true, text: 'The shop is closed for now. Try again later!' }); return; }
+    if (shopOff) { toast({ err: true, text: 'The shop is closed for now. Try again later!' }); return false; }
     setBusy(true);
-    try { await social.wallet.buy(id); toast({ text: `${it.emoji} ${it.label} unlocked!` }); poke('happy'); }
-    catch (e) { toast({ err: true, text: niceError(e) }); }
-    setBusy(false);
+    try { await social.wallet.buy(id); toast({ text: `${it.emoji} ${it.label} unlocked!` }); poke('happy'); setBusy(false); return true; }
+    catch (e) { toast({ err: true, text: niceError(e) }); setBusy(false); return false; }
   };
-  const buyAll = async () => { for (const id of locked) { /* one at a time so each spend is checked */ await buy(id); } };
-  const save = async () => {
-    if (locked.length) { toast({ err: true, text: 'Unlock the items marked ⭐ first (or take them off).' }); return; }
-    setBusy(true);
-    try {
-      const where = await social.updateProfile({ skin, acc, tint, makeup, style });
-      const pets = (local && local.settings.pets) || [];
-      if (desktop && pets.length) desktop.setLocal({ pets: pets.map((p, i) => (i === 0 ? { ...p, skin, acc, tint, makeup, style } : p)) });
-      toast({ text: where === 'local' ? 'Saved on this PC. Friends will see it once the new Firestore rules are published.' : 'Saved! Friends see your new look ✨' });
-      poke('wave');
-    } catch (e) { toast({ err: true, text: niceError(e) }); }
-    setBusy(false);
+  const buyAll = async () => { for (const id of locked) if (!(await buy(id))) break; };
+  // take the locked things off again (back to what's saved)
+  const takeOff = () => {
+    for (const [c, k] of lockedList) {
+      if (c === 'sp') setSp(saved.style.sp);
+      if (c === 'of') setOf(saved.style.of);
+      if (c === 'sk') setSk(saved.style.sk);
+      if (c === 'acc') setAcc((cur) => cur.filter((a) => a !== k));
+    }
   };
-  const reset = () => { setSkin(prof.skin || 'mint'); setAcc(prof.acc || []); setTint(prof.tint || ''); setMakeup(prof.makeup || ''); setSp(st0.sp || ''); setOf(st0.of || ''); setOc(st0.oc || ''); setSk(st0.sk || ''); };
   const toggleAcc = (k) => setAcc((cur) => (cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k].slice(-6)));
-  const fig = (extra, mood = 'idle') => <PetFigure skin={skin} mood={mood} w={84} h={78} size={0.78} acc={extra.acc ?? []} tint={extra.tint ?? tint} makeup={extra.makeup ?? ''} look={{ ...style, ...extra.style }} />;
+  // one simple choice: an animal (any colours) or a special character (own costume + move)
+  const pickAnimal = (k) => {
+    setSp(k);
+    if (special(skin)) setSkin('mint');
+    if (k) { if (!/^#/.test(tint)) setTint('nat'); } else if (tint === 'nat') setTint('');
+    poke('wave');
+  };
+  const pickCharacter = (k) => { setSkin(k); setSp(''); setTint(''); poke('special'); };
+  const fig = (extra, mood = 'idle') => <PetFigure skin={extra.skin || skin} mood={mood} w={84} h={78} size={0.78} acc={extra.acc ?? []} tint={extra.tint ?? tint} makeup={extra.makeup ?? ''} look={{ ...style, ...extra.style }} />;
+  const charSel = special(skin);
+  const statusText = locked.length ? '' : status === 'saving' || sig !== savedSig ? 'Saving…' : status === 'local' ? 'Saved on this PC (friends see it once the new rules are published)' : 'Saved ✓ · friends see this look';
+  const price = (cat, it) => (owns(owned, cat, it.key) ? 0 : it.price);
 
   return (
     <div className="sa-page wd">
       <div className="sa-head">
         <div>
           <h2>Customize</h2>
-          <p className="sa-sub">Dress up your pet. Friends see your look on their desktops too.</p>
+          <p className="sa-sub">Pick a pet, then dress it up. Changes save by themselves and show on your desktop and your friends’.</p>
         </div>
         <button className="wd-wallet" onClick={() => go('games')} title="Earn more in Games">
           <b>{PT} {wallet.ready ? wallet.points : '…'}</b><small>points · earn more</small>
@@ -173,19 +203,19 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
               <button className="btn small ghost" onClick={() => poke('dance')}>🕺 Dance</button>
               <button className="btn small ghost" onClick={() => poke('wave')}>👋 Wave</button>
             </div>
-            {locked.length > 0 && (
+            {locked.length > 0 ? (
               <div className="wd-locked">
-                <span>Trying on {locked.length} locked item{locked.length > 1 ? 's' : ''} · {PT} {lockedCost}</span>
-                <button className="btn small" disabled={busy || shopOff || (wallet.points || 0) < lockedCost} onClick={buyAll}>
-                  {shopOff ? 'Shop closed' : (wallet.points || 0) < lockedCost ? `Need ${lockedCost - (wallet.points || 0)} more ⭐` : 'Unlock all'}
-                </button>
+                <div><b>Trying on:</b> {locked.map((id) => ITEMS[id] ? `${ITEMS[id].emoji} ${ITEMS[id].label}` : id).join(', ')}<br /><small>Unlock to keep {locked.length > 1 ? 'them' : 'it'} · {PT} {lockedCost}</small></div>
+                <div className="wd-locked-btns">
+                  <button className="btn small" disabled={busy || shopOff || (wallet.points || 0) < lockedCost} onClick={buyAll}>
+                    {shopOff ? 'Shop closed' : (wallet.points || 0) < lockedCost ? `Need ${lockedCost - (wallet.points || 0)} more ${PT}` : `Unlock · ${PT} ${lockedCost}`}
+                  </button>
+                  <button className="btn small ghost" onClick={takeOff}>Take off</button>
+                </div>
               </div>
-            )}
-            <div className="wd-save">
-              <button className="btn" disabled={busy || !dirty || locked.length > 0} onClick={save}>{dirty ? 'Save look' : 'Saved ✓'}</button>
-              {dirty && <button className="btn ghost small" onClick={reset}>Undo changes</button>}
-            </div>
+            ) : <p className={'wd-status' + (status === 'local' ? ' warn' : '')}>{statusText}</p>}
             {wallet.error === 'rules' && <p className="wd-warn">Points need the new Firestore rules. Publish <code>firestore.rules</code> in the Firebase console.</p>}
+            {desktop && local && local.version && verLess(local.version, '2.0.13') && <p className="wd-warn">Your desktop app (v{local.version}) can’t show animals and outfits yet. Reinstall the latest Nibble to see them on your desktop.</p>}
           </div>
         </div>
         <div className="wd-right">
@@ -193,28 +223,20 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
             {TABS.map(([k, i, l]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}><span>{i}</span>{l}</button>)}
           </div>
           <div className="sa-card wd-panel">
-            {typeof window !== 'undefined' && window.SKINS && window.SKINS[skin] && window.SKINS[skin].chibi && !sp && !of && tab !== 'crew' && tab !== 'animal' && tab !== 'emotes' && tab !== 'skills' && (
-              <p className="wd-warn" style={{ marginTop: 0, marginBottom: 12 }}>{CHARACTERS.find((c) => c.key === skin)?.name || 'This character'} is hand-drawn with his own outfit, so hats, colours and makeup don’t show on him. Pick an animal (or an outfit) to dress him up, or choose another character.</p>
-            )}
-            {tab === 'animal' && (
+            {tab === 'pet' && (
               <>
-                <p className="wd-hint">Pick an animal. It keeps your character’s colours, or switch to <b>Natural</b> colours in the Colour tab.</p>
+                <h4 className="wd-h">Animals <small>dress them any way you like</small></h4>
                 <div className="wd-tiles">
                   {SPECIES.map((s) => (
-                    <Tile key={s.key || 'nibble'} label={s.label} on={sp === s.key} locked={!owns(owned, 'sp', s.key)} price={s.price}
-                      onClick={() => { setSp(s.key); if (s.key && !tint) setTint('nat'); if (!s.key && tint === 'nat') setTint(''); }}>
-                      {fig({ style: { sp: s.key }, tint: s.key && (tint === 'nat' || !tint) ? 'nat' : tint === 'nat' ? '' : tint }, 'idle')}
+                    <Tile key={s.key || 'nibble'} label={s.label} on={!charSel && sp === s.key} locked={!owns(owned, 'sp', s.key)} price={price('sp', s)} onClick={() => pickAnimal(s.key)}>
+                      {fig({ skin: charSel ? 'mint' : skin, style: { sp: s.key }, tint: s.key ? (/^#/.test(tint) ? tint : 'nat') : (tint === 'nat' ? '' : tint) })}
                     </Tile>
                   ))}
                 </div>
-              </>
-            )}
-            {tab === 'crew' && (
-              <>
-                <p className="wd-hint">Characters set the colour palette, and the anime crew bring their costume and signature move.</p>
+                <h4 className="wd-h">Special characters <small>come with their own costume and special move</small></h4>
                 <div className="wd-tiles">
-                  {CHARACTERS.map((c) => (
-                    <Tile key={c.key} label={c.name} sub={c.role} on={skin === c.key} price={0} onClick={() => setSkin(c.key)}>
+                  {crew.map((c) => (
+                    <Tile key={c.key} label={c.name} sub={c.role} on={charSel && skin === c.key} price={0} onClick={() => pickCharacter(c.key)}>
                       <PetFigure skin={c.key} mood="idle" w={84} h={78} size={0.78} />
                     </Tile>
                   ))}
@@ -223,42 +245,40 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
             )}
             {tab === 'colour' && (
               <>
-                <div className="sa-coltitle">Body colour</div>
-                <div className="wd-swatches">
-                  <button className={'wd-sw wd-sw-txt' + (!tint ? ' on' : '')} onClick={() => setTint('')}>Character</button>
-                  {sp && <button className={'wd-sw wd-sw-txt' + (tint === 'nat' ? ' on' : '')} onClick={() => setTint('nat')}>Natural</button>}
-                  {BODY_COLORS.map((c) => <button key={c} className={'wd-sw' + (tint === c ? ' on' : '')} style={{ background: c }} onClick={() => setTint(c)} aria-label={c} />)}
-                  <label className="wd-sw wd-pick" title="Any colour">
-                    <input type="color" value={HEX.test(tint) ? tint : '#7ee8c6'} onChange={(e) => setTint(e.target.value)} />🎨
-                  </label>
-                </div>
-                {of && (
+                {charSel ? <p className="wd-hint">{CHARACTERS.find((c) => c.key === skin)?.name} keeps their own colours. Pick an animal in <b>Pet</b> to recolour it.</p> : (
                   <>
-                    <div className="sa-coltitle">{OUTFITS.find((o) => o.key === of)?.label} colour</div>
+                    <h4 className="wd-h">Body colour</h4>
                     <div className="wd-swatches">
-                      <button className={'wd-sw wd-sw-txt' + (!oc ? ' on' : '')} onClick={() => setOc('')}>Default</button>
-                      {OUTFIT_COLORS.map((c) => <button key={c} className={'wd-sw' + (oc === c ? ' on' : '')} style={{ background: c }} onClick={() => setOc(c)} aria-label={c} />)}
+                      {sp && <button className={'wd-sw wd-sw-txt' + (tint === 'nat' ? ' on' : '')} onClick={() => setTint('nat')}>🌿 Natural</button>}
+                      {BODY_COLORS.map((c) => <button key={c} className={'wd-sw' + (tint === c ? ' on' : '')} style={{ background: c }} onClick={() => setTint(c)} aria-label={c} />)}
                       <label className="wd-sw wd-pick" title="Any colour">
-                        <input type="color" value={HEX.test(oc) ? oc : (OUTFITS.find((o) => o.key === of)?.color || '#ff7ab8')} onChange={(e) => setOc(e.target.value)} />🎨
+                        <input type="color" value={HEX.test(tint) ? tint : '#7ee8c6'} onChange={(e) => setTint(e.target.value)} />🎨
                       </label>
+                    </div>
+                    <h4 className="wd-h">Colour themes <small>body, ears, eyes and glow together</small></h4>
+                    <div className="wd-tiles small">
+                      {PALETTES.map((k) => (
+                        <Tile key={k} label={(SK[k] && SK[k].label) || k} on={!tint && skin === k} price={0} onClick={() => { setSkin(k); setTint(''); }}>
+                          {fig({ skin: k, tint: '' })}
+                        </Tile>
+                      ))}
                     </div>
                   </>
                 )}
-                <p className="wd-hint">Tip: the 🎨 button lets you pick any colour you like.</p>
               </>
             )}
             {tab === 'outfit' && (
               <>
                 <div className="wd-tiles">
                   {OUTFITS.map((o) => (
-                    <Tile key={o.key || 'none'} label={o.label} on={of === o.key} locked={!owns(owned, 'of', o.key)} price={o.price} onClick={() => setOf(o.key)}>
+                    <Tile key={o.key || 'none'} label={o.label} on={of === o.key} locked={!owns(owned, 'of', o.key)} price={price('of', o)} onClick={() => setOf(o.key)}>
                       {fig({ style: { of: o.key, oc: of === o.key ? oc : '' } })}
                     </Tile>
                   ))}
                 </div>
                 {of && (
-                  <div className="wd-inline-col">
-                    <span>Colour</span>
+                  <>
+                    <h4 className="wd-h">{OUTFITS.find((o) => o.key === of)?.label} colour</h4>
                     <div className="wd-swatches">
                       <button className={'wd-sw wd-sw-txt' + (!oc ? ' on' : '')} onClick={() => setOc('')}>Default</button>
                       {OUTFIT_COLORS.map((c) => <button key={c} className={'wd-sw' + (oc === c ? ' on' : '')} style={{ background: c }} onClick={() => setOc(c)} aria-label={c} />)}
@@ -266,51 +286,33 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
                         <input type="color" value={HEX.test(oc) ? oc : (OUTFITS.find((x) => x.key === of)?.color || '#ff7ab8')} onChange={(e) => setOc(e.target.value)} />🎨
                       </label>
                     </div>
-                  </div>
+                  </>
                 )}
               </>
             )}
             {tab === 'hats' && (
               <>
-                <p className="wd-hint">Wear up to 6 at once. Tap again to take one off.</p>
+                <h4 className="wd-h">Hats & glasses <small>wear up to 6 · tap again to take off</small></h4>
                 <div className="wd-tiles">
                   {ACCS.map((a) => (
-                    <Tile key={a.key} label={a.label} on={acc.includes(a.key)} locked={!owns(owned, 'acc', a.key)} price={a.price} onClick={() => toggleAcc(a.key)}>
+                    <Tile key={a.key} label={a.label} on={acc.includes(a.key)} locked={!owns(owned, 'acc', a.key)} price={price('acc', a)} onClick={() => toggleAcc(a.key)}>
                       {fig({ acc: [a.key] })}
+                    </Tile>
+                  ))}
+                </div>
+                <h4 className="wd-h">Face</h4>
+                <div className="wd-tiles small">
+                  {MAKEUPS.map((m) => (
+                    <Tile key={m.key || 'none'} label={m.label} on={makeup === m.key} price={0} onClick={() => setMakeup(m.key)}>
+                      {fig({ makeup: m.key }, 'happy')}
                     </Tile>
                   ))}
                 </div>
               </>
             )}
-            {tab === 'face' && (
-              <div className="wd-tiles">
-                {MAKEUPS.map((m) => (
-                  <Tile key={m.key || 'none'} label={m.label} on={makeup === m.key} price={0} onClick={() => setMakeup(m.key)}>
-                    {fig({ makeup: m.key }, 'happy')}
-                  </Tile>
-                ))}
-              </div>
-            )}
-            {tab === 'emotes' && (
+            {tab === 'moves' && (
               <>
-                <p className="wd-hint">Actions you can send to friends. Your pet walks over and does it on their desktop. Unlocked ones show up next to each friend.</p>
-                <div className="wd-list">
-                  {EMOTES.map((e) => {
-                    const have = owns(owned, 'em', e.key);
-                    return (
-                      <div key={e.key} className={'wd-row' + (have ? '' : ' locked')}>
-                        <span className="wd-emo">{e.emoji}</span><b>{e.label}</b>
-                        {have ? <small className="wd-have">{e.price ? 'Unlocked' : 'Free'}</small>
-                          : <button className="btn small" disabled={busy || (wallet.points || 0) < e.price} onClick={() => buy(itemId('em', e.key))}>{PT} {e.price}</button>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-            {tab === 'skills' && (
-              <>
-                <p className="wd-hint">Your pet’s special move. It does it on its own now and then, or from the pet menu. Pick one to preview it.</p>
+                <h4 className="wd-h">Special move <small>your pet does it now and then. Tap one to preview</small></h4>
                 <div className="wd-list">
                   {SKILLS.map((s) => {
                     const have = owns(owned, 'sk', s.key);
@@ -318,8 +320,20 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
                       <div key={s.key || 'own'} className={'wd-row' + (sk === s.key ? ' on' : '') + (have ? '' : ' locked')} onClick={() => { setSk(s.key); setTimeout(() => poke('special'), 60); }}>
                         <span className="wd-emo">{s.emoji}</span>
                         <span className="wd-row-main"><b>{s.label}</b><small>{s.note}</small></span>
-                        {have ? <small className="wd-have">{sk === s.key ? 'Selected' : s.price ? 'Unlocked' : 'Free'}</small>
-                          : <span className="wd-price">{PT} {s.price}</span>}
+                        {have ? <small className="wd-have">{sk === s.key ? 'Selected' : s.price ? 'Unlocked' : 'Free'}</small> : <span className="wd-price">{PT} {s.price}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+                <h4 className="wd-h">Friend emotes <small>things you can send friends. Unlocked ones show next to each friend</small></h4>
+                <div className="wd-list">
+                  {EMOTES.filter((e) => e.price > 0).map((e) => {
+                    const have = owns(owned, 'em', e.key);
+                    return (
+                      <div key={e.key} className={'wd-row' + (have ? '' : ' locked')}>
+                        <span className="wd-emo">{e.emoji}</span><b>{e.label}</b>
+                        {have ? <small className="wd-have">Unlocked</small>
+                          : <button className="btn small" disabled={busy || shopOff || (wallet.points || 0) < e.price} onClick={() => buy(itemId('em', e.key))}>{PT} {e.price}</button>}
                       </div>
                     );
                   })}
