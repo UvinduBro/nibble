@@ -300,6 +300,11 @@ function trayTemplate() {
       click: () => hubCtl && hubCtl.open(social.me ? 'friends' : null),
     },
     ...(social.me ? [{ label: 'Talk to friends…', click: () => send('command', { type: 'compose', pet: 0 }) }] : []),
+    // music invites: one click joins (the Hub plays the sound)
+    ...((social.music && Array.isArray(social.music.invites) ? social.music.invites : []).slice(0, 3).map((i) => ({
+      label: `🎧 Join @${String(i.name || 'friend').slice(0, 20)}'s music room`,
+      click: () => { if (hubCtl) { hubCtl.open('music'); hubCtl.action({ type: 'music', cmd: 'join', host: String(i.host || '').slice(0, 64) }); } },
+    }))),
     ...(social.me ? [
       { label: '🎮 Mini games & points', click: () => hubCtl && hubCtl.open('games') },
       { label: '✿ Customize your pet', click: () => hubCtl && hubCtl.open('style') },
@@ -441,9 +446,10 @@ app.whenReady().then(() => {
     applySettings, addPet, removePet, setStartup, setPaused, runUpdate, getLatest: () => latest,
     iconPath: path.join(__dirname, '..', '..', '..', 'nibble.ico'),
     onSocialChange: (st) => {
-      const before = JSON.stringify([social.me && social.me.username, (social.friends || []).map((f) => f.online), social.requests]);
+      const sig = (x) => JSON.stringify([x.me && x.me.username, (x.friends || []).map((f) => f.online), x.requests, x.music && x.music.invites]);
+      const before = sig(social);
       social = st;
-      if (before !== JSON.stringify([st.me && st.me.username, (st.friends || []).map((f) => f.online), st.requests])) rebuildTray();
+      if (before !== sig(st)) rebuildTray();
     },
   });
   hubCtl.create();

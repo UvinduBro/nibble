@@ -183,7 +183,10 @@ function setupHub(ctx) {
   ipcMain.on('hub:notify', (e, d) => {
     if (!fromHub(e) || !d || !Notification.isSupported()) return;
     const n = new Notification({ title: String(d.title || 'Nibble').slice(0, 80), body: String(d.body || '').slice(0, 180), silent: false });
-    n.on('click', () => open());
+    // a notification can open a Hub tab and run one safe action (join a music room)
+    const tab = ['music', 'games', 'friends', 'messages', 'home', 'style', 'deadlines'].includes(d.tab) ? d.tab : null;
+    const host = d.action && d.action.type === 'music' && d.action.cmd === 'join' ? String(d.action.host || '').slice(0, 64) : '';
+    n.on('click', () => { open(tab); if (host && hub && !hub.isDestroyed()) hub.webContents.send('hub:action', { type: 'music', cmd: 'join', host }); });
     n.show();
   });
 

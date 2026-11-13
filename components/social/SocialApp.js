@@ -154,6 +154,50 @@ function FriendRow({ social, f, toast, full, desktop }) {
   );
 }
 
+// people on the same internet connection (Wi-Fi, office, home) who use Nibble
+function NearbyPeople({ social, state, toast }) {
+  const lan = state.lan || { on: true, people: [] };
+  const [sent, setSent] = useState({});
+  const friendIds = new Set(state.friends.map((f) => f.uid));
+  const out = new Set(state.outgoing.map((r) => r.to));
+  const inc = new Map(state.incoming.map((r) => [r.from, r]));
+  const people = (lan.people || []).filter((p) => !friendIds.has(p.uid));
+  if (!social.lan) return null;
+  const add = (p) => {
+    setSent((x) => ({ ...x, [p.uid]: true }));
+    social.addFriend(p.username).then((r) => toast({ text: r === 'accepted' ? `You and @${p.username} are now friends 🎉` : `Request sent to @${p.username}` }))
+      .catch((e) => { setSent((x) => ({ ...x, [p.uid]: false })); toast({ err: true, text: niceError(e) }); });
+  };
+  return (
+    <div className="sa-card sa-near">
+      <h3>📶 On your network <small>{lan.on ? `${people.length} nearby` : 'hidden'}</small>
+        <label className="sa-near-tog" title="Others on the same Wi-Fi or office network can find you">
+          <input type="checkbox" checked={!!lan.on} onChange={(e) => social.lan.setOn(e.target.checked)} /> Let people on my network find me
+        </label>
+      </h3>
+      {!lan.on ? <p className="sa-empty">You’re hidden. Switch it on to see Nibble users on the same Wi-Fi or office network.</p>
+        : people.length === 0 ? <p className="sa-empty">Nobody else on this network is using Nibble right now. People on the same Wi-Fi, home or office connection show up here.</p>
+          : (
+            <div className="sa-near-list">
+              {people.map((p) => {
+                const req = inc.get(p.uid);
+                const pending = out.has(p.uid) || sent[p.uid];
+                return (
+                  <div key={p.uid} className="sa-near-p">
+                    <Avatar skin={p.skin} who={{ style: p.style, tint: p.style && p.style.sp ? 'nat' : '' }} size={44} />
+                    <span><b>@{p.username}</b><small>{p.petName || 'on your network'}</small></span>
+                    {req ? <button className="btn small" onClick={() => social.accept(req).then(() => toast({ text: `You and @${p.username} are friends 🎉` })).catch((e) => toast({ err: true, text: niceError(e) }))}>Accept</button>
+                      : pending ? <em className="sa-near-sent">Request sent</em>
+                        : <button className="btn small" onClick={() => add(p)}>＋ Add friend</button>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+    </div>
+  );
+}
+
 function Friends({ social, state, toast, presetAdd, desktop }) {
   const [name, setName] = useState(presetAdd || '');
   const [busy, setBusy] = useState(false);
@@ -193,6 +237,7 @@ function Friends({ social, state, toast, presetAdd, desktop }) {
           ))}
         </div>
       )}
+      <NearbyPeople social={social} state={state} toast={toast} />
       <div className="sa-card">
         <h3>Your friends <small>{state.friends.filter((f) => f.online).length} online · {state.friends.length} total</small></h3>
         {state.friends.length === 0 && <p className="sa-empty">No friends yet. Add someone by their username, or send them your link.</p>}
@@ -669,6 +714,9 @@ function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith 
         <div className="sa-card">
           <h3>Online now <small>{online.length}</small></h3>
           {online.length === 0 && <p className="sa-empty">Nobody’s around. <button className="sa-link" onClick={() => go('friends')}>Add friends</button></p>}
+          {state.lan && state.lan.people && state.lan.people.filter((p) => !state.friends.some((f) => f.uid === p.uid)).length > 0 && (
+            <button className="sa-link" style={{ display: 'block', margin: '6px 0' }} onClick={() => go('friends')}>📶 {state.lan.people.filter((p) => !state.friends.some((f) => f.uid === p.uid)).length} Nibble user(s) on your network: say hi →</button>
+          )}
           {online.map((f) => <FriendRow key={f.uid} social={social} f={f} toast={toast} desktop={desktop} />)}
           {online.length === 0 && state.friends.length > 0 && state.friends.slice(0, 3).map((f) => <FriendRow key={f.uid} social={social} f={f} toast={toast} desktop={desktop} />)}
         </div>
@@ -717,11 +765,22 @@ function useDesktopBridge(desktop, social, state) {
       friends: state.friends.map((f) => ({ uid: f.uid, username: f.username, skin: f.skin, petName: f.petName, acc: f.acc || [], tint: f.tint || '', makeup: f.makeup || '', style: f.style || null, online: f.online, typing: f.typing, dnd: f.dnd, status: f.status, np: f.np ? f.np.title : '' })),
       requests: state.incoming.length,
       // Listen Together: whose pets wear headphones and dance (you + everyone in your room right now)
-      music: state.music && state.music.room ? { on: true, playing: !!state.music.room.playing && !!state.music.room.track, title: state.music.room.track ? state.music.room.track.title : '', members: state.music.room.present } : { on: false },
+      music: { ...(state.music && state.music.room ? { on: true, playing: !!state.music.room.playing && !!state.music.room.track, title: state.music.room.track ? state.music.room.track.title : '', members: state.music.room.present } : { on: false }), invites: ((state.music && state.music.invites) || []).map((i) => ({ host: i.host, name: i.fromName })) },
     } : { me: null, friends: [], prefs: {}, requests: 0 };
     const j = JSON.stringify(payload);
     if (j !== sent.current) { sent.current = j; desktop.sendSocial(payload); }
   }, [desktop, state]);
+  // a music invite → Windows notification; clicking it joins the room
+  const notifiedInv = useRef(new Set());
+  useEffect(() => {
+    if (!desktop || !desktop.notify) return;
+    for (const i of (state.music && state.music.invites) || []) {
+      const k = i.host + ':' + i.at;
+      if (notifiedInv.current.has(k)) continue;
+      notifiedInv.current.add(k);
+      desktop.notify({ title: `@${i.fromName} invited you to listen together 🎧`, body: 'Click to join and hear the same song at the same moment.', tab: 'music', action: { type: 'music', cmd: 'join', host: i.host } });
+    }
+  }, [desktop, state.music && state.music.invites]);
   // only read the Windows media controls while you've chosen to share what you play
   const share = !!(state.music && state.music.share && state.user);
   useEffect(() => {

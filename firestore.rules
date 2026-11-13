@@ -163,7 +163,8 @@ service cloud.firestore {
     // Listen Together rooms: id = the host's uid. Only the host and the friends they invited can
     // see a room. Anyone in it can play / pause / skip / queue; only the host can invite or end it.
     function roomShape() {
-      return incoming().keys().hasOnly(['host', 'hostName', 'invited', 'names', 'here', 'track', 'playing', 'pos', 'startedAt', 'queue', 'radio', 'updatedAt'])
+      return incoming().keys().hasOnly(['host', 'hostName', 'invited', 'names', 'inv', 'here', 'track', 'playing', 'pos', 'startedAt', 'queue', 'radio', 'updatedAt'])
+        && incoming().get('inv', {}) is map
         && incoming().invited is list && incoming().invited.size() <= 10
         && incoming().get('queue', []) is list && incoming().get('queue', []).size() <= 60
         && shortText(incoming().get('hostName', ''), 20)
@@ -171,14 +172,16 @@ service cloud.firestore {
     }
     match /rooms/{rid} {
       allow get: if signedIn() && (resource == null || resource.data.host == me() || me() in resource.data.invited);
-      allow list: if false;
+      // "rooms I'm invited to" (query: invited array-contains me)
+      allow list: if signedIn() && me() in resource.data.invited;
       allow create: if signedIn() && !isBanned() && rid == me() && incoming().host == me() && roomShape();
       allow update: if signedIn() && !isBanned() && roomShape() && (
         (resource.data.host == me() && incoming().host == me())
         || (me() in resource.data.invited
           && incoming().host == resource.data.host
           && incoming().invited == resource.data.invited
-          && incoming().get('names', {}) == resource.data.get('names', {})));
+          && incoming().get('names', {}) == resource.data.get('names', {})
+          && incoming().get('inv', {}) == resource.data.get('inv', {})));
       allow delete: if signedIn() && resource.data.host == me();
     }
 
@@ -289,6 +292,20 @@ service cloud.firestore {
         && incoming().players == resource.data.players && incoming().game == resource.data.game
         && (resource.data.turn == me() || incoming().board == resource.data.board);
       allow delete: if signedIn() && (me() in resource.data.players || isAdmin());
+    }
+
+    // "people on your network": lan/{netId}/members/{uid}. netId is a secret one-way hash of the
+    // public IP from /api/netid, so you can only list a network you're on. Only you write your entry.
+    match /lan/{net}/members/{uid} {
+      allow read: if signedIn() && net.size() >= 8 && net.size() <= 40;
+      allow create, update: if signedIn() && uid == me() && !isBanned()
+        && net.size() >= 8 && net.size() <= 40
+        && incoming().keys().hasOnly(['username', 'petName', 'skin', 'style', 'at'])
+        && validName(incoming().username)
+        && shortText(incoming().get('petName', ''), 20) && shortText(incoming().get('skin', ''), 20)
+        && (!('style' in incoming()) || validStyle(incoming().style))
+        && incoming().at == request.time;
+      allow delete: if signedIn() && uid == me();
     }
 
     // direct pokes, waves, cuddles and whispers. Only friends can send; only you can read.
