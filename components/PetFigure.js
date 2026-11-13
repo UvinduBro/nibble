@@ -8,7 +8,7 @@ export function loadNibble() {
   loading ||= ['skins', 'lines', 'wardrobe', 'draw', 'pet', 'social-draw'].reduce(
     (p, f) => p.then(() => new Promise((res, rej) => {
       const s = document.createElement('script');
-      s.src = `/nibble/engine/${f}.js`;
+      s.src = `/nibble/engine/${f}.js?v=${process.env.NEXT_PUBLIC_BUILD || 'dev'}`;
       s.onload = res; s.onerror = rej;
       document.head.appendChild(s);
     })),

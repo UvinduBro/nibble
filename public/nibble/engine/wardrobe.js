@@ -12,6 +12,18 @@
     return `rgb(${f(r)},${f(g)},${f(b)})`;
   }
   const HEX = /^#[0-9a-fA-F]{6}$/;
+  // clothes must stand out from the fur: a suit on a penguin or panda gets lifted to a lighter tone
+  const rgbOf = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const lum = (h) => { const [r, g, b] = rgbOf(h); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
+  const mixHex = (h, to, k) => { const a = rgbOf(h), b = rgbOf(to); return '#' + a.map((c, i) => Math.round(c + (b[i] - c) * k).toString(16).padStart(2, '0')).join(''); };
+  function visibleOn(oc, body) {
+    if (!HEX.test(oc || '') || !HEX.test(body || '')) return oc;
+    const lb = lum(body), a = rgbOf(oc), b = rgbOf(body);
+    const dist = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    // light fur: the dark outline already separates the clothes. Dark fur swallows dark clothes, outline and all.
+    if (dist >= 95 || lb >= 0.45) return oc;
+    return mixHex(oc, '#ffffff', 0.55);
+  }
 
   // natural colours per animal (used when the colour is set to "Natural")
   const SPECIES = {
@@ -58,7 +70,7 @@
     else if (sp === 'panda') skin = Object.assign({}, skin, { limb: '#2a2a30', patch: '#2a2a30', ear: '#2a2a30' });
     else if (sp === 'penguin') skin = Object.assign({}, skin, { feet: '#ffa630', beak: '#ffa630' });
     const of = OUTFITS[st.of] ? st.of : '';
-    const oc = of ? (HEX.test(st.oc || '') ? st.oc : OUTFITS[of].color) : '';
+    const oc = of ? visibleOn(HEX.test(st.oc || '') ? st.oc : OUTFITS[of].color, skin.body) : '';
     return { skin, sp, of, oc, sleeve: of && OUTFITS[of].sleeve ? oc : '' };
   }
 

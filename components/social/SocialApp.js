@@ -294,7 +294,7 @@ function Messages({ social, state, chatWith, setChatWith }) {
             const l = lastOf(f.uid);
             return (
               <button key={f.uid} className={sel === f.uid ? 'on' : ''} onClick={() => setChatWith(f.uid)}>
-                <Avatar skin={f.skin} size={36} />
+                <Avatar skin={f.skin} who={f} size={36} />
                 <span><b>@{f.username}</b><small>{f.typing ? 'typing…' : l ? (l.mine ? 'You: ' : '') + (l.text || EMOTES[l.kind] || '') : f.online ? 'online' : 'offline'}</small></span>
                 <i className={'sa-dot' + (f.online ? ' on' : '')} />
               </button>
@@ -739,6 +739,30 @@ const myTurns = (state) => (state.matches || []).filter((m) => (m.status === 'in
 
 function useDesktopBridge(desktop, social, state) {
   const [local, setLocal] = useState(null);
+  // The Hub page stays open (hidden) for days, so it would keep running old code after a deploy.
+  // Check for a new build every few minutes and reload while the Hub is hidden (or when it's next hidden).
+  useEffect(() => {
+    if (!desktop) return;
+    const mine = process.env.NEXT_PUBLIC_BUILD || 'dev';
+    if (mine === 'dev') return;
+    let stale = false;
+    const check = async () => {
+      try {
+        if (!stale) {
+          const r = await fetch('/api/build', { cache: 'no-store' });
+          const j = await r.json();
+          stale = !!(j && j.build && j.build !== 'dev' && j.build !== mine);
+        }
+        // the Hub window reports show/hide (window.__nibbleHidden); never shown yet = hidden
+        if (stale && window.__nibbleHidden !== false) location.reload();
+      } catch (_) {}
+    };
+    const t = setInterval(check, 4 * 60_000);
+    const vis = () => { if (window.__nibbleHidden) check(); };
+    window.addEventListener('nibble-visibility', vis);
+    const t0 = setTimeout(check, 20_000);
+    return () => { clearInterval(t); clearTimeout(t0); window.removeEventListener('nibble-visibility', vis); };
+  }, [desktop]);
   useEffect(() => {
     if (!desktop) return;
     desktop.getLocal().then(setLocal);

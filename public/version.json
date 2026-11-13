@@ -1,10 +1,11 @@
 {
-  "version": "2.0.16",
+  "version": "2.0.17",
   "date": "2026-11-13",
   "notes": [
-    "Fix: music room invites now always arrive, even with Nibble open in several places. Desktop shows a notification (click to join) and a Join item in the tray menu",
-    "New: People on your network. See Nibble users on the same Wi-Fi or office network and send them a friend request (Friends page, can be switched off)",
-    "Simpler Customize with automatic saving; your look shows on your desktop pet and tray icon",
-    "The app shows as Nibble with its own icon, online-status fixes, 6 new games, fixed see-through game objects"
+    "Your saved look (animal, outfit, hats, skill) now shows on your desktop pet and on your friends' desktops, wherever you changed it",
+    "Everyone sees your outfits and skills, even if they don't own them",
+    "Outfits stay visible on dark animals (e.g. a suit on a penguin)",
+    "Nibble now picks up website fixes on its own, no need to quit and reopen",
+    "Music room invites always arrive; People on your network"
   ]
 }
