@@ -1,11 +1,10 @@
 {
-  "version": "2.0.17",
+  "version": "2.0.18",
   "date": "2026-11-13",
   "notes": [
-    "Your saved look (animal, outfit, hats, skill) now shows on your desktop pet and on your friends' desktops, wherever you changed it",
-    "Everyone sees your outfits and skills, even if they don't own them",
-    "Outfits stay visible on dark animals (e.g. a suit on a penguin)",
-    "Nibble now picks up website fixes on its own, no need to quit and reopen",
-    "Music room invites always arrive; People on your network"
+    "Your desktop pet always wears your saved look (animal, outfit, hats, colours, skill), and Customize shows whether it does",
+    "No more My pets tab: name your pet in Customize; extra pets on this PC are in Settings",
+    "The menu can be collapsed to icons, scrolls on its own, and the Hub adapts when you resize the window",
+    "Music: no more sudden Nibble Beats, smoother YouTube playback, Pause really pauses (also from your keyboard's media keys), old rooms don't start playing again by themselves"
   ]
 }

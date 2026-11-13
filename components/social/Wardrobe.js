@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import PetFigure, { useNibble } from '../PetFigure';
 import { CHARACTERS } from '../../lib/characters';
 import { SPECIES, OUTFITS, ACCS, MAKEUPS, EMOTES, SKILLS, BODY_COLORS, OUTFIT_COLORS, PT, owns, itemId, ITEMS } from '../../lib/shop';
-import { niceError, verLess } from '../../lib/social/social';
+import { niceError, verLess, cleanStyleMap } from '../../lib/social/social';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const TABS = [['pet', '🐾', 'Pet'], ['colour', '🎨', 'Colours'], ['outfit', '👕', 'Outfit'], ['hats', '🎩', 'Hats & face'], ['moves', '⚡', 'Moves']];
@@ -187,6 +187,18 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
   const charSel = special(skin);
   const statusText = locked.length ? '' : status === 'fail' ? 'Not saved: check your connection, then change anything to try again' : status === 'saving' || sig !== savedSig ? 'Saving…' : status === 'local' ? 'Saved on this PC (friends see it once the new rules are published)' : 'Saved ✓ · friends see this look';
   const price = (cat, it) => (owns(owned, cat, it.key) ? 0 : it.price);
+  // is this PC's desktop pet wearing the saved look?
+  const p0 = desktop && local && local.settings && Array.isArray(local.settings.pets) ? local.settings.pets[0] : null;
+  const lookSig = (x) => JSON.stringify([x.skin || 'mint', Array.isArray(x.acc) ? x.acc : [], x.tint || '', x.makeup || '', cleanStyleMap(x.style)]);
+  const deskOk = p0 ? lookSig(p0) === lookSig(saved) : true;
+  const putOn = () => desktop.setLocal({ pets: local.settings.pets.map((p, i) => (i === 0 ? { ...p, skin: saved.skin, acc: saved.acc, tint: saved.tint, makeup: saved.makeup, style: cleanStyleMap(saved.style) } : p)) });
+  const [petName, setPetName] = useState(prof.petName || '');
+  const saveName = () => {
+    const v = petName.trim().slice(0, 20);
+    if (v === (prof.petName || '')) return;
+    social.updateProfile({ petName: v }).then(() => toast({ text: 'Name saved' })).catch((e) => toast({ err: true, text: niceError(e) }));
+    if (p0 && v) desktop.setLocal({ pets: local.settings.pets.map((p, i) => (i === 0 ? { ...p, name: v } : p)) });
+  };
 
   return (
     <div className="sa-page wd">
@@ -203,6 +215,7 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
         <div className="wd-left">
           <div className="sa-card wd-preview">
             <PetStage look={look} cmd={cmd} />
+            <label className="wd-name">Name <input value={petName} maxLength={20} placeholder="Name your pet" onChange={(e) => setPetName(e.target.value)} onBlur={saveName} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} /></label>
             <div className="wd-try">
               <button className="btn small ghost" onClick={() => poke('special')}>⚡ Special move</button>
               <button className="btn small ghost" onClick={() => poke('dance')}>🕺 Dance</button>
@@ -219,6 +232,9 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
                 </div>
               </div>
             ) : <p className={'wd-status' + (status === 'local' || status === 'fail' ? ' warn' : '')}>{statusText}</p>}
+            {p0 && !locked.length && sig === savedSig && (deskOk
+              ? <p className="wd-desk ok">🖥 Your desktop pet is wearing this look</p>
+              : <p className="wd-desk">🖥 Your desktop pet hasn’t changed yet. <button className="sa-link" onClick={putOn}>Put it on now</button></p>)}
             {wallet.error === 'rules' && <p className="wd-warn">Points need the new Firestore rules. Publish <code>firestore.rules</code> in the Firebase console.</p>}
             {desktop && local && local.version && verLess(local.version, '2.0.13') && <p className="wd-warn">Your desktop app (v{local.version}) can’t show animals and outfits yet. Reinstall the latest Nibble to see them on your desktop.</p>}
           </div>

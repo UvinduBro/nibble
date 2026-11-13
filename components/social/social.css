@@ -855,3 +855,51 @@
 .sa-near-p > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sa-near-p small { color: var(--muted); font-size: 12px; }
 .sa-near-sent { font-style: normal; font-size: 12.5px; color: var(--mint); font-weight: 700; }
+
+/* ---------- 2.0.18 shell: own-scrolling sidebar, collapsible nav, resizes with the window ---------- */
+.sa > .sa-main { min-width: 0; }
+.sa:not(.solo) > .sa-main { margin: 0 auto; max-width: 1180px; }
+.sa-side { height: 100vh; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; transition: padding 0.18s; }
+.sa-side::-webkit-scrollbar { width: 6px; }
+.sa-side::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 6px; }
+.sa-side-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sa-side-top .logo { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.sa-nl { font-weight: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sa-collapse { all: unset; cursor: pointer; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px; color: var(--muted); font-size: 17px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); flex: none; }
+.sa-collapse:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+.sa { transition: grid-template-columns 0.18s; }
+/* collapsed: icons only */
+.sa.mini, .sa.desk.mini { grid-template-columns: 76px 1fr; }
+.sa.mini .sa-side, .sa.mini:not(.phone) .sa-side { padding: 16px 10px; gap: 12px; align-items: center; }
+.sa.mini .sa-side-top { flex-direction: column; gap: 10px; }
+.sa.mini .sa-lt, .sa.mini .sa-nl, .sa.mini .sa-me > div, .sa.mini .sa-pts small, .sa.mini .sa-pts em, .sa.mini .sa-side-foot { display: none; }
+.sa.mini .sa-me { padding: 4px; background: none; border: 0; }
+.sa.mini .sa-pts { flex-direction: column; gap: 0; padding: 6px 4px; width: 52px; justify-content: center; text-align: center; }
+.sa.mini .sa-pts span { font-size: 15px; }
+.sa.mini .sa-pts b { font-size: 13px; }
+.sa.mini .sa-side nav { width: 100%; align-items: center; }
+.sa.mini .sa-side nav button { justify-content: center; padding: 11px 0; width: 52px; gap: 0; }
+.sa.mini .sa-side nav button span { width: auto; font-size: 18px; }
+.sa.mini .sa-side nav button .sa-badge { position: absolute; top: 2px; right: 2px; margin: 0; font-size: 10px; min-width: 16px; padding: 0 4px; }
+.sa.mini .sa-side nav button .sa-eq { position: absolute; bottom: 3px; right: 6px; transform: scale(0.7); }
+/* the old "turns into a top bar" layout is only for phones now */
+@media (max-width: 820px) {
+  .sa:not(.phone):not(.solo):not(.mini) { grid-template-columns: 210px 1fr; }
+  .sa:not(.phone) .sa-side { position: sticky; top: 0; height: 100vh; flex-direction: column; flex-wrap: nowrap; align-items: stretch; border-right: 1px solid var(--line); border-bottom: 0; }
+  .sa:not(.phone) .sa-side nav { flex-direction: column; flex-wrap: nowrap; width: auto; }
+  .sa:not(.phone) .sa-side nav button { padding: 10px 12px; }
+  .sa.mini:not(.phone) .sa-side nav button { padding: 11px 0; }
+  .sa:not(.phone) .sa-me { display: flex; }
+}
+.sa.phone .sa-side { height: auto; overflow: visible; }
+.sa.phone .sa-side-top { width: 100%; }
+/* content adapts to the width it has */
+.sa-main img, .sa-main canvas, .sa-main iframe { max-width: 100%; }
+.sa-main .sa-card { min-width: 0; }
+@media (max-width: 1000px) { .sa.desk .sa-main { padding: 20px 18px 40px; } }
+.wd-name { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 13px; color: var(--muted); font-weight: 600; }
+.wd-name input { flex: 1; min-width: 0; }
+.wd-desk { margin: 8px 0 0; font-size: 12.5px; color: var(--yellow); text-align: center; }
+.wd-desk.ok { color: var(--muted); }
+.sa-head { flex-wrap: wrap; }
+.sa:not(.mini) .sa-pts { align-self: stretch; }

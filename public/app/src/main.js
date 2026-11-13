@@ -186,6 +186,34 @@ function startWatcher() {
   watcher.start();
 }
 
+// ---------- your first pet wears your account look ----------
+// The Hub sends your saved look (animal, outfit, hats, colours, skill) with every social update.
+// Pet #1 on this PC is you, so put it on as soon as the look changes, wherever it was changed.
+let lastMeLook = '';
+function wearMyLook(me) {
+  if (!me || !me.username) return;
+  const w = (v) => String(v || '').replace(/[^a-z]/g, '').slice(0, 12);
+  const st = me.style && typeof me.style === 'object'
+    ? { sp: w(me.style.sp), of: w(me.style.of), oc: /^#[0-9a-fA-F]{6}$/.test(me.style.oc || '') ? me.style.oc : '', sk: w(me.style.sk) }
+    : { sp: '', of: '', oc: '', sk: '' };
+  const look = {
+    skin: SKINS[me.skin] ? me.skin : 'mint',
+    acc: Array.isArray(me.acc) ? me.acc.filter((a) => typeof a === 'string').slice(0, 6) : [],
+    tint: typeof me.tint === 'string' ? me.tint.slice(0, 7) : '',
+    makeup: typeof me.makeup === 'string' ? me.makeup.slice(0, 12) : '',
+    style: st,
+  };
+  const key = JSON.stringify(look);
+  if (key === lastMeLook) return; // only when your look actually changes
+  lastMeLook = key;
+  const s = settings.get();
+  if (!s.pets || !s.pets.length) return;
+  const p0 = s.pets[0];
+  const have = JSON.stringify({ skin: p0.skin || 'mint', acc: p0.acc || [], tint: p0.tint || '', makeup: p0.makeup || '', style: p0.style || { sp: '', of: '', oc: '', sk: '' } });
+  if (have === key) return;
+  applySettings({ pets: s.pets.map((p, i) => (i === 0 ? { ...p, ...look } : p)) });
+}
+
 // ---------- settings & menus ----------
 function applySettings(patch) {
   const s = settings.set(patch);
@@ -450,6 +478,7 @@ app.whenReady().then(() => {
       const before = sig(social);
       social = st;
       if (before !== sig(st)) rebuildTray();
+      wearMyLook(st && st.me);
     },
   });
   hubCtl.create();

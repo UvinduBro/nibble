@@ -1,13 +1,12 @@
 'use client';
-// Listen Together: the synced player (Nibble Beats via <audio>, YouTube via the official IFrame
+// Listen Together: the synced player (YouTube via the official IFrame
 // player), the Music tab, and the little "now playing" dock that follows you around the app.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { niceError } from '../../lib/social/social';
 import { youtubeId, youtubeList, spotifyId, QUEUE_MAX } from '../../lib/social/music';
 
 const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-const beatUrl = (id) => '/music/beats/' + encodeURIComponent(id) + '.mp3';
-const SRC_LABEL = { nb: 'Nibble Beats', yt: 'YouTube', sp: 'Spotify' };
+const SRC_LABEL = { yt: 'YouTube', sp: 'Spotify' };
 
 // ---------- Spotify embed (iFrame API, loaded once) ----------
 let spReady = null;
@@ -85,6 +84,8 @@ export function useRoomPlayer(social, state, toast) {
   const ytVid = useRef('');
   const ytState = useRef(-1);
   const endedFor = useRef('');
+  const ourCmd = useRef(0);       // when we last told the YouTube player to play/pause/seek
+  const kick = useRef(0), lastSeek = useRef(0), playingSince = useRef(0);
   const roomRef = useRef(room);
   roomRef.current = room;
   const [blocked, setBlocked] = useState(false);   // the browser wants a click before playing sound
@@ -106,7 +107,6 @@ export function useRoomPlayer(social, state, toast) {
   useEffect(() => {
     lvol.current = vol; lmute.current = muted;
     try { localStorage.setItem('nibble-music-vol', String(vol)); localStorage.setItem('nibble-music-mute', muted ? '1' : '0'); } catch {}
-    if (audio.current) audio.current.volume = muted ? 0 : vol;
     if (yt.current && yt.current.setVolume) { try { yt.current.setVolume(Math.round(vol * 100)); muted ? yt.current.mute() : yt.current.unMute(); } catch {} }
   }, [vol, muted]);
 
@@ -132,9 +132,17 @@ export function useRoomPlayer(social, state, toast) {
         events: {
           onReady: () => { yt.current = p; ytVid.current = vid; try { p.setVolume(Math.round(lvol.current * 100)); lmute.current ? p.mute() : p.unMute(); } catch {} res(p); },
           onStateChange: (e) => {
+            const prev = ytState.current;
             ytState.current = e.data;
             const r = roomRef.current;
             if (!r || !r.track || r.track.src !== 'yt') return;
+            if (e.data === 1 && prev !== 1) playingSince.current = performance.now();
+            // paused by you (keyboard media key, Windows media controls), not by us: pause the room too,
+            // instead of fighting it and starting the song again
+            if (e.data === 2 && prev === 1 && r.playing && performance.now() - ourCmd.current > 1500 && performance.now() - playingSince.current > 1500) {
+              let cur = 0, dur = 0; try { cur = p.getCurrentTime(); dur = p.getDuration(); } catch {}
+              if (!dur || cur < dur - 2) music.pause().catch(() => {});
+            }
             if (e.data === 1) { // playing: report the real title + length
               setBlocked(false);
               try {
@@ -186,34 +194,20 @@ export function useRoomPlayer(social, state, toast) {
   // the sync loop
   useEffect(() => {
     if (!music) return;
-    if (!audio.current) {
-      const a = new Audio();
-      a.preload = 'auto';
-      a.addEventListener('ended', () => { const r = roomRef.current; if (r && r.track && r.track.src === 'nb') finish(r.track.k); });
-      audio.current = a;
-      window.__nibbleAudio = a; // handy for debugging sync
-    }
     let alive = true;
     const step = async () => {
       if (!alive) return;
       const r = roomRef.current;
-      const a = audio.current;
-      a.volume = lmute.current ? 0 : lvol.current;
       const t = r && r.track;
       setNow(t ? music.position(r) : 0);
       const pauseSp = () => { if (sp.current && !spSt.current.paused) { try { sp.current.pause(); } catch {} spSt.current.paused = true; } };
-      if (!t) {
-        if (!a.paused) a.pause();
-        if (yt.current) { try { yt.current.pauseVideo(); } catch {} }
-        pauseSp();
-        return;
-      }
+      const pauseYt = () => { if (yt.current && (ytState.current === 1 || ytState.current === 3)) { ourCmd.current = performance.now(); try { yt.current.pauseVideo(); } catch {} } };
+      if (!t) { pauseYt(); pauseSp(); return; }
       if (t.src !== 'sp') pauseSp();
       if (endedFor.current && endedFor.current !== t.k) endedFor.current = '';
       const want = music.position(r);
       if (t.src === 'sp') {
-        if (!a.paused) a.pause();
-        if (yt.current) { try { if (ytState.current === 1) yt.current.pauseVideo(); } catch {} }
+        pauseYt();
         const c = sp.current || await ensureSP(t.id);
         if (!c || !alive) return;
         try {
@@ -231,35 +225,36 @@ export function useRoomPlayer(social, state, toast) {
         } catch {}
         return;
       }
-      if (t.src === 'nb') {
-        if (yt.current) { try { if (ytState.current === 1) yt.current.pauseVideo(); } catch {} }
-        const url = beatUrl(t.id);
-        if (!a.src.endsWith(url)) { a.src = url; a.load(); }
-        if (r.playing) {
-          if (t.dur && want >= t.dur - 0.3) { finish(t.k); return; }
-          if (Math.abs(a.currentTime - want) > 1.2 && a.readyState >= 1) { try { a.currentTime = want; } catch {} }
-          if (a.paused) a.play().then(() => setBlocked(false), (e) => { if (e && e.name === 'NotAllowedError') setBlocked(true); });
-        } else {
-          if (!a.paused) a.pause();
-          if (a.readyState >= 1 && Math.abs(a.currentTime - want) > 0.5) { try { a.currentTime = want; } catch {} }
+      if (t.src !== 'yt') { finish(t.k); return; } // an old Nibble Beat in a room: skip it
+      const p = yt.current || await ensureYT(t.id);
+      if (!p || !alive) return;
+      try {
+        const nowMs = performance.now();
+        if (ytVid.current !== t.id) {
+          ytVid.current = t.id; ourCmd.current = lastSeek.current = kick.current = nowMs;
+          r.playing ? p.loadVideoById(t.id, want) : p.cueVideoById(t.id, want);
+          return;
         }
-      } else {
-        if (!a.paused) a.pause();
-        const p = yt.current || await ensureYT(t.id);
-        if (!p || !alive) return;
-        try {
-          if (ytVid.current !== t.id) { ytVid.current = t.id; r.playing ? p.loadVideoById(t.id, want) : p.cueVideoById(t.id, want); return; }
-          const cur = p.getCurrentTime ? p.getCurrentTime() : 0;
-          if (r.playing) {
-            if (t.dur && want >= t.dur - 0.5) { finish(t.k); return; }
-            if (ytState.current !== 1 && ytState.current !== 3) { p.seekTo(want, true); p.playVideo(); setTimeout(() => { if (ytState.current !== 1 && ytState.current !== 3 && roomRef.current && roomRef.current.playing) setBlocked(true); }, 2500); }
-            else if (Math.abs(cur - want) > 1.6) p.seekTo(want, true);
-          } else {
-            if (ytState.current === 1) p.pauseVideo();
-            if (Math.abs(cur - want) > 0.8) p.seekTo(want, true);
+        const st = ytState.current;
+        const cur = p.getCurrentTime ? p.getCurrentTime() : 0;
+        if (r.playing) {
+          // the song ends when YouTube says so (ENDED); only a player that's stuck long past the end moves on
+          if (t.dur && want > t.dur + 20 && st !== 1 && st !== 3) { finish(t.k); return; }
+          if ((st === 2 || st === 5 || st === -1) && nowMs - kick.current > 3000) {
+            kick.current = ourCmd.current = nowMs;
+            if (Math.abs(cur - want) > 3 && (!t.dur || want < t.dur - 2)) p.seekTo(want, true);
+            p.playVideo();
+            setTimeout(() => { const rr = roomRef.current; if (ytState.current !== 1 && ytState.current !== 3 && rr && rr.playing && rr.track && rr.track.src === 'yt') setBlocked(true); }, 3000);
+          } else if (st === 1 && Math.abs(cur - want) > 4 && nowMs - lastSeek.current > 8000 && (!t.dur || want < t.dur - 3)) {
+            // small drift is fine; a big one (someone seeked, or an ad) gets one gentle correction
+            lastSeek.current = ourCmd.current = nowMs;
+            p.seekTo(want, true);
           }
-        } catch {}
-      }
+        } else {
+          pauseYt();
+          if (st === 2 && Math.abs(cur - want) > 2 && nowMs - lastSeek.current > 3000) { lastSeek.current = ourCmd.current = nowMs; p.seekTo(want, true); }
+        }
+      } catch {}
     };
     const id = setInterval(step, 500);
     step();
@@ -280,18 +275,28 @@ export function useRoomPlayer(social, state, toast) {
   // leaving the room / signing out: stop the sound
   useEffect(() => {
     if (room) return;
-    if (audio.current && !audio.current.paused) audio.current.pause();
-    if (yt.current) { try { yt.current.stopVideo(); } catch {} }
+    if (yt.current) { ourCmd.current = performance.now(); try { yt.current.stopVideo(); } catch {} }
     if (sp.current) { try { sp.current.pause(); } catch {} }
     ytVid.current = '';
   }, [!!room]);
+
+  // keyboard media keys + Windows media controls drive the room (not just this device)
+  useEffect(() => {
+    if (!music || typeof navigator === 'undefined' || !navigator.mediaSession) return;
+    const ms = navigator.mediaSession;
+    const on = (a, f) => { try { ms.setActionHandler(a, f); } catch {} };
+    on('pause', () => music.pause().catch(() => {}));
+    on('play', () => music.resume().catch(() => {}));
+    on('stop', () => music.pause().catch(() => {}));
+    on('nexttrack', () => { const r = roomRef.current; if (r && r.track) music.next(r.track.k).catch(() => {}); });
+    return () => { for (const a of ['pause', 'play', 'stop', 'nexttrack']) on(a, null); };
+  }, [music]);
 
   // a click anywhere counts as permission to play sound
   const unlock = () => {
     const r = roomRef.current;
     if (!r || !r.track) return;
-    if (r.track.src === 'nb' && audio.current) audio.current.play().then(() => setBlocked(false), () => {});
-    if (r.track.src === 'yt' && yt.current) { try { yt.current.playVideo(); setBlocked(false); } catch {} }
+    if (r.track.src === 'yt' && yt.current && r.playing) { ourCmd.current = performance.now(); try { yt.current.playVideo(); setBlocked(false); } catch {} }
     if (r.track.src === 'sp' && sp.current) { try { sp.current.resume ? sp.current.resume() : sp.current.play(); } catch {} }
   };
 
@@ -318,7 +323,7 @@ export function MusicDock({ social, state, player, go, tab }) {
             <small>{t ? `${t.artist || SRC_LABEL[t.src]} · ${fmt(player.now)}${t.dur ? ' / ' + fmt(t.dur) : ''}` : `${room.present.length} listening · pick a song`}</small>
           </button>
           {player.blocked && <button className="btn small" onClick={player.unlock}>🔊 Tap to hear</button>}
-          {t && <button className="mu-icon" title={room.playing ? 'Pause for everyone' : 'Play for everyone'} onClick={() => music.toggle()}>{room.playing ? '⏸' : '▶'}</button>}
+          {t && <button className="mu-icon" title={room.playing ? 'Pause for everyone' : 'Play for everyone'} onClick={() => (room.playing ? music.pause() : music.resume()).catch(() => {})}>{room.playing ? '⏸' : '▶'}</button>}
           {t && <button className="mu-icon" title="Skip" onClick={() => music.next(t.k)}>⏭</button>}
           <button className="mu-icon" title={player.muted ? 'Unmute (just for me)' : 'Mute (just for me)'} onClick={() => player.setMuted(!player.muted)}>{player.muted ? '🔇' : '🔈'}</button>
         </div>
@@ -338,8 +343,7 @@ export function Music({ social, state, desktop, toast, player }) {
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
-  const [srcTab, setSrcTab] = useState('nb');
-  useEffect(() => { music.loadBeats(); }, [music]);
+  const [srcTab, setSrcTab] = useState('yt');
   const err = (e) => toast({ err: true, text: niceError(e) });
   const run = (p, ok) => { setBusy(true); return Promise.resolve(p).then((x) => { ok && toast({ text: ok }); return x; }, err).finally(() => setBusy(false)); };
 
@@ -404,7 +408,7 @@ export function Music({ social, state, desktop, toast, player }) {
   return (
     <>
       <h2>Listen together <small className="sa-ttl">🎧 synced for everyone in the room</small></h2>
-      <p className="sa-sub">Play the same song at the same moment with friends — free Nibble Beats, any YouTube video or playlist, or Spotify links. Your pets put their headphones on and dance along.</p>
+      <p className="sa-sub">Play the same song at the same moment with friends — any YouTube video or playlist, or Spotify links. Your pets put their headphones on and dance along.</p>
 
       {m.ended && <div className="sa-card mu-note"><span>🎵 {m.ended}</span><button className="sa-link" onClick={() => music.clearEnded()}>OK</button></div>}
 
@@ -444,7 +448,7 @@ export function Music({ social, state, desktop, toast, player }) {
             <div className="mu-now-main">
               <small className="mu-room">{isHost ? 'Your room' : `@${room.hostName}’s room`} · {room.present.length} listening</small>
               <b className="mu-title">{t ? t.title : 'Nothing playing yet'}</b>
-              <small>{t ? `${t.artist || SRC_LABEL[t.src]}${t.by && t.by !== 'radio' ? ' · added by @' + t.by : t.by === 'radio' ? ' · Nibble radio' : ''}` : 'Pick a Nibble Beat or paste a YouTube link below.'}</small>
+              <small>{t ? `${t.artist || SRC_LABEL[t.src] || ''}${t.by && t.by !== 'radio' ? ' · added by @' + t.by : ''}` : 'Paste a YouTube or Spotify link below.'}</small>
               {t && (
                 <div className="mu-bar-row">
                   <span>{fmt(player.now)}</span>
@@ -453,16 +457,13 @@ export function Music({ social, state, desktop, toast, player }) {
                 </div>
               )}
               <div className="mu-ctrls">
-                {t && <button className="mu-big" onClick={() => music.toggle().catch(err)}>{room.playing ? '⏸' : '▶'}</button>}
+                {t && <button className="mu-big" title={room.playing ? 'Pause for everyone' : 'Play for everyone'} onClick={() => (room.playing ? music.pause() : music.resume()).catch(err)}>{room.playing ? '⏸' : '▶'}</button>}
                 {t && <button className="mu-icon" title="Skip" onClick={() => music.next(t.k).catch(err)}>⏭</button>}
                 {player.blocked && <button className="btn small" onClick={player.unlock}>🔊 Tap to hear</button>}
                 <span className="mu-vol">
                   <button className="mu-icon" onClick={() => player.setMuted(!player.muted)} title="Just for me">{player.muted ? '🔇' : '🔈'}</button>
                   <input type="range" min="0" max="1" step="0.05" value={player.vol} onChange={(e) => { player.setVol(parseFloat(e.target.value)); player.setMuted(false); }} />
                 </span>
-                <label className="mu-radio" title="When the queue runs out, keep playing Nibble Beats">
-                  <input type="checkbox" checked={room.radio} onChange={(e) => music.setRadio(e.target.checked).catch(err)} /> Radio
-                </label>
               </div>
             </div>
           </div>
@@ -471,23 +472,10 @@ export function Music({ social, state, desktop, toast, player }) {
             <div className="sa-card">
               <h3>Add music</h3>
               <div className="mu-tabs">
-                <button className={srcTab === 'nb' ? 'on' : ''} onClick={() => setSrcTab('nb')}>🎹 Nibble Beats <small>free</small></button>
                 <button className={srcTab === 'yt' ? 'on' : ''} onClick={() => setSrcTab('yt')}>▶ YouTube</button>
                 <button className={srcTab === 'sp' ? 'on' : ''} onClick={() => setSrcTab('sp')}>🟢 Spotify</button>
               </div>
-              {srcTab === 'nb' ? (
-                <ul className="mu-list">
-                  {(m.beats || []).map((b) => (
-                    <li key={b.id} className={t && t.src === 'nb' && t.id === b.id ? 'on' : ''}>
-                      <span className="mu-li-ico">♪</span>
-                      <span className="mu-li-txt"><b>{b.title}</b><small>{b.artist} · {fmt(b.dur)}</small></span>
-                      <button className="mu-icon" title="Play now for everyone" onClick={() => run(music.play(b))}>▶</button>
-                      <button className="mu-icon" title="Add to queue" onClick={() => run(music.add(b), `Queued “${b.title}”`)}>＋</button>
-                    </li>
-                  ))}
-                  {!(m.beats || []).length && <li className="sa-empty">Loading…</li>}
-                </ul>
-              ) : srcTab === 'sp' ? (
+              {srcTab === 'sp' ? (
                 <div className="mu-yt">
                   <input placeholder="Paste a Spotify song, album or playlist link…" value={spLink} onChange={(e) => setSpLink(e.target.value)} />
                   {spLink && !sid && <small className="mu-warn">That doesn’t look like a Spotify link (open.spotify.com/track/…).</small>}
@@ -518,12 +506,12 @@ export function Music({ social, state, desktop, toast, player }) {
 
             <div className="sa-card">
               <h3>Up next <small>{room.queue.length}/{QUEUE_MAX}</small></h3>
-              {room.queue.length === 0 ? <p className="sa-empty">{room.radio ? 'Queue’s empty — Nibble radio keeps the beats going.' : 'Queue’s empty.'}</p> : (
+              {room.queue.length === 0 ? <p className="sa-empty">{'Queue’s empty. When this song ends the room goes quiet until someone adds more.'}</p> : (
                 <ul className="mu-list">
                   {room.queue.map((q, i) => (
                     <li key={q.k}>
                       <span className="mu-li-ico">{i + 1}</span>
-                      <span className="mu-li-txt"><b>{q.title}</b><small>{SRC_LABEL[q.src] || 'Nibble Beats'}{q.by ? ' · @' + q.by : ''}</small></span>
+                      <span className="mu-li-txt"><b>{q.title}</b><small>{SRC_LABEL[q.src] || ''}{q.by ? ' · @' + q.by : ''}</small></span>
                       <button className="mu-icon" title="Play now" onClick={() => music.playFromQueue(q.k).catch(err)}>▶</button>
                       <button className="mu-icon" title="Remove" onClick={() => music.remove(q.k).catch(err)}>✕</button>
                     </li>

@@ -39,7 +39,7 @@ const ago = (t) => {
 };
 const EMOTE_TITLE = { wave: 'Wave', hug: 'Cuddle', kiss: 'Kiss', poke: 'Poke', annoy: 'Tease', icecream: 'Share ice cream', heart: 'Send a heart', highfive: 'High five', tickle: 'Tickle', cheer: 'Cheer them on', snack: 'Share a snack', dance: 'Dance together', boop: 'Boop', flower: 'Give a flower', cake: 'Birthday cake', fistbump: 'Fist bump', pillow: 'Pillow fight', serenade: 'Serenade', gift: 'Gift box', bubbles: 'Bubbles' };
 const NAV = [
-  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['deadlines', 'Deadlines', '⏰'], ['profile', 'Profile', '☻'], ['pets', 'My pets', '✦'], ['settings', 'Settings', '⚙'],
+  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['deadlines', 'Deadlines', '⏰'], ['profile', 'Profile', '☻'], ['settings', 'Settings', '⚙'],
 ];
 
 // `who` = a profile or friend: their accessories, colour, makeup and wardrobe look show on the avatar
@@ -334,67 +334,42 @@ const applyLocalPet = (p, v) => {
   return { ...p, skin: 'mint', tint: key ? 'nat' : '', style: { sp: key, of: '', oc: '', sk: '' } };
 };
 
-function Pets({ social, state, desktop, local, toast, go }) {
+function ExtraPets({ state, desktop, local }) {
   const ownedItems = (state.wallet && state.wallet.owned) || [];
-  const [petName, setPetName] = useState(state.profile.petName || '');
-  const save = (patch) => social.updateProfile(patch).then(() => toast({ text: 'Saved — friends see the update' })).catch((e) => toast({ err: true, text: niceError(e) }));
   const pets = (local && local.settings.pets) || [];
-  const [sel, setSel] = useState(0);
+  const [sel, setSel] = useState(1);
+  const extra = pets.slice(1);
+  const cur = pets[sel] ? sel : 0;
   return (
-    <div className="sa-page">
-      <h2>My pets</h2>
-      <div className="sa-card sa-profile">
-        <Avatar skin={state.profile.skin} who={state.profile} size={96} mood="happy" />
-        <div>
-          <h3>What your friends see</h3>
-          <p className="sa-sub">This pet visits your friends’ desktops when you’re online.</p>
-          <form className="sa-inline" onSubmit={(e) => { e.preventDefault(); save({ petName }); }}>
-            Pet name <input value={petName} maxLength={20} onChange={(e) => setPetName(e.target.value)} /> <button className="btn small">Save</button>
-          </form>
-          <button className="btn small ghost" style={{ marginTop: 10 }} onClick={() => go('style')}>✿ Change animal, outfit &amp; colours →</button>
-        </div>
+    <div className="sa-card">
+      <h3>Extra pets on this PC <small>{extra.length} of 7</small></h3>
+      <p className="sa-sub">Your own pet is set up in <b>Customize</b> and follows you everywhere. These extra pets only live on this computer.</p>
+      <div className="sa-localpets">
+        {extra.map((p, j) => (
+          <button key={p.id || j} className={'sa-lp' + (cur === j + 1 ? ' on' : '')} onClick={() => setSel(j + 1)}>
+            <Avatar skin={p.skin} who={p} size={58} /><span>{p.name}</span>
+          </button>
+        ))}
+        {pets.length < 8 && <button className="sa-lp add" onClick={() => desktop.addPet()}>＋<span>Add pet</span></button>}
       </div>
-      {desktop && (
-        <div className="sa-card">
-          <h3>🎭 Make them interact</h3>
-          <p className="sa-sub">Pets on the same window or the taskbar chat, play and squabble on their own. Start one now — needs two pets close together (yours or a friend's visiting). If they fight, click <b>🍦 Give them ice cream</b> under them to make them friends again.</p>
-          <div className="sa-interact">{INTERACT.map(([k, l]) => <button key={k} className="btn small ghost" onClick={() => desktop.command({ type: 'drama', kind: k })}>{l}</button>)}</div>
+      {cur > 0 && pets[cur] && (
+        <div className="sa-lp-edit">
+          <label className="sa-inline">Name <input key={pets[cur].id} defaultValue={pets[cur].name} maxLength={20} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== pets[cur].name) desktop.setLocal({ pets: pets.map((p, i) => (i === cur ? { ...p, name: v } : p)) }); }} /></label>
+          <select aria-label="Pet" value={localPetValue(pets[cur])} onChange={(e) => desktop.setLocal({ pets: pets.map((p, i) => (i === cur ? applyLocalPet(p, e.target.value) : p)) })}>
+            <optgroup label="Animals">{SHOP_SPECIES.filter((x) => owns(ownedItems, 'sp', x.key)).map((x) => <option key={x.key || 'nibble'} value={'sp:' + x.key}>{x.emoji} {x.label}</option>)}</optgroup>
+            <optgroup label="Special characters">{CHARACTERS.filter((c) => c.group === 'anime').map((c) => <option key={c.key} value={'ch:' + c.key}>{c.name} · {c.role}</option>)}</optgroup>
+          </select>
+          <button className="btn small ghost" onClick={() => desktop.command({ type: 'special', pet: cur })}>Special move</button>
+          <button className="btn small ghost" onClick={() => { desktop.removePet(cur); setSel(1); }}>Send home</button>
         </div>
       )}
-      {desktop && local && (
-        <div className="sa-card">
-          <h3>Pets on this PC <small>{pets.length} of 8 · the first one is you</small></h3>
-          <div className="sa-localpets">
-            {pets.map((p, i) => (
-              <button key={p.id || i} className={'sa-lp' + (sel === i ? ' on' : '')} onClick={() => setSel(i)}>
-                <Avatar skin={p.skin} who={p} size={58} /><span>{p.name}{i === 0 ? ' (you)' : ''}</span>
-              </button>
-            ))}
-            {pets.length < 8 && <button className="sa-lp add" onClick={() => desktop.addPet()}>＋<span>Add pet</span></button>}
-          </div>
-          {pets[sel] && (
-            <div className="sa-lp-edit">
-              <label className="sa-inline">Name <input key={pets[sel].id} defaultValue={pets[sel].name} maxLength={20} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== pets[sel].name) desktop.setLocal({ pets: pets.map((p, i) => (i === sel ? { ...p, name: v } : p)) }); }} /></label>
-              {sel === 0 ? (
-                <button className="btn small" onClick={() => go('style')}>✿ Change look in Customize</button>
-              ) : (
-                <select aria-label="Pet" value={localPetValue(pets[sel])} onChange={(e) => desktop.setLocal({ pets: pets.map((p, i) => (i === sel ? applyLocalPet(p, e.target.value) : p)) })}>
-                  <optgroup label="Animals">{SHOP_SPECIES.filter((x) => owns(ownedItems, 'sp', x.key)).map((x) => <option key={x.key || 'nibble'} value={'sp:' + x.key}>{x.emoji} {x.label}</option>)}</optgroup>
-                  <optgroup label="Special characters">{CHARACTERS.filter((c) => c.group === 'anime').map((c) => <option key={c.key} value={'ch:' + c.key}>{c.name} · {c.role}</option>)}</optgroup>
-                </select>
-              )}
-              <button className="btn small ghost" onClick={() => desktop.command({ type: 'special', pet: sel })}>Special move</button>
-              <button className="btn small ghost" onClick={() => desktop.command({ type: 'dance', pet: sel })}>Dance</button>
-              <button className="btn small ghost" disabled={pets.length < 2} onClick={() => { desktop.removePet(sel); setSel(0); }}>Send home</button>
-            </div>
-          )}
-        </div>
-      )}
+      <h4 className="wd-h" style={{ marginTop: 16 }}>🎭 Make them interact</h4>
+      <p className="sa-sub" style={{ marginTop: 0 }}>Needs two pets close together (yours, an extra one, or a friend’s visiting). If they fight, click <b>🍦 Give them ice cream</b>.</p>
+      <div className="sa-interact">{INTERACT.map(([k, l]) => <button key={k} className="btn small ghost" onClick={() => desktop.command({ type: 'drama', kind: k })}>{l}</button>)}</div>
     </div>
   );
 }
 
-// Shows exactly what is (and isn't) getting through, so problems are easy to spot.
 function ConnectionCheck({ state, local, desktop }) {
   const d = state.diag || { feeds: {} };
   const good = (v) => v === 'ok';
@@ -432,6 +407,7 @@ function Settings({ social, state, desktop, local, toast }) {
         <Toggle label="Appear offline" hint="Your pet stops visiting friends. You still see theirs." on={state.prefs.invisible} onChange={(v) => social.setPrefs({ invisible: v })} />
         {desktop && <Toggle label="Friends’ pets visit my desktop" hint="Online friends’ pets walk around on your screen." on={s.showFriends !== false} onChange={(v) => set({ showFriends: v })} />}
       </div>
+      {desktop && local && <ExtraPets state={state} desktop={desktop} local={local} />}
       {desktop && local && (
         <div className="sa-card">
           <h3>Pet behaviour</h3>
@@ -772,7 +748,7 @@ function useDesktopBridge(desktop, social, state) {
   localRef.current = local;
   // Pet #1 on this PC is you: it always wears your saved look, wherever you changed it
   // (the website, another PC, an admin reset). Sent once per look so a PC that lacks a skin can't loop.
-  const lookSent = useRef('');
+  const lookSent = useRef(''), lookSentAt = useRef(0);
   useEffect(() => {
     const pr = state.profile;
     if (!desktop || !pr || !local || !local.settings || !Array.isArray(local.settings.pets) || !local.settings.pets.length) return;
@@ -780,8 +756,9 @@ function useDesktopBridge(desktop, social, state) {
     const p0 = local.settings.pets[0];
     const have = { skin: p0.skin || 'mint', acc: Array.isArray(p0.acc) ? p0.acc : [], tint: p0.tint || '', makeup: p0.makeup || '', style: cleanStyleMap(p0.style) };
     const w = JSON.stringify(want);
-    if (w === JSON.stringify(have) || w === lookSent.current) return;
-    lookSent.current = w;
+    // fixes drift too (e.g. a tray menu change), but never more than once every 15 s for the same look
+    if (w === JSON.stringify(have) || (w === lookSent.current && Date.now() - lookSentAt.current < 15000)) return;
+    lookSent.current = w; lookSentAt.current = Date.now();
     desktop.setLocal({ pets: local.settings.pets.map((p, i) => (i === 0 ? { ...p, ...want } : p)) });
   }, [desktop, local, state.profile]);
   useEffect(() => {
@@ -852,6 +829,16 @@ function useDesktopBridge(desktop, social, state) {
 export default function SocialApp({ mode = 'web' }) {
   const { social, state, missing } = useSocial();
   const [tab, setTab] = useState('home');
+  // nav bar: collapse to icons (your choice is remembered; otherwise it follows the window width)
+  const [navPref, setNavPref] = useState(null); // null = auto, true = collapsed, false = open
+  const [winW, setWinW] = useState(1200);
+  useEffect(() => {
+    try { const v = localStorage.getItem('nibble-nav-mini'); if (v === '1' || v === '0') setNavPref(v === '1'); } catch {}
+    const on = () => setWinW(window.innerWidth);
+    on(); window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  const toggleNav = (v) => { setNavPref(v); try { localStorage.setItem('nibble-nav-mini', v ? '1' : '0'); } catch {} };
   const [note, setNote] = useState(null);
   const [desktop, setDesktop] = useState(null);
   const [presetAdd, setPresetAdd] = useState('');
@@ -860,8 +847,9 @@ export default function SocialApp({ mode = 'web' }) {
     if (window.nibbleDesktop) setDesktop(window.nibbleDesktop);
     const q = new URLSearchParams(location.search);
     if (q.get('add')) { setPresetAdd(q.get('add')); setTab('friends'); }
-    if (q.get('tab')) setTab(q.get('tab'));
-    if (window.nibbleDesktop && window.nibbleDesktop.onTab) window.nibbleDesktop.onTab((t) => setTab(t));
+    const fixTab = (t) => (t === 'pets' ? 'settings' : t);
+    if (q.get('tab')) setTab(fixTab(q.get('tab')));
+    if (window.nibbleDesktop && window.nibbleDesktop.onTab) window.nibbleDesktop.onTab((t) => setTab(fixTab(t)));
     // desktop Hub hidden → pause every little animated pet on the page (saves CPU/GPU, less lag)
     if (window.nibbleDesktop && window.nibbleDesktop.onVisible) window.nibbleDesktop.onVisible((v) => { window.__nibbleHidden = !v; window.dispatchEvent(new Event('nibble-visibility')); });
   }, []);
@@ -947,7 +935,6 @@ export default function SocialApp({ mode = 'web' }) {
         {tab === 'friends' && <Friends {...props} presetAdd={presetAdd} />}
         {tab === 'messages' && <Messages {...props} />}
         {tab === 'music' && <Music {...props} player={player} />}
-        {tab === 'pets' && <Pets {...props} />}
         {tab === 'style' && <Wardrobe {...props} />}
         {tab === 'games' && <Arcade {...props} />}
         {tab === 'settings' && <Settings {...props} />}
@@ -956,11 +943,16 @@ export default function SocialApp({ mode = 'web' }) {
   }
   const signedIn = state.user && state.profile && !state.banned;
 
+  const phone = !isDesk && winW <= 640;
+  const mini = !phone && (navPref !== null ? navPref : winW < 1000);
   return (
-    <div className={'sa' + (isDesk ? ' desk' : '') + (signedIn ? '' : ' solo')}>
+    <div className={'sa' + (isDesk ? ' desk' : '') + (signedIn ? '' : ' solo') + (signedIn && mini ? ' mini' : '') + (phone ? ' phone' : '')}>
       {signedIn && (
         <aside className="sa-side">
-          <a className="logo" href={isDesk ? undefined : '/'}><span className="sa-logo">◕‿◕</span> Nibble</a>
+          <div className="sa-side-top">
+            <a className="logo" href={isDesk ? undefined : '/'}><span className="sa-logo">◕‿◕</span><span className="sa-lt"> Nibble</span></a>
+            {!phone && <button className="sa-collapse" onClick={() => toggleNav(!mini)} title={mini ? 'Open the menu' : 'Collapse the menu'} aria-label={mini ? 'Open the menu' : 'Collapse the menu'}>{mini ? '»' : '«'}</button>}
+          </div>
           <div className="sa-me">
             <Avatar skin={state.profile.skin} who={state.profile} size={52} mood="happy" />
             <div><b>@{state.profile.username}</b><small><span className={'sa-dot' + (state.prefs.invisible ? '' : ' on') + (state.prefs.dnd ? ' dnd' : '')} />{state.prefs.invisible ? 'appearing offline' : state.prefs.dnd ? 'do not disturb' : 'online'}</small></div>
@@ -971,8 +963,8 @@ export default function SocialApp({ mode = 'web' }) {
           </button>
           <nav>
             {NAV.map(([k, l, i]) => (
-              <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
-                <span>{i}</span>{l}
+              <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)} title={mini ? l : undefined}>
+                <span>{i}</span><b className="sa-nl">{l}</b>
                 {k === 'friends' && state.incoming.length > 0 && <em className="sa-badge">{state.incoming.length}</em>}
                 {k === 'games' && myTurns(state) > 0 && <em className="sa-badge">{myTurns(state)}</em>}
                 {k === 'music' && state.music && state.music.invites.length > 0 && <em className="sa-badge">{state.music.invites.length}</em>}
