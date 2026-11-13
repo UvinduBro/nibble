@@ -1,6 +1,6 @@
 // Nibble Hub (main process): the app's settings/social window + the bridge between the
 // Hub page (which talks to Firebase) and the pets overlay.
-const { BrowserWindow, ipcMain, shell, Menu, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, Notification } = require('electron');
 const http = require('http');
 const crypto = require('crypto');
 const path = require('path');
@@ -33,7 +33,7 @@ const DONE_HTML = `<!doctype html><meta charset="utf-8"><title>Nibble</title>
 <div><div style="font-size:54px">(◕‿◕)/</div><h2>You're signed in to Nibble!</h2><p style="color:#9aa3c2">You can close this tab and head back to the app.</p></div>`;
 
 function setupHub(ctx) {
-  const { SITE, settings, SKINS, appVersion, overlay, applySettings, addPet, removePet, setStartup, setPaused, runUpdate, getLatest, iconPath } = ctx;
+  const { SITE, settings, SKINS, appVersion, overlay, applySettings, addPet, removePet, setStartup, setPaused, runUpdate, getLatest, iconPath, getHealth } = ctx;
   let hub = null;
   let quitting = false;
   let lastSocial = { me: null, friends: [], prefs: {}, requests: 0 };
@@ -46,7 +46,7 @@ function setupHub(ctx) {
   const siteOrigin = new URL(SITE).origin;
 
   function localInfo() {
-    return { version: appVersion, latest: getLatest(), settings: settings.get(), skins: Object.keys(SKINS) };
+    return { version: appVersion, latest: getLatest(), settings: settings.get(), skins: Object.keys(SKINS), platform: process.platform, health: getHealth ? getHealth() : null };
   }
   function pushLocal() { if (hub && !hub.isDestroyed()) hub.webContents.send('hub:local', localInfo()); }
 
@@ -64,6 +64,11 @@ function setupHub(ctx) {
     });
     hub.setMenuBarVisibility(false);
     hub.on('close', (e) => { if (!quitting) { e.preventDefault(); hub.hide(); } });
+    // Mac: Nibble lives in the menu bar; it gets a Dock icon only while the Hub is open
+    if (process.platform === 'darwin' && app.dock) {
+      hub.on('show', () => { Promise.resolve(app.dock.show()).catch(() => {}); });
+      hub.on('hide', () => { app.dock.hide(); });
+    }
     // background throttling is off (so messages keep flowing), which also means the page can't tell
     // it's hidden — tell it, so it can stop drawing its little animated pets while nobody's looking
     const vis = () => { if (hub && !hub.isDestroyed()) hub.webContents.send('hub:visible', hub.isVisible() && !hub.isMinimized()); };

@@ -71,45 +71,76 @@ export function Quotes() {
 }
 
 export function Download() {
-  const [origin, setOrigin] = useState('https://nibble-pearl.vercel.app');
-  const [copied, setCopied] = useState(false);
-  useEffect(() => setOrigin(window.location.origin), []);
-  const cmd = `irm ${origin}/install.ps1 | iex`;
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(cmd); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch (_) {}
+  const [origin, setOrigin] = useState('https://nibblex.vercel.app');
+  const [os, setOs] = useState('win');
+  const [copied, setCopied] = useState('');
+  useEffect(() => {
+    setOrigin(window.location.origin);
+    if (/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent)) setOs('mac');
+  }, []);
+  const winCmd = `irm ${origin}/install.ps1 | iex`;
+  const macCmd = `curl -fsSL ${origin}/install.sh | bash`;
+  const copy = async (k, text) => {
+    try { await navigator.clipboard.writeText(text); setCopied(k); setTimeout(() => setCopied(''), 1800); } catch (_) {}
   };
   return (
     <div className="dl reveal">
+      <div className="dl-os" role="tablist">
+        <button role="tab" aria-selected={os === 'win'} className={os === 'win' ? 'on' : ''} onClick={() => setOs('win')}>⊞ Windows</button>
+        <button role="tab" aria-selected={os === 'mac'} className={os === 'mac' ? 'on' : ''} onClick={() => setOs('mac')}>⌘ Mac</button>
+      </div>
       <div className="dl-main">
         <div className="dl-pets">
           <PetFigure skin="mojo" mood="wave" size={1.2} w={130} h={130} />
           <PetFigure skin="mint" mood="wave" size={1.5} w={160} h={170} />
           <PetFigure skin="hikari" mood="happy" size={1.2} w={130} h={130} />
         </div>
-        <div className="dl-cta">
-          <a className="btn big" href="/Get-Nibble.exe" download="Get-Nibble.exe">⬇ Download Nibble {release.version} (.exe)</a>
-          <p className="dl-meta">Windows 10 / 11 · 64-bit · installer + ~110 MB runtime · free</p>
-          <div className="cmd">
-            <span className="cmd-label">or paste into PowerShell · or grab the <a href="/install.cmd" download="Install Nibble.cmd"><u>.cmd script</u></a></span>
-            <code>{cmd}</code>
-            <button onClick={copy}>{copied ? 'Copied ✓' : 'Copy'}</button>
+        {os === 'win' ? (
+          <div className="dl-cta">
+            <a className="btn big" href="/Get-Nibble.exe" download="Get-Nibble.exe">⬇ Download Nibble {release.version} (.exe)</a>
+            <p className="dl-meta">Windows 10 / 11 · 64-bit · installer + ~110 MB runtime · free</p>
+            <div className="cmd">
+              <span className="cmd-label">or paste into PowerShell · or grab the <a href="/install.cmd" download="Install Nibble.cmd"><u>.cmd script</u></a></span>
+              <code>{winCmd}</code>
+              <button onClick={() => copy('win', winCmd)}>{copied === 'win' ? 'Copied ✓' : 'Copy'}</button>
+            </div>
+            <p className="dl-upd">Already have Nibble? Download and run the installer again (or use <b>Update Nibble</b> in the tray menu). Your pets and settings stay.</p>
+            <a className="btn ghost dl-guide" href="/Nibble-Reinstall-Guide.pdf" target="_blank" rel="noopener">📄 How to reinstall the latest version</a>
           </div>
-          <p className="dl-upd">Already have Nibble? Run the installer again. From v1.1 on, the tray menu has <b>Update Nibble</b>. Your pets and settings stay.</p>
-          <a className="btn ghost dl-guide" href="/Nibble-Reinstall-Guide.pdf" target="_blank" rel="noopener">📄 How to reinstall the latest version</a>
-        </div>
+        ) : (
+          <div className="dl-cta">
+            <div className="cmd cmd-big">
+              <span className="cmd-label">Paste this into <b>Terminal</b> and press Return</span>
+              <code>{macCmd}</code>
+              <button onClick={() => copy('mac', macCmd)}>{copied === 'mac' ? 'Copied ✓' : 'Copy'}</button>
+            </div>
+            <p className="dl-meta">macOS 12 Monterey or newer · Apple silicon and Intel · ~110 MB runtime · free</p>
+            <p className="dl-upd">Run the same line again to update. Your pets and settings stay.</p>
+          </div>
+        )}
       </div>
       <div className="dl-bottom">
         <div className="changelog">
           <div className="kicker">What's new in {release.version}</div>
           <ul>{release.notes.map((n) => <li key={n}>{n}</li>)}</ul>
         </div>
-        <ol className="steps">
-          <li><b>Run Get-Nibble.exe.</b> A small Nibble setup window opens. First time only, Windows SmartScreen may say "unknown publisher" — click <i>More info → Run anyway</i> (it's safe; it just isn't code-signed yet).</li>
-          <li><b>It fetches the runtime</b> (Electron, ~110 MB) from GitHub and checks its SHA-256 before installing — you'll see the progress bar fill.</li>
-          <li><b>Nibble drops onto your screen</b>, installed to <code>%LOCALAPPDATA%\Programs\Nibble</code> with Start menu and Desktop shortcuts, and listed in <i>Add or remove programs</i>.</li>
-          <li><b>Say hi to friends:</b> double-click the tray icon to open the Nibble Hub, sign in with Google or email and add friends by username.</li>
-          <li><b>Uninstall</b> any time from <i>Settings → Apps</i>, or Start → <i>Uninstall Nibble</i>.</li>
-        </ol>
+        {os === 'win' ? (
+          <ol className="steps">
+            <li><b>Run Get-Nibble.exe.</b> A small Nibble setup window opens. First time only, Windows SmartScreen may say "unknown publisher". Click <i>More info → Run anyway</i> (it's safe; it just isn't code-signed yet).</li>
+            <li><b>It fetches the runtime</b> (Electron, ~110 MB) from GitHub and checks its SHA-256 before installing. You'll see the progress bar fill.</li>
+            <li><b>Nibble drops onto your screen</b>, installed to <code>%LOCALAPPDATA%\Programs\Nibble</code> with Start menu and Desktop shortcuts, and listed in <i>Add or remove programs</i>.</li>
+            <li><b>Say hi to friends:</b> double-click the tray icon to open the Nibble Hub, sign in with Google or email and add friends by username.</li>
+            <li><b>Uninstall</b> any time from <i>Settings → Apps</i>, or Start → <i>Uninstall Nibble</i>.</li>
+          </ol>
+        ) : (
+          <ol className="steps">
+            <li><b>Open Terminal:</b> press <i>⌘ Space</i>, type <i>Terminal</i> and press Return.</li>
+            <li><b>Paste the line above</b> and press Return. It downloads the runtime (Electron, ~110 MB, Apple-signed) from GitHub and checks its SHA-256.</li>
+            <li><b>Nibble.app</b> goes into your Applications folder with Nibble's own icon, and the pets drop onto your screen.</li>
+            <li><b>Say hi to friends:</b> click the Nibble icon in the menu bar (top right) → <i>Open Nibble Hub</i>, then sign in and add friends.</li>
+            <li><b>Uninstall:</b> quit Nibble from the menu bar, then drag <i>Nibble</i> from Applications to the Bin.</li>
+          </ol>
+        )}
       </div>
     </div>
   );

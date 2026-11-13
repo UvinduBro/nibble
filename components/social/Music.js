@@ -570,7 +570,9 @@ export function Music({ social, state, desktop, toast, player }) {
 
       <div className="sa-card">
         <h3>Share what I’m playing</h3>
-        {desktop && desktop.onNowPlaying ? (
+        {desktop && desktop.platform === 'darwin' ? (
+          <p className="sa-empty">On a Mac, songs you play in a Nibble room show up for friends automatically. Sharing what other Mac apps play isn’t available yet.</p>
+        ) : desktop && desktop.onNowPlaying ? (
           <>
             <Toggle on={m.share} onChange={(v) => music.setShare(v)} label="Show friends what I play on this PC" hint="Song + artist from Spotify, YouTube, Apple Music… (whatever shows in the Windows media controls). Friends get a Listen-along button." />
             {m.share && <p className="mu-fine">{m.deviceNp ? `Now showing: 🎧 ${m.deviceNp.title}${m.deviceNp.artist ? ' — ' + m.deviceNp.artist : ''}${m.deviceNp.playing === false ? ' (paused, hidden)' : ''}` : 'Nothing playing on this PC right now.'}</p>}

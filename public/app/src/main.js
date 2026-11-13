@@ -38,7 +38,83 @@ function brandShortcuts() {
   }
 }
 
-const SITE = 'https://nibble-pearl.vercel.app';
+const SITE = 'https://nibblex.vercel.app';
+const IS_MAC = process.platform === 'darwin';
+const health = { files: 'checking', name: process.platform === 'win32' ? 'checking' : 'ok' };
+
+// ---------- self-repair: an install that missed an app file (older setups did) fetches it ----------
+async function repairFiles() {
+  if (!app.isPackaged) { health.files = 'ok'; return; }
+  try {
+    const res = await net.fetch(SITE + '/install-files.txt', { cache: 'no-store' });
+    if (!res.ok) throw new Error('list ' + res.status);
+    const lines = (await res.text()).split('\n').map((l) => l.trim().split(' ')).filter((p) => p.length === 2 && p[0].startsWith('/') && !p[1].includes('..'));
+    const root = path.join(__dirname, '..');
+    let fixed = 0, renderer = false;
+    for (const [src, dest] of lines) {
+      const file = path.join(root, dest);
+      if (fs.existsSync(file)) continue;
+      const r = await net.fetch(SITE + src, { cache: 'no-store' });
+      if (!r.ok) continue;
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, Buffer.from(await r.arrayBuffer()));
+      fixed++;
+      if (dest.startsWith('src/renderer/') || dest === 'src/skins.js') renderer = true;
+    }
+    health.files = fixed ? 'repaired ' + fixed : 'ok';
+    if (renderer && win && !win.isDestroyed()) win.webContents.reload(); // the pets pick up the new files
+  } catch (e) { health.files = 'offline'; }
+  if (hubCtl) hubCtl.pushLocal();
+}
+
+// ---------- Windows: make sure Nibble.exe carries Nibble's name + icon (not Electron's) ----------
+// Older installers only renamed electron.exe. If so, brand a copy with our own runtime (brand.js),
+// swap it in (a running exe can be renamed, not deleted) and restart once.
+function exeDescription(file) {
+  return new Promise((resolve) => {
+    const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-Item -LiteralPath '${file.replace(/'/g, "''")}').VersionInfo.FileDescription`], { windowsHide: true });
+    let out = '';
+    ps.stdout.on('data', (d) => { out += d; });
+    ps.on('error', () => resolve(''));
+    ps.on('close', () => resolve(out.trim()));
+  });
+}
+async function selfBrand() {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  const exe = process.execPath, dir = path.dirname(exe);
+  try { fs.unlinkSync(path.join(dir, 'Nibble-old.exe')); } catch {}
+  if (path.basename(exe).toLowerCase() !== 'nibble.exe') { health.name = 'ok'; return; }
+  const desc = await exeDescription(exe);
+  if (!desc || desc === 'Nibble') { health.name = 'ok'; if (hubCtl) hubCtl.pushLocal(); return; }
+  health.name = 'fixing';
+  if (hubCtl) hubCtl.pushLocal();
+  try {
+    const get = async (url, file) => { const r = await net.fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(url); fs.writeFileSync(file, Buffer.from(await r.arrayBuffer())); };
+    const bj = path.join(dir, 'brand.js'), ico = path.join(dir, 'nibble.ico'), out = path.join(dir, 'Nibble-branded.exe');
+    await get(SITE + '/app/brand.js', bj);
+    if (!fs.existsSync(ico)) await get(SITE + '/nibble.ico', ico);
+    const code = await new Promise((resolve) => {
+      const p = spawn(exe, [bj, exe, out, ico, app.getVersion()], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true });
+      p.on('error', () => resolve(-1));
+      p.on('close', resolve);
+    });
+    try { fs.unlinkSync(bj); } catch {}
+    if (code !== 0 || (await exeDescription(out)) !== 'Nibble') throw new Error('brand ' + code);
+    fs.renameSync(exe, path.join(dir, 'Nibble-old.exe'));
+    fs.renameSync(out, exe);
+    // Windows remembers the old name per path; forget it, and refresh the icon cache
+    spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      "$m='HKCU:\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\MuiCache'; if (Test-Path $m) { foreach ($n in (Get-Item $m).Property) { if ($n -like '*Programs\\Nibble\\*') { Remove-ItemProperty $m -Name $n -ErrorAction SilentlyContinue } } }; ie4uinit.exe -show"],
+      { windowsHide: true, detached: true, stdio: 'ignore' }).unref();
+    health.name = 'ok';
+    app.relaunch();
+    app.exit(0);
+  } catch (e) {
+    health.name = 'failed';
+    try { fs.unlinkSync(path.join(dir, 'Nibble-branded.exe')); } catch {}
+    if (hubCtl) hubCtl.pushLocal();
+  }
+}
 let latest = null; // newer version published on the site, if any
 
 const NAMES = ['Byte', 'Pixel', 'Kilo', 'Mochi', 'Glitch', 'Cache', 'Sprite', 'Vector', 'Kernel', 'Bit', 'Nugget', 'Pico'];
@@ -117,6 +193,7 @@ function createWindow() {
     },
   });
   win.setAlwaysOnTop(true, 'screen-saver');
+  if (IS_MAC) win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
@@ -278,21 +355,24 @@ function skinMenu(onPick, current, type = 'radio') {
 
 // ---------- updates (re-runs the installer from the website; settings are kept) ----------
 async function runUpdate() {
-  if (process.platform !== 'win32') return shell.openExternal(SITE + '/#download');
-  // Prefer the setup copy left in the install dir; otherwise fetch a fresh one.
-  const local = path.join(path.dirname(process.execPath), 'Nibble Setup.exe');
-  if (fs.existsSync(local)) {
-    spawn(local, [], { detached: true, stdio: 'ignore' }).unref();
+  if (IS_MAC) {
+    // the same one-line installer as the website, run in the background (it restarts Nibble)
+    spawn('/bin/bash', ['-c', `curl -fsSL ${SITE}/install.sh | bash >/tmp/nibble-update.log 2>&1`], { detached: true, stdio: 'ignore' }).unref();
     return;
   }
+  if (process.platform !== 'win32') return shell.openExternal(SITE + '/#download');
+  // Always the latest installer from the site (an old copy in the install folder could be years out of date)
   try {
     const dest = path.join(app.getPath('temp'), 'Get-Nibble.exe');
     const res = await net.fetch(SITE + '/Get-Nibble.exe', { cache: 'no-store' });
+    if (!res.ok) throw new Error('download ' + res.status);
     const buf = Buffer.from(await res.arrayBuffer());
     fs.writeFileSync(dest, buf);
     spawn(dest, [], { detached: true, stdio: 'ignore' }).unref();
   } catch (_) {
-    shell.openExternal(SITE + '/#download');
+    const local = path.join(path.dirname(process.execPath), 'Nibble Setup.exe');
+    if (fs.existsSync(local)) spawn(local, [], { detached: true, stdio: 'ignore' }).unref();
+    else shell.openExternal(SITE + '/#download');
   }
 }
 
@@ -456,12 +536,15 @@ ipcMain.on('overlay-focus', (e, on) => {
 ipcMain.on('tray-icon', (_e, dataUrl) => {
   if (!tray || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png')) return;
   if (!nativeImage.createFromPath(assetPath('tray.png')).isEmpty()) return; // prefer bundled art
-  tray.setImage(nativeImage.createFromDataURL(dataUrl).resize({ width: 32, height: 32, quality: 'best' }));
+  const sz = IS_MAC ? 18 : 32; // Mac menu bar icons are ~18 pt
+  tray.setImage(nativeImage.createFromDataURL(dataUrl).resize({ width: sz, height: sz, quality: 'best' }));
 });
 
 // ---------- lifecycle ----------
 app.whenReady().then(() => {
+  if (IS_MAC && app.dock) app.dock.hide(); // a desktop pet lives in the menu bar, not the Dock
   brandShortcuts();
+  setTimeout(() => { repairFiles().then(selfBrand).catch(() => {}); }, 4000);
   settings.load();
   // give pets stable ids
   const s = settings.get();
@@ -471,7 +554,7 @@ app.whenReady().then(() => {
 
   hubCtl = setupHub({
     SITE, settings, SKINS, appVersion: app.getVersion(), overlay: () => win,
-    applySettings, addPet, removePet, setStartup, setPaused, runUpdate, getLatest: () => latest,
+    applySettings, addPet, removePet, setStartup, setPaused, runUpdate, getLatest: () => latest, getHealth: () => ({ ...health }),
     iconPath: path.join(__dirname, '..', '..', '..', 'nibble.ico'),
     onSocialChange: (st) => {
       const sig = (x) => JSON.stringify([x.me && x.me.username, (x.friends || []).map((f) => f.online), x.requests, x.music && x.music.invites]);

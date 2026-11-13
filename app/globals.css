@@ -398,3 +398,9 @@ kbd { font-size: 12.5px; background: var(--card2); border: 1px solid rgba(255, 2
 .about-tag { left: 8px; bottom: 8px; font-size: 10px; padding: 3px 8px; }
 @media (max-width: 900px) { .about-cards { grid-template-columns: minmax(0, 430px); } }
 @media (max-width: 420px) { .about-card .glitch { width: 118px; min-height: 160px; } }
+/* download: Windows / Mac switch */
+.dl-os { display: flex; gap: 6px; justify-content: center; margin: -6px auto 22px; padding: 4px; width: fit-content; background: #070812; border: 1px solid var(--line); border-radius: 999px; }
+.dl-os button { font: 700 14px var(--font-sans); color: var(--muted); background: none; border: 0; border-radius: 999px; padding: 8px 18px; cursor: pointer; }
+.dl-os button.on { background: var(--mint); color: #0b1a16; }
+.cmd-big { padding: 14px 14px 14px 18px; }
+.cmd-big code { font-size: 15px; }

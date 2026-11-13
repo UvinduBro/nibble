@@ -414,14 +414,14 @@ function Settings({ social, state, desktop, local, toast }) {
           <div className="sa-seg">Size {SIZES.map(([l, v]) => <button key={l} className={s.size === v ? 'on' : ''} onClick={() => set({ size: v })}>{l}</button>)}</div>
           <div className="sa-seg">Chattiness {['silent', 'quiet', 'normal', 'chatty'].map((v) => <button key={v} className={s.chatty === v ? 'on' : ''} onClick={() => set({ chatty: v })}>{v}</button>)}</div>
           <div className="sa-seg">Break reminders {[[0, 'Off'], [30, '30m'], [50, '50m'], [60, '60m'], [90, '90m']].map(([v, l]) => <button key={v} className={s.breakMinutes === v ? 'on' : ''} onClick={() => set({ breakMinutes: v })}>{l}</button>)}</div>
-          <Toggle label="Walk on windows" on={s.walkOnWindows} onChange={(v) => set({ walkOnWindows: v })} />
+          {desktop.platform !== 'darwin' && <Toggle label="Walk on windows" on={s.walkOnWindows} onChange={(v) => set({ walkOnWindows: v })} />}
           <Toggle label="Follow my cursor" on={s.followCursor} onChange={(v) => set({ followCursor: v })} />
           <Toggle label="React to apps I use" on={s.reactToApps} onChange={(v) => set({ reactToApps: v })} />
           <Toggle label="Hide during fullscreen" on={s.hideFullscreen} onChange={(v) => set({ hideFullscreen: v })} />
           <Toggle label="Pet sounds" hint="Soft little noises when pets talk, eat, snore, cheer or grumble" on={s.sounds} onChange={(v) => set({ sounds: v })} />
           <Toggle label="Pets interact with each other" hint="Chats, dance-offs, cuddles… and the odd squabble you can fix with ice cream 🍦" on={s.drama !== false} onChange={(v) => set({ drama: v })} />
-          <Toggle label="Start with Windows" on={s.startWithWindows} onChange={(v) => set({ startWithWindows: v })} />
-          <Toggle label="Hide pets" hint="Ctrl + Alt + N" on={s.paused} onChange={(v) => set({ paused: v })} />
+          <Toggle label={desktop.platform === 'darwin' ? 'Open Nibble when I log in' : 'Start with Windows'} on={s.startWithWindows} onChange={(v) => set({ startWithWindows: v })} />
+          <Toggle label="Hide pets" hint={desktop.platform === 'darwin' ? '⌘ + ⌥ + N' : 'Ctrl + Alt + N'} on={s.paused} onChange={(v) => set({ paused: v })} />
         </div>
       )}
       <div className="sa-card">
@@ -432,6 +432,14 @@ function Settings({ social, state, desktop, local, toast }) {
       {desktop && local && (
         <div className="sa-card">
           <h3>Nibble {local.version}</h3>
+          {local.health && (
+            <p className="sa-sub">
+              {local.health.name === 'fixing' ? '🔧 Giving the app its Nibble name and icon… it restarts by itself in a moment.'
+                : local.health.name === 'failed' ? '⚠️ Windows still shows this app as “Electron”. Click Reinstall / update below to fix it.'
+                : '✓ App name and icon: Nibble'}
+              {local.health.files && local.health.files.startsWith('repaired') ? ' · ✓ Missing pet files were added (outfits and animals show now)' : ''}
+            </p>
+          )}
           <p className="sa-sub">{local.latest ? `Version ${local.latest} is available.` : 'Updates install over the top and keep your pets and settings.'}</p>
           <button className="btn small" onClick={() => desktop.update()}>{local.latest ? `Update to ${local.latest}` : 'Reinstall / update'}</button>
         </div>
