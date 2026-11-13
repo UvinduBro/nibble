@@ -3,7 +3,20 @@ import './social.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocial } from './useSocial';
 import { AuthScreen } from './Auth';
-import PetFigure, { useNibble } from '../PetFigure';
+import PetFigure, { useNibble, PetSnap } from '../PetFigure';
+import { ITEMS, SPECIES as SHOP_SPECIES, OUTFITS as SHOP_OUTFITS, SKILLS as SHOP_SKILLS, PT } from '../../lib/shop';
+import { SOLO as SOLO_A } from '../games/solo';
+import { SOLO2 } from '../games/solo2';
+import { GAMES as LIVE_GAMES } from '../../lib/social/games';
+
+const SOLO_ALL = [...SOLO2, ...SOLO_A];
+const lookLabel = (u) => {
+  const st = u.style || {};
+  const parts = [];
+  if (st.sp) parts.push((SHOP_SPECIES.find((x) => x.key === st.sp) || {}).label || st.sp);
+  if (st.of) parts.push((SHOP_OUTFITS.find((x) => x.key === st.of) || {}).label || st.of);
+  return parts.join(' · ');
+};
 import { niceError, verLess, LEVELS, ms } from '../../lib/social/social';
 
 // ---------- helpers ----------
@@ -144,12 +157,11 @@ function Kpi({ n, label, sub, color, onClick }) {
   );
 }
 
-// avatar = the user's character colour + initial (a live pet per row would be heavy)
+// avatar = a still picture of the user's own pet, wearing their saved look
 function Ava({ u, size = 38 }) {
-  const s = skinInfo(u.skin);
   return (
-    <span className="ad-ava" style={{ width: size, height: size, background: u.tint || s.color }}>
-      {(u.username || '?')[0].toUpperCase()}
+    <span className="ad-ava pet" style={{ width: size, height: size }}>
+      <PetSnap skin={u.skin} acc={u.acc} tint={u.tint} makeup={u.makeup} look={u.style} size={size} />
       {u.online && <i className={u.dnd ? 'dnd' : ''} />}
     </span>
   );
@@ -284,7 +296,7 @@ const FILTERS = [
   ['all', 'All'], ['online', 'Online'], ['desktop', 'Desktop'], ['web', 'Web'],
   ['outdated', 'Outdated'], ['custom', 'Customized'], ['new', 'New (7d)'], ['banned', 'Suspended'],
 ];
-const SORTS = [['online', 'Online first'], ['new', 'Newest'], ['seen', 'Last seen'], ['name', 'Name A–Z']];
+const SORTS = [['online', 'Online first'], ['new', 'Newest'], ['seen', 'Last seen'], ['points', 'Most points'], ['name', 'Name A–Z']];
 
 function Users({ users, bannedMap, latest, minVersion, filter, setFilter, openUid, setOpenUid, me }) {
   const [q, setQ] = useState('');
@@ -297,7 +309,7 @@ function Users({ users, bannedMap, latest, minVersion, filter, setFilter, openUi
     desktop: (u) => u.client === 'desktop',
     web: (u) => u.client === 'web',
     outdated: (u) => u.client === 'desktop' && u.ver && (minVersion ? verLess(u.ver, minVersion) : latest && verLess(u.ver, latest)),
-    custom: (u) => u.acc.length || u.tint || u.makeup,
+    custom: (u) => u.acc.length || u.tint || u.makeup || (u.style && (u.style.sp || u.style.of)),
     new: (u) => u.createdAt && now - u.createdAt < 7 * DAY,
     banned: (u) => bannedMap.has(u.uid),
   };
@@ -310,14 +322,15 @@ function Users({ users, bannedMap, latest, minVersion, filter, setFilter, openUi
     new: (a, b) => b.createdAt - a.createdAt,
     seen: (a, b) => b.lastSeen - a.lastSeen,
     name: (a, b) => a.username.localeCompare(b.username),
+    points: (a, b) => ((b.wallet ? b.wallet.points : -1) - (a.wallet ? a.wallet.points : -1)),
   }[sort];
   shown = [...shown].sort(cmp);
 
   const exportCsv = () => {
-    const head = ['username', 'uid', 'pet_name', 'character', 'online', 'last_seen', 'joined', 'platform', 'version', 'accessories', 'colour', 'makeup', 'suspended'];
+    const head = ['username', 'uid', 'pet_name', 'character', 'animal', 'outfit', 'online', 'last_seen', 'joined', 'platform', 'version', 'accessories', 'colour', 'makeup', 'points', 'items_owned', 'suspended'];
     const iso = (t) => (t ? new Date(t).toISOString() : '');
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = shown.map((u) => [u.username, u.uid, u.petName, u.skin, u.online, iso(u.lastSeen), iso(u.createdAt), u.client, u.ver, u.acc.join(' '), u.tint, u.makeup, bannedMap.has(u.uid)]);
+    const rows = shown.map((u) => [u.username, u.uid, u.petName, u.skin, (u.style || {}).sp || '', (u.style || {}).of || '', u.online, iso(u.lastSeen), iso(u.createdAt), u.client, u.ver, u.acc.join(' '), u.tint, u.makeup, u.wallet ? u.wallet.points : '', u.wallet ? u.wallet.owned.length : '', bannedMap.has(u.uid)]);
     const csv = [head, ...rows].map((r) => r.map(esc).join(',')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -338,18 +351,19 @@ function Users({ users, bannedMap, latest, minVersion, filter, setFilter, openUi
           <button key={k} className={filter === k ? 'on' : ''} onClick={() => { setFilter(k); setLimit(50); }}>{l}<em>{counts[k]}</em></button>
         ))}
       </div>
-      <div className="ad-thead"><span>User</span><span>Status</span><span>App</span><span>Joined</span><span>Last seen</span></div>
+      <div className="ad-thead"><span>User</span><span>Status</span><span>App</span><span>Points</span><span>Joined</span><span>Last seen</span></div>
       {shown.slice(0, limit).map((u) => {
         const ban = bannedMap.get(u.uid);
         const old = u.client === 'desktop' && u.ver && minVersion && verLess(u.ver, minVersion);
         return (
           <div key={u.uid} role="button" tabIndex={0} className={'ad-row' + (ban ? ' banned' : '')} onClick={() => setOpenUid(u.uid)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpenUid(u.uid))}>
-            <span className="ad-row-user"><Ava u={u} /><span><b>@{u.username}{u.uid === me && <em className="ad-tag ok">you</em>}</b><small>{u.petName || skinInfo(u.skin).label}{u.status ? ` · “${u.status}”` : ''}</small></span></span>
+            <span className="ad-row-user"><Ava u={u} size={42} /><span><b>@{u.username}{u.uid === me && <em className="ad-tag ok">you</em>}</b><small>{u.petName || skinInfo(u.skin).label}{lookLabel(u) ? ` · ${lookLabel(u)}` : ''}{u.status ? ` · “${u.status}”` : ''}</small></span></span>
             <span className="ad-row-st">
               {ban ? <em className="ad-tag bad">suspended</em> : u.online ? <em className={'ad-tag ' + (u.dnd ? 'warn' : 'ok')}>{u.dnd ? 'busy' : 'online'}</em> : <em className="ad-tag">offline</em>}
               {(u.acc.length > 0 || u.tint || u.makeup) && <em className="ad-tag vio" title="Customized">✨</em>}
             </span>
             <span className="ad-row-app">{u.client === 'desktop' ? <>🖥 v{u.ver || '?'}{old && <em className="ad-tag bad">old</em>}</> : u.client === 'web' ? '🌐 web' : '—'}</span>
+            <span className="ad-row-pts">{u.wallet ? <>{PT} {u.wallet.points}{u.wallet.owned.length ? <small> · {u.wallet.owned.length} items</small> : null}</> : <small className="dim">—</small>}</span>
             <span className="ad-row-d">{u.createdAt ? fmtDate(u.createdAt) : '—'}</span>
             <span className="ad-row-d">{u.online ? 'now' : ago(u.lastSeen)}</span>
           </div>
@@ -376,7 +390,7 @@ function UserDrawer({ u, ban, social, me, toast, onClose, minVersion }) {
     try { await fn(); toast({ text: ok }); } catch (x) { toast({ err: true, text: niceError(x) }); }
     setBusy('');
   };
-  const custom = u.acc.length || u.tint || u.makeup;
+  const custom = u.acc.length || u.tint || u.makeup || (u.style && (u.style.sp || u.style.of || u.style.sk));
   const old = u.client === 'desktop' && u.ver && minVersion && verLess(u.ver, minVersion);
   const row = (k, v) => <div className="ad-kv"><span>{k}</span><b>{v}</b></div>;
   return (
@@ -384,7 +398,7 @@ function UserDrawer({ u, ban, social, me, toast, onClose, minVersion }) {
       <aside className="ad-drawer" onClick={(e) => e.stopPropagation()}>
         <button className="sa-x ad-drawer-x" onClick={onClose} title="Close">✕</button>
         <div className="ad-drawer-pet">
-          <PetFigure skin={u.skin} mood={ban ? 'sleep' : u.online ? 'wave' : 'idle'} acc={u.acc} tint={u.tint} makeup={u.makeup} w={170} h={160} size={1.35} />
+          <PetFigure skin={u.skin} mood={ban ? 'sleep' : u.online ? 'wave' : 'idle'} acc={u.acc} tint={u.tint} makeup={u.makeup} look={u.style} w={170} h={160} size={1.35} />
         </div>
         <h3 className="ad-drawer-name">@{u.username}</h3>
         <p className="ad-drawer-sub">
@@ -399,9 +413,12 @@ function UserDrawer({ u, ban, social, me, toast, onClose, minVersion }) {
           {row('Joined', fmtDate(u.createdAt))}
           {row('Last seen', u.online ? 'now' : u.lastSeen ? new Date(u.lastSeen).toLocaleString() : 'never')}
           {row('App', u.client === 'desktop' ? <>Desktop v{u.ver || '?'} {old && <em className="ad-tag bad">needs update</em>}</> : u.client === 'web' ? 'Web' : 'Not reported')}
-          {row('Look', custom ? [u.acc.join(', '), u.tint && <span key="t" className="ad-sw big" style={{ background: u.tint }} />, u.makeup].filter(Boolean).map((x, i) => <span key={i}>{x} </span>) : 'Default')}
+          {row('Animal & outfit', lookLabel(u) || 'Classic')}
+          {row('Skill', (u.style && u.style.sk && (SHOP_SKILLS.find((x) => x.key === u.style.sk) || {}).label) || 'Signature move')}
+          {row('Hats & colour', (u.acc.length || u.tint || u.makeup) ? [u.acc.join(', '), /^#/.test(u.tint) ? <span key="t" className="ad-sw big" style={{ background: u.tint }} /> : u.tint === 'nat' ? 'natural colours' : '', u.makeup].filter(Boolean).map((x, i) => <span key={i}>{x} </span>) : 'Default')}
           {row('UID', <code className="sa-copy" onClick={() => { navigator.clipboard?.writeText(u.uid); toast({ text: 'UID copied' }); }}>{u.uid.slice(0, 14)}… ⧉</code>)}
         </div>
+        <WalletBox u={u} social={social} toast={toast} />
         <div className="ad-actions">
           <button className="btn small ghost" disabled={!custom || !!busy} onClick={() => confirm(`Reset @${u.username}'s look to default?`) && run('look', () => social.admin.resetLook(u.uid), 'Look reset')}>{busy === 'look' ? '…' : '↺ Reset look'}</button>
           {ban
@@ -412,6 +429,117 @@ function UserDrawer({ u, ban, social, me, toast, onClose, minVersion }) {
         {self && <p className="ad-foot">You can't suspend or remove your own account.</p>}
       </aside>
     </div>
+  );
+}
+
+// points, unlocked items and best scores, with admin controls
+function WalletBox({ u, social, toast }) {
+  const [n, setN] = useState('');
+  const [item, setItem] = useState('');
+  const [busy, setBusy] = useState(false);
+  const w = u.wallet;
+  const run = async (fn, ok) => { setBusy(true); try { await fn(); toast({ text: ok }); setN(''); } catch (x) { toast({ err: true, text: niceError(x) }); } setBusy(false); };
+  const best = w ? Object.entries(w.best || {}).filter(([, v]) => v > 0) : [];
+  const unowned = Object.values(ITEMS).filter((it) => it.price > 0 && !(w && w.owned.includes(it.id)));
+  return (
+    <div className="ad-wallet">
+      <div className="ad-wallet-head"><b>{PT} {w ? w.points : '—'}</b><span>points{w && w.streak ? ` · 🔥 ${w.streak}-day streak` : ''}</span></div>
+      {!w && <p className="sa-empty">No wallet yet (they haven’t opened Nibble since points arrived).</p>}
+      {w && (
+        <>
+          <div className="ad-owned">
+            {w.owned.length ? w.owned.map((id) => <span key={id} title={ITEMS[id] ? ITEMS[id].label : id}>{ITEMS[id] ? ITEMS[id].emoji : '•'} {ITEMS[id] ? ITEMS[id].label : id}</span>) : <small className="dim">No items unlocked yet</small>}
+          </div>
+          {best.length > 0 && <div className="ad-best">{best.map(([k, v]) => { const g = SOLO_ALL.find((x) => x.key === k); return <span key={k}>{g ? g.emoji : '🎮'} {g ? g.title : k}: <b>{v}</b></span>; })}</div>}
+          <div className="ad-wallet-row">
+            <input type="number" value={n} onChange={(e) => setN(e.target.value)} placeholder="e.g. 100" />
+            <button className="btn small" disabled={busy || n === ''} onClick={() => run(() => social.admin.setPoints(u.uid, n, 'add'), `${Number(n) >= 0 ? 'Gave' : 'Took'} ${Math.abs(Number(n))} points`)}>＋ Add</button>
+            <button className="btn small ghost" disabled={busy || n === ''} onClick={() => run(() => social.admin.setPoints(u.uid, n, 'set'), `Points set to ${n}`)}>Set to</button>
+          </div>
+          <div className="ad-wallet-row">
+            <select value={item} onChange={(e) => setItem(e.target.value)}><option value="">Give an item…</option>{unowned.map((it) => <option key={it.id} value={it.id}>{it.emoji} {it.label} ({it.price} {PT})</option>)}</select>
+            <button className="btn small ghost" disabled={busy || !item} onClick={() => run(() => social.admin.grantItem(u.uid, item), 'Item given')}>🎁 Give</button>
+            <button className="btn small ghost danger" disabled={busy} onClick={() => confirm(`Reset @${u.username}'s points to 100 and remove their unlocked items?`) && run(() => social.admin.resetWallet(u.uid), 'Wallet reset')}>↺ Reset</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// games on/off, points economy and live matches
+function GamesTab({ social, state, users, toast, setOpenUid, go }) {
+  const cfg = state.config || {};
+  const off = Array.isArray(cfg.gamesOff) ? cfg.gamesOff : [];
+  const [matches, setMatches] = useState([]);
+  useEffect(() => social.admin.watchMatches(setMatches), [social]);
+  const save = async (patch, ok) => { try { await social.admin.setConfig(patch); toast({ text: ok }); } catch (x) { toast({ err: true, text: niceError(x) }); } };
+  const toggleGame = (k) => save({ gamesOff: off.includes(k) ? off.filter((x) => x !== k) : [...off, k] }, off.includes(k) ? 'Game switched on' : 'Game switched off');
+  const wallets = users.filter((u) => u.wallet);
+  const total = wallets.reduce((t, u) => t + u.wallet.points, 0);
+  const today = Math.floor(Date.now() / DAY);
+  const earnedToday = wallets.reduce((t, u) => t + (u.wallet.day === today ? u.wallet.earned : 0), 0);
+  const sold = countBy(wallets.flatMap((u) => u.wallet.owned), (x) => x).slice(0, 8);
+  const rich = [...wallets].sort((a, b) => b.wallet.points - a.wallet.points).slice(0, 8);
+  const live = (matches || []).filter((m) => m.status !== 'done');
+  const name = (uid) => (users.find((u) => u.uid === uid) || {}).username || uid.slice(0, 6);
+  const Sw = ({ on, onChange }) => <button className={'ad-switch' + (on ? ' on' : '')} onClick={onChange} aria-pressed={on}><i /></button>;
+  return (
+    <>
+      <div className="ad-kpis ad-kpis4">
+        <Kpi n={`${PT} ${total.toLocaleString()}`} label="Points held" sub={`${wallets.length} wallets`} color={C.yellow} />
+        <Kpi n={earnedToday.toLocaleString()} label="Earned today" sub="by everyone" color={C.mint} />
+        <Kpi n={wallets.reduce((t, u) => t + u.wallet.owned.length, 0)} label="Items unlocked" sub="all time" color={C.pink} />
+        <Kpi n={live.length} label="Live friend games" sub={`${(matches || []).length} total`} color={C.cyan} />
+      </div>
+      <div className="sa-card">
+        <h3>🎮 Switches</h3>
+        <div className="ad-switches">
+          <label><Sw on={cfg.games !== false} onChange={() => save({ games: cfg.games === false }, cfg.games === false ? 'Games are on for everyone' : 'Games switched off for everyone')} /><span><b>Games</b><small>All mini games and friend games</small></span></label>
+          <label><Sw on={cfg.shop !== false} onChange={() => save({ shop: cfg.shop === false }, cfg.shop === false ? 'Shop is open' : 'Shop closed (nobody can buy)')} /><span><b>Shop</b><small>Unlocking items with points</small></span></label>
+        </div>
+        <h3 style={{ marginTop: 18 }}>Each game <small>{cfg.games === false ? 'all games are off right now' : 'switch single games off'}</small></h3>
+        <div className="ad-gamelist">
+          {[...SOLO_ALL.map((g) => [g.key, g.emoji, g.title, 'Solo']), ...Object.entries(LIVE_GAMES).map(([k, g]) => [k, g.emoji, g.label, 'With friends'])].map(([k, e, t, kind]) => {
+            const best = users.filter((u) => u.wallet && u.wallet.best[k] > 0).sort((a, b) => b.wallet.best[k] - a.wallet.best[k])[0];
+            return (
+              <div key={k} className={'ad-game' + (off.includes(k) || cfg.games === false ? ' off' : '')}>
+                <span className="ad-game-e">{e}</span>
+                <span className="ad-game-t"><b>{t}</b><small>{kind}{best ? ` · top: @${best.username} ${best.wallet.best[k]}` : ''}</small></span>
+                <Sw on={!off.includes(k)} onChange={() => toggleGame(k)} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="ad-grid2">
+        <div className="sa-card">
+          <h3>🏆 Most points</h3>
+          {rich.length === 0 && <p className="sa-empty">No wallets yet. They appear once people open the new version.</p>}
+          {rich.map((u, i) => (
+            <div key={u.uid} className="ad-lb-row ad-click" onClick={() => { go('users'); setOpenUid(u.uid); }}>
+              <em>{i + 1}</em><Ava u={u} size={34} /><b>@{u.username}</b><span>{PT} {u.wallet.points}</span>
+            </div>
+          ))}
+        </div>
+        <div className="sa-card">
+          <h3>🛍 Most unlocked</h3>
+          <HBars rows={sold.map(([id, n]) => ({ label: ITEMS[id] ? `${ITEMS[id].emoji} ${ITEMS[id].label}` : id, value: n, color: C.pink }))} max={sold.length ? sold[0][1] : 1} />
+        </div>
+      </div>
+      <div className="sa-card">
+        <h3>⚔️ Friend games right now <small>{live.length}</small></h3>
+        {matches === null && <p className="sa-empty">Needs the latest Firestore rules.</p>}
+        {live.length === 0 && matches !== null && <p className="sa-empty">No games in progress.</p>}
+        {live.map((m) => (
+          <div key={m.id} className="ad-hist">
+            <span className="ad-hist-ico">{(LIVE_GAMES[m.game] || {}).emoji || '🎮'}</span>
+            <div><b>@{name(m.players[0])} vs @{name(m.players[1])}</b><p>{(LIVE_GAMES[m.game] || {}).label} · {m.status === 'invite' ? 'waiting to accept' : `${m.moves || 0} moves, @${name(m.turn)}’s turn`}</p><small>{ago(m.at)}</small></div>
+            <button className="btn small ghost" onClick={async () => { try { await social.admin.endMatch(m.id); toast({ text: 'Game ended' }); } catch (x) { toast({ err: true, text: niceError(x) }); } }}>End</button>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -561,7 +689,7 @@ function SettingsTab({ social, state, users, banned, history, latest, toast, set
 }
 
 // ---------- shell ----------
-const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
+const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['games', 'Games & points', '🎮'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
 
 function Dashboard({ social, state }) {
   useNibble(); // loads the character palettes used for avatars and charts
@@ -609,6 +737,7 @@ function Dashboard({ social, state }) {
         {!users && (users === null ? <div className="sa-card"><p className="sa-empty">Couldn't load users — check the Firestore rules are published.</p></div> : <div className="ad-skel"><i /><i /><i /></div>)}
         {users && tab === 'overview' && <Overview users={list} banned={banned || []} latest={latest} minVersion={minVersion} go={go} />}
         {users && tab === 'users' && <Users users={list} bannedMap={bannedMap} latest={latest} minVersion={minVersion} filter={filter} setFilter={setFilter} openUid={openUid} setOpenUid={setOpenUid} me={state.user.uid} />}
+        {users && tab === 'games' && <GamesTab social={social} state={state} users={list} toast={toast} setOpenUid={setOpenUid} go={go} />}
         {tab === 'announce' && <Announce social={social} state={state} history={history} toast={toast} />}
         {users && tab === 'settings' && <SettingsTab social={social} state={state} users={list} banned={banned} history={history} latest={latest} toast={toast} setOpenUid={setOpenUid} go={go} />}
       </main>

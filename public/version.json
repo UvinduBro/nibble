@@ -1,13 +1,10 @@
 {
-  "version": "2.0.13",
+  "version": "2.0.14",
   "date": "2026-11-13",
   "notes": [
-    "New: 12 animals to choose from: cat, puppy, bunny, mouse, piglet, bear, frog, fox, panda, penguin, dragon and unicorn",
-    "New: Customize page: outfits in any colour (hoodie, dress, kimono, suit, cape and more), 24 hats and glasses, body colour picker",
-    "New: Games: 6 solo mini games starring your pet, plus live Tic-tac-toe and Connect Four with friends",
-    "New: ⭐ points: earn them from games, a daily bonus and friend actions, spend them on animals, outfits, emotes and skills, or gift them to friends",
-    "New: 8 more friend emotes (boop, flower, cake, fist bump, pillow fight, serenade, gift, bubbles) and 10 special moves any pet can learn",
-    "New: Music plays YouTube playlists and Spotify links",
-    "Better: refreshed Hub design"
+    "Fix: the app now really shows as Nibble with its own icon. The installer brands the app itself instead of downloading a separate tool",
+    "Fix: friends showing as offline when they were online (especially when signed in on both the web and desktop)",
+    "New games: Block Blast, Fruit Merge, 2048 Pets, Flappy Pet, Pet Wordle (a new word every day) and Snack Snake",
+    "Fix: Home page layout in the app"
   ]
 }

@@ -134,3 +134,24 @@ export default function PetFigure({ skin = 'mint', mood = 'idle', size = 1, w = 
 
   return <canvas ref={ref} className={className} style={{ width: w, height: h }} onClick={onClick} title={title} aria-label={`Nibble (${skin}) – ${mood}`} />;
 }
+
+// One still frame of a pet with its full look — cheap enough for long lists (admin user table).
+export function PetSnap({ skin = 'mint', acc, tint, makeup, look, size = 40, mood = 'idle' }) {
+  const ref = useRef(null);
+  const ready = useNibble();
+  const key = [skin, (acc || []).join(','), tint, makeup, look ? [look.sp, look.of, look.oc, look.sk].join('|') : '', size, mood].join('/');
+  useEffect(() => {
+    if (!ready || !ref.current) return;
+    const c = ref.current, ctx = c.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    c.width = size * dpr; c.height = size * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, size, size);
+    const sk = { ...(window.SKINS[skin] || window.SKINS.mint), neon: skin === 'cyber' };
+    const u = size / 78;
+    try {
+      window.NibbleDraw.drawPet(ctx, { x: size / 2 - 1.5 * u, y: size - 6 * u, dir: 1, sx: 1, sy: 1, walk: 0, t: 0.4, blink: 1, look: { x: 0, y: 0 }, eyes: mood === 'sleep' ? 'closed' : mood === 'happy' ? 'happy' : 'open', mouth: mood === 'happy' ? 'smile' : 'w', arms: 'down', ears: 0, stride: 0, bob: 0, tailWag: 3, acc: acc || [], tint: tint || '', makeup: makeup || '', style: look || null }, sk, u);
+    } catch { /* bad look data: leave it blank */ }
+  }, [ready, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <canvas ref={ref} style={{ width: size, height: size, display: 'block' }} aria-hidden="true" />;
+}

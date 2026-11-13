@@ -126,13 +126,13 @@ export default function Home() {
       <section id="about">
         <div className="sec-head reveal">
           <span className="kicker">07 · The story</span>
-          <h2>Made by two people who like tiny things that make you smile.</h2>
+          <h2>A tiny friend for your desktop, and for your friends’ too.</h2>
         </div>
         <About />
       </section>
 
       <footer className="foot">
-        <span><img src="/favicon.svg" alt="" width={22} height={22} /> nibble · by Uvindu Rajapakshe &amp; Wageesha Ruvangi</span>
+        <span><img src="/favicon.svg" alt="" width={22} height={22} /> nibble · developed by Uvindu Rajapakshe</span>
         <span className="mono">4 bits of pure joy · {'</>'}</span>
       </footer>
     </main>

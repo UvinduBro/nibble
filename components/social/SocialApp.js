@@ -614,16 +614,16 @@ function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith 
           <button className="btn small" onClick={() => go('profile')}>Set up</button>
         </div>
       )}
-      <div className="sa-quick">
-        <button className="sa-card sa-q q-pts" onClick={() => go('games')}>
+      <div className="sa-homeq">
+        <button className="sa-q q-pts" onClick={() => go('games')}>
           <span className="sa-q-ico">{PT}</span>
           <span><b>{state.wallet && state.wallet.ready ? state.wallet.points : '…'} points</b><small>{state.wallet && state.wallet.canDaily ? '🎁 Daily bonus waiting' : 'Play games to earn more'}</small></span>
         </button>
-        <button className="sa-card sa-q q-games" onClick={() => go('games')}>
+        <button className="sa-q q-games" onClick={() => go('games')}>
           <span className="sa-q-ico">🎮</span>
-          <span><b>{myTurns(state) ? `${myTurns(state)} game${myTurns(state) > 1 ? 's' : ''} waiting` : 'Mini games'}</b><small>{myTurns(state) ? 'A friend is waiting on your move' : '6 solo games + play with friends'}</small></span>
+          <span><b>{myTurns(state) ? `${myTurns(state)} game${myTurns(state) > 1 ? 's' : ''} waiting` : 'Mini games'}</b><small>{myTurns(state) ? 'A friend is waiting on your move' : '12 solo games + play with friends'}</small></span>
         </button>
-        <button className="sa-card sa-q q-style" onClick={() => go('style')}>
+        <button className="sa-q q-style" onClick={() => go('style')}>
           <span className="sa-q-ico">✿</span>
           <span><b>Customize</b><small>12 animals, outfits in any colour</small></span>
         </button>

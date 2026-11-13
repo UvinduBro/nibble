@@ -1,4 +1,4 @@
-// "About" — how Nibble started, and the two people behind it.
+// "About" — the idea behind Nibble, and the two people behind it.
 const PEOPLE = [
   {
     name: 'Uvindu Rajapakshe',
@@ -28,12 +28,12 @@ export default function About() {
     <>
       <div className="about-story reveal">
         <p>
-          Nibble is a desktop pet for Windows, created by <b>Uvindu Rajapakshe</b>. The idea was simple: a small companion that
-          lives on your screen, walks along your windows and keeps you company while you work.
+          Nibble is a tiny companion that lives on your desktop. It walks along the tops of your windows, hops between them,
+          naps on the taskbar and reacts to what you’re doing, so your screen feels a little less lonely while you work.
         </p>
         <p>
-          <b>Wageesha Ruvangi</b> is the person behind the project. Her idea of letting friends’ pets visit each other became
-          Nibble Social, and her testing and feedback shaped the reminders, pet interactions, sounds and shared music.
+          The idea grew from one pet into a small social world: friends’ pets can visit each other, deliver messages, cuddle,
+          squabble and make up over ice cream, remind you about deadlines, play games and even listen to music together.
         </p>
         <p className="about-sign">Designed and built in Sri Lanka.</p>
       </div>

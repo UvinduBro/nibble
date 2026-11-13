@@ -127,8 +127,10 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
   const dirty = skin !== (prof.skin || 'mint') || tint !== (prof.tint || '') || makeup !== (prof.makeup || '') || acc.join() !== (prof.acc || []).join()
     || sp !== (st0.sp || '') || of !== (st0.of || '') || oc !== (st0.oc || '') || sk !== (st0.sk || '');
 
+  const shopOff = state.config && state.config.shop === false;
   const buy = async (id) => {
     const it = ITEMS[id];
+    if (shopOff) { toast({ err: true, text: 'The shop is closed for now. Try again later!' }); return; }
     setBusy(true);
     try { await social.wallet.buy(id); toast({ text: `${it.emoji} ${it.label} unlocked!` }); poke('happy'); }
     catch (e) { toast({ err: true, text: niceError(e) }); }
@@ -174,8 +176,8 @@ export default function Wardrobe({ social, state, desktop, local, toast, go }) {
             {locked.length > 0 && (
               <div className="wd-locked">
                 <span>Trying on {locked.length} locked item{locked.length > 1 ? 's' : ''} · {PT} {lockedCost}</span>
-                <button className="btn small" disabled={busy || (wallet.points || 0) < lockedCost} onClick={buyAll}>
-                  {(wallet.points || 0) < lockedCost ? `Need ${lockedCost - (wallet.points || 0)} more ⭐` : 'Unlock all'}
+                <button className="btn small" disabled={busy || shopOff || (wallet.points || 0) < lockedCost} onClick={buyAll}>
+                  {shopOff ? 'Shop closed' : (wallet.points || 0) < lockedCost ? `Need ${lockedCost - (wallet.points || 0)} more ⭐` : 'Unlock all'}
                 </button>
               </div>
             )}

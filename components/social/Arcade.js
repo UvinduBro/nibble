@@ -2,7 +2,10 @@
 // Games: solo mini games that earn points (⭐), the daily bonus, gifting points, and live games with friends.
 import { useEffect, useRef, useState } from 'react';
 import { useNibble } from '../PetFigure';
-import { SOLO, MAKERS } from '../games/solo';
+import { SOLO as SOLO1, MAKERS as MAKERS1 } from '../games/solo';
+import { SOLO2, MAKERS2, wordleDay } from '../games/solo2';
+const SOLO = [...SOLO2, ...SOLO1];
+const MAKERS = { ...MAKERS1, ...MAKERS2 };
 import { GAMES, judge, winLine, WIN_PTS, DRAW_PTS, LOSE_PTS } from '../../lib/social/games';
 import { DAY_CAP, GIFT_MAX, SOCIAL_CAP } from '../../lib/social/wallet';
 import { PT } from '../../lib/shop';
@@ -43,7 +46,7 @@ function GameRunner({ game, look, onEnd, onQuit }) {
       pet(x, y, pose = {}, scale = 1) {
         window.NibbleDraw.drawPet(ctx, { x, y, dir: 1, sx: 1, sy: 1, walk: 0, t, blink: Math.sin(t * 1.7) > 0.97 ? 0.1 : 1, look: { x: 0, y: 0 }, eyes: 'open', mouth: 'w', arms: 'down', ears: 0, stride: 0, bob: 0, tailWag: 6, acc: look.acc, tint: look.tint, makeup: look.makeup, style: look.style, ...pose }, skin, 1.15 * scale);
       },
-      end(score) { if (ended) return; ended = true; setTimeout(() => { const r = endRef.current(score); setResult({ score, ...r }); }, 650); },
+      end(score, meta) { if (ended) return; ended = true; setTimeout(() => { const r = endRef.current(score, meta); setResult({ score, ...r }); }, 650); },
       sound: blip,
     };
     const g = MAKERS[game.key](ctx, api);
@@ -59,8 +62,11 @@ function GameRunner({ game, look, onEnd, onQuit }) {
       g.draw(dt);
     };
     raf = requestAnimationFrame(loop);
-    const KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Enter', 'a', 'd', 'w']);
-    const kd = (e) => { if (KEYS.has(e.key) && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) { e.preventDefault(); g.key(e.key, true); } };
+    const KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Enter', 'a', 'd', 'w', 'Backspace']);
+    const kd = (e) => {
+      if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (KEYS.has(e.key) || (game.key === 'wordle' && /^[a-zA-Z]$/.test(e.key))) { e.preventDefault(); g.key(e.key, true); }
+    };
     const ku = (e) => { if (KEYS.has(e.key)) g.key(e.key, false); };
     const pos = (e) => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * (W / r.width), (e.clientY - r.top) * (H / r.height)]; };
     const pd = (e) => { e.preventDefault(); c.setPointerCapture && c.setPointerCapture(e.pointerId); g.point(...pos(e), 'down'); };
@@ -85,7 +91,7 @@ function GameRunner({ game, look, onEnd, onQuit }) {
               <span className="ar-big">{game.emoji}</span>
               <h3>Score {result.score}</h3>
               {result.best && <p className="ar-best">New personal best! 🏆</p>}
-              <p className="ar-earned">{result.got > 0 ? `+${result.got} ${PT}` : result.capped ? 'Daily points limit reached — come back tomorrow!' : 'No points this time'}</p>
+              <p className="ar-earned">{result.got > 0 ? `+${result.got} ${PT}` : result.daily ? 'You already got today’s points. New word tomorrow!' : result.capped ? 'Daily points limit reached — come back tomorrow!' : 'No points this time'}</p>
               <div className="ar-result-btns">
                 <button className="btn" autoFocus onClick={() => setRun((n) => n + 1)}>Play again</button>
                 <button className="btn ghost" onClick={onQuit}>Back</button>
@@ -124,10 +130,10 @@ function Board({ m, me, social, toast }) {
   );
 }
 
-function FriendGames({ social, state, toast }) {
+function FriendGames({ social, state, toast, off = [] }) {
   const me = state.user.uid;
   const [fr, setFr] = useState('');
-  const [game, setGame] = useState('ttt');
+  const [game, setGame] = useState(off.includes('ttt') ? 'c4' : 'ttt');
   const [open, setOpen] = useState(null);
   const matches = state.matches || [];
   const friends = state.friends;
@@ -147,7 +153,7 @@ function FriendGames({ social, state, toast }) {
       {!friends.length ? <p className="sa-sub">Add a friend first, then challenge them here.</p> : (
         <div className="ar-challenge">
           <select value={fr} onChange={(e) => setFr(e.target.value)}>{friends.map((f) => <option key={f.uid} value={f.uid}>@{f.username}{f.online ? ' · online' : ''}</option>)}</select>
-          <div className="ar-gpick">{Object.entries(GAMES).map(([k, g]) => <button key={k} className={game === k ? 'on' : ''} onClick={() => setGame(k)}>{g.emoji} {g.label}</button>)}</div>
+          <div className="ar-gpick">{Object.entries(GAMES).filter(([k]) => !off.includes(k)).map(([k, g]) => <button key={k} className={game === k ? 'on' : ''} onClick={() => setGame(k)}>{g.emoji} {g.label}</button>)}</div>
           <button className="btn small" onClick={challenge}>Challenge</button>
         </div>
       )}
@@ -183,6 +189,9 @@ export default function Arcade({ social, state, toast }) {
   const prof = state.profile;
   const look = { skin: prof.skin || 'mint', acc: prof.acc || [], tint: prof.tint || '', makeup: prof.makeup || '', style: prof.style || null };
   const [playing, setPlaying] = useState(null);
+  // admins can switch games off (config/app: games = false turns them all off, gamesOff = [keys])
+  const cfg = state.config || {};
+  const gamesOff = Array.isArray(cfg.gamesOff) ? cfg.gamesOff : [];
   const [claiming, setClaiming] = useState(false);
   const [gift, setGift] = useState({ to: '', amount: 20 });
   const [board, setBoard] = useState([]);
@@ -191,7 +200,13 @@ export default function Arcade({ social, state, toast }) {
   useEffect(() => { social.wallet.friendsBest().then(setBoard).catch(() => {}); }, [social, state.friends.length, playing]);
   useEffect(() => { if (!gift.to && state.friends.length) setGift((g) => ({ ...g, to: state.friends[0].uid })); }, [state.friends, gift.to]);
 
-  const finish = (game) => (score) => {
+  const finish = (game) => (score, meta) => {
+    // daily games (Pet Wordle) pay out once a day
+    if (game.daily) {
+      const k = 'nibble-daily-' + game.key + '-' + state.user.uid + '-' + wordleDay();
+      let done = false; try { done = localStorage.getItem(k) === '1'; localStorage.setItem(k, '1'); } catch {}
+      if (done) { social.wallet.best(game.key, score).catch(() => {}); return { got: 0, best: false, capped: false, daily: true }; }
+    }
     const pts = game.pts(score);
     const got = social.wallet.earn(pts, game.key);
     const prev = (w.best || {})[game.key] || 0;
@@ -254,12 +269,16 @@ export default function Arcade({ social, state, toast }) {
           ) : <p className="sa-sub">Add friends to send them points.</p>}
         </form>
       </div>
+      {cfg.games === false ? (
+        <div className="sa-card ar-off"><span>🛠</span><div><b>Games are taking a little break</b><p className="sa-sub">The Nibble team switched games off for now. Your points are safe, and you can still spend them in Customize.</p></div></div>
+      ) : (<>
       <h3 className="ar-h">Solo games</h3>
       <div className="ar-games">
-        {SOLO.map((g) => {
+        {SOLO.filter((g) => !gamesOff.includes(g.key)).map((g) => {
           const lb = top(g.key);
           return (
             <button key={g.key} className="ar-game" onClick={() => setPlaying(g)}>
+              {g.isNew && <span className="ar-new">NEW</span>}
               <span className="ar-emoji">{g.emoji}</span>
               <b>{g.title}</b>
               <small>{g.blurb}</small>
@@ -272,7 +291,8 @@ export default function Arcade({ social, state, toast }) {
           );
         })}
       </div>
-      <FriendGames social={social} state={state} toast={toast} />
+      {Object.keys(GAMES).some((k) => !gamesOff.includes(k)) && <FriendGames social={social} state={state} toast={toast} off={gamesOff} />}
+      </>)}
     </div>
   );
 }

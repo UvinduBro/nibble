@@ -384,3 +384,17 @@ kbd { font-size: 12.5px; background: var(--card2); border: 1px solid rgba(255, 2
 .glitch:hover .gl-a, .glitch:hover .gl-b { animation-duration: 1.6s; }
 @media (prefers-reduced-motion: reduce) { .gl { animation: none; } }
 @media (max-width: 760px) { .about-cards { grid-template-columns: minmax(0, 380px); } }
+
+/* About cards 2.0.14: smaller, horizontal, side by side */
+.about-cards { grid-template-columns: repeat(2, minmax(0, 430px)); gap: 20px; }
+.about-card { display: flex; align-items: stretch; border-radius: 20px; }
+.about-card .glitch { width: 150px; flex: none; aspect-ratio: auto; min-height: 190px; }
+.about-body { flex: 1; min-width: 0; padding: 18px 18px 16px; display: flex; flex-direction: column; justify-content: center; }
+.about-body h3 { font-size: 19px; }
+.about-role { font-size: 12px; }
+.about-social { margin-top: 12px; gap: 8px; }
+.about-social a { width: 34px; height: 34px; border-radius: 10px; }
+.about-social svg { width: 17px; height: 17px; }
+.about-tag { left: 8px; bottom: 8px; font-size: 10px; padding: 3px 8px; }
+@media (max-width: 900px) { .about-cards { grid-template-columns: minmax(0, 430px); } }
+@media (max-width: 420px) { .about-card .glitch { width: 118px; min-height: 160px; } }

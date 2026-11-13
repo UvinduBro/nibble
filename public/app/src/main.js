@@ -24,11 +24,15 @@ function brandShortcuts() {
     path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Nibble', 'Nibble.lnk'),
     path.join(app.getPath('desktop'), 'Nibble.lnk'),
   ];
+  // a Nibble pinned to the taskbar is a shortcut too: give it the app id + icon so it doesn't show Electron's
+  const pins = path.join(app.getPath('appData'), 'Microsoft', 'Internet Explorer', 'Quick Launch', 'User Pinned', 'TaskBar');
+  try { for (const f of fs.readdirSync(pins)) if (/\.lnk$/i.test(f)) links.push(path.join(pins, f)); } catch {}
   for (const l of links) {
     try {
       if (!fs.existsSync(l)) continue;
       const cur = shell.readShortcutLink(l);
-      if (cur.appUserModelId === 'lk.uvi.nibble') continue;
+      if (path.resolve(cur.target || '').toLowerCase() !== path.resolve(process.execPath).toLowerCase() && !/nibble\.lnk$/i.test(l)) continue;
+      if (cur.appUserModelId === 'lk.uvi.nibble' && (!fs.existsSync(ico) || (cur.icon || '').toLowerCase() === ico.toLowerCase())) continue;
       shell.writeShortcutLink(l, 'update', { target: process.execPath, appUserModelId: 'lk.uvi.nibble', ...(fs.existsSync(ico) ? { icon: ico, iconIndex: 0 } : {}), description: 'Nibble - desktop pet' });
     } catch {}
   }

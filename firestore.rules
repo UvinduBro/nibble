@@ -54,7 +54,8 @@ service cloud.firestore {
     match /config/{doc} {
       allow read: if signedIn();
       allow write: if isAdmin()
-        && incoming().keys().hasOnly(['minVersion', 'updateMsg', 'notice', 'noticeLevel', 'updatedAt', 'by'])
+        && incoming().keys().hasOnly(['minVersion', 'updateMsg', 'notice', 'noticeLevel', 'updatedAt', 'by', 'games', 'gamesOff', 'shop'])
+        && (!('gamesOff' in incoming()) || (incoming().gamesOff is list && incoming().gamesOff.size() <= 30))
         && shortText(incoming().get('minVersion', ''), 12)
         && shortText(incoming().get('updateMsg', ''), 160)
         && shortText(incoming().get('notice', ''), 200)
@@ -245,6 +246,8 @@ service cloud.firestore {
         && incoming().streak == 0 && incoming().daily == 0 && incoming().gin == '' && incoming().gout == '';
       allow update: if signedIn() && uid == me() && !isBanned() && walletShape()
         && (earnOk() || spendOk() || giftOutOk() || giftInOk() || bestOnly());
+      // admins can set points, grant items or reset a wallet
+      allow update: if isAdmin() && walletShape();
       allow delete: if isAdmin();
     }
     // a gift of points between friends: the sender's wallet drops by `amount` in the same batch,
@@ -278,14 +281,14 @@ service cloud.firestore {
         && shortText(incoming().get('turn', ''), 40) && shortText(incoming().get('winner', ''), 40);
     }
     match /matches/{mid} {
-      allow read: if signedIn() && (resource == null || me() in resource.data.players);
+      allow read: if signedIn() && (resource == null || me() in resource.data.players || isAdmin());
       allow create: if signedIn() && !isBanned() && matchShape()
         && incoming().players[0] == me() && incoming().players[1] != me()
         && isFriendOf(incoming().players[1]) && incoming().status == 'invite';
       allow update: if signedIn() && !isBanned() && me() in resource.data.players && matchShape()
         && incoming().players == resource.data.players && incoming().game == resource.data.game
         && (resource.data.turn == me() || incoming().board == resource.data.board);
-      allow delete: if signedIn() && me() in resource.data.players;
+      allow delete: if signedIn() && (me() in resource.data.players || isAdmin());
     }
 
     // direct pokes, waves, cuddles and whispers. Only friends can send; only you can read.
