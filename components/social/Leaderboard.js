@@ -13,12 +13,16 @@ export default function Leaderboard({ social, state, go, toast }) {
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState('');
   const myTotal = state.wallet && state.wallet.ready ? state.wallet.total : null;
-  const load = () => {
+  const load = (force) => {
     setErr('');
-    social.wallet.leaderboard(scope).then(setRows).catch((e) => { setRows([]); setErr(niceError(e)); });
+    social.wallet.leaderboard(scope, force).then(setRows).catch((e) => { setRows([]); setErr(niceError(e)); });
   };
   useEffect(() => { setRows(null); load(); }, [scope, state.friends.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { const t = setInterval(load, 60_000); return () => clearInterval(t); }, [scope]); // eslint-disable-line react-hooks/exhaustive-deps
+  // refresh every 5 minutes, but only while you can actually see it (the Hub stays open hidden all day)
+  useEffect(() => {
+    const t = setInterval(() => { if (!document.hidden && !window.__nibbleHidden) load(true); }, 5 * 60_000);
+    return () => clearInterval(t);
+  }, [scope]); // eslint-disable-line react-hooks/exhaustive-deps
   const meIdx = rows ? rows.findIndex((r) => r.me) : -1;
   const top = rows ? rows.slice(0, 3) : [];
   const rest = rows ? rows.slice(3) : [];

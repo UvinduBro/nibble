@@ -305,18 +305,48 @@ export function useRoomPlayer(social, state, toast) {
 }
 
 // ---------- dock: always-visible mini player (also hosts the YouTube video) ----------
+// Three sizes, remembered on this device: 'video' (video + bar), 'bar' (no video, just the bar)
+// and 'tiny' (a small round button). It tucks itself to the tiny button on the Games tab
+// unless you turn that off.
+const DOCK_KEY = 'nibble-dock';
+export function readDock() {
+  try { const v = JSON.parse(localStorage.getItem(DOCK_KEY) || '{}'); return { mode: ['video', 'bar', 'tiny'].includes(v.mode) ? v.mode : 'video', games: v.games !== false }; }
+  catch { return { mode: 'video', games: true }; }
+}
+export function saveDock(p) {
+  try { localStorage.setItem(DOCK_KEY, JSON.stringify(p)); } catch {}
+  try { window.dispatchEvent(new CustomEvent('nibble-dock', { detail: p })); } catch {}
+}
 export function MusicDock({ social, state, player, go, tab }) {
   const room = state.music && state.music.room;
   const t = room && room.track;
   const music = social.music;
-  const video = !!(t && t.src === 'yt');
-  const spot = !!(t && t.src === 'sp');
-  // one stable element hosts the YouTube player, shown at YouTube's minimum 200px height while it plays
+  const [pref, setPref] = useState({ mode: 'video', games: true });
+  const [peek, setPeek] = useState(false);   // opened the tiny button while on Games
+  useEffect(() => {
+    setPref(readDock());
+    const on = (e) => setPref(e.detail || readDock());
+    window.addEventListener('nibble-dock', on);
+    return () => window.removeEventListener('nibble-dock', on);
+  }, []);
+  useEffect(() => { setPeek(false); }, [tab]);
+  const save = (p) => saveDock(p);
+  const auto = pref.games && tab === 'games' && !peek;
+  const mode = auto ? 'tiny' : pref.mode;
+  const setMode = (m) => { if (auto || (pref.games && tab === 'games')) setPeek(m !== 'tiny'); save({ ...pref, mode: m }); };
+  const showMedia = mode === 'video';
+  const video = !!(t && t.src === 'yt') && showMedia;
+  const spot = !!(t && t.src === 'sp') && showMedia;
+  // one stable element hosts the YouTube player; when the video is hidden the element stays in
+  // the page (1px, invisible) so the music keeps playing
   return (
-    <div className={'mu-float' + (room ? '' : ' none')}>
+    <div className={'mu-float' + (room ? '' : ' none') + (mode === 'tiny' ? ' tiny' : '')}>
       <div className={'mu-ytbox' + (video ? '' : ' hidden')} ref={player.setYtBox} />
       <div className={'mu-spbox' + (spot ? '' : ' hidden')} ref={player.setSpBox} />
-      {room && (
+      {room && mode === 'tiny' && (
+        <button className="mu-tiny" onClick={() => setMode('bar')} title={t ? `${t.title}: show the mini player` : 'Show the mini player'} aria-label="Show the mini player"><span className={room.playing ? 'spin' : ''}>🎧</span></button>
+      )}
+      {room && mode !== 'tiny' && (
         <div className="mu-dock">
           {!video && <div className={'mu-disc' + (room.playing ? ' spin' : '')}>🎧</div>}
           <button className="mu-dock-info" onClick={() => go('music')} title="Open Music">
@@ -327,6 +357,10 @@ export function MusicDock({ social, state, player, go, tab }) {
           {t && <button className="mu-icon" title={room.playing ? 'Pause for everyone' : 'Play for everyone'} onClick={() => (room.playing ? music.pause() : music.resume()).catch(() => {})}>{room.playing ? '⏸' : '▶'}</button>}
           {t && <button className="mu-icon" title="Next" onClick={() => music.next(t.k, { skip: true })}>⏭</button>}
           <button className="mu-icon" title={player.muted ? 'Unmute (just for me)' : 'Mute (just for me)'} onClick={() => player.setMuted(!player.muted)}>{player.muted ? '🔇' : '🔈'}</button>
+          {t && (t.src === 'yt' || t.src === 'sp') && (
+            <button className="mu-icon" title={mode === 'video' ? 'Hide the video (music keeps playing)' : 'Show the video'} onClick={() => setMode(mode === 'video' ? 'bar' : 'video')}>{mode === 'video' ? '🙈' : '📺'}</button>
+          )}
+          <button className="mu-icon" title="Shrink to a small button" onClick={() => setMode('tiny')}>▾</button>
         </div>
       )}
     </div>

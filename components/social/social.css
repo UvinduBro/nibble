@@ -933,3 +933,11 @@
 .lb-pts { font-weight: 800; color: var(--yellow); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lb-you { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 @media (max-width: 640px) { .lb-podium { gap: 6px; } .lb-medal { right: 2%; } }
+/* mini player: shrunk to a small round button (Settings → Music mini player, auto on the Games tab) */
+.mu-float.tiny { width: auto; align-items: flex-end; }
+.mu-tiny { width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.14); background: radial-gradient(circle, #2a2f58 0 30%, #12152b 31% 100%); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); font-size: 20px; cursor: pointer; display: grid; place-items: center; transition: transform 0.15s; }
+.mu-tiny:hover { transform: scale(1.08); }
+.mu-tiny span { display: inline-block; }
+.mu-tiny span.spin { animation: mu-spin 4s linear infinite; }
+@keyframes mu-spin { to { transform: rotate(360deg); } }
+@media (max-width: 900px) { .mu-float.tiny { left: auto; } }

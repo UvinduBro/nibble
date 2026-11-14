@@ -14,7 +14,7 @@ export const metadata = {
   openGraph: { title: 'Nibble: a desktop pet that lives on your windows', description: 'Walks on your windows. Codes with you. Dances to your music.' },
 };
 
-export const viewport = { themeColor: '#0b0d17' };
+export const viewport = { themeColor: '#0f1714' };
 
 export default function RootLayout({ children }) {
   return (

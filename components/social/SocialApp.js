@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocial } from './useSocial';
 import { AuthScreen, Onboard } from './Auth';
 import LiveDesk from './LiveDesk';
-import { Music, MusicDock, useRoomPlayer } from './Music';
+import { Music, MusicDock, useRoomPlayer, readDock, saveDock } from './Music';
 import PetFigure, { useNibble } from '../PetFigure';
 import { byKey, CHARACTERS } from '../../lib/characters';
 import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess, cleanStyleMap } from '../../lib/social/social';
@@ -408,6 +408,7 @@ function Settings({ social, state, desktop, local, toast }) {
         <Toggle label="Appear offline" hint="Your pet stops visiting friends. You still see theirs." on={state.prefs.invisible} onChange={(v) => social.setPrefs({ invisible: v })} />
         {desktop && <Toggle label="Friends’ pets visit my desktop" hint="Online friends’ pets walk around on your screen." on={s.showFriends !== false} onChange={(v) => set({ showFriends: v })} />}
       </div>
+      <DockSettings />
       {desktop && local && <ExtraPets state={state} desktop={desktop} local={local} />}
       {desktop && local && (
         <div className="sa-card">
@@ -445,6 +446,26 @@ function Settings({ social, state, desktop, local, toast }) {
           <button className="btn small" onClick={() => desktop.update()}>{local.latest ? `Update to ${local.latest}` : 'Reinstall / update'}</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Settings card: how the music mini player in the corner behaves (saved on this device)
+function DockSettings() {
+  const [p, setP] = useState({ mode: 'video', games: true });
+  useEffect(() => {
+    setP(readDock());
+    const on = (e) => setP(e.detail || readDock());
+    window.addEventListener('nibble-dock', on);
+    return () => window.removeEventListener('nibble-dock', on);
+  }, []);
+  const save = (n) => { setP(n); saveDock(n); };
+  return (
+    <div className="sa-card">
+      <h3>Music mini player</h3>
+      <p className="sa-sub">The player in the bottom-right corner while you’re in a music room. Music keeps playing whichever you pick.</p>
+      <div className="sa-seg">Show {[['video', 'Video'], ['bar', 'Just controls'], ['tiny', 'Small button']].map(([v, l]) => <button key={v} className={p.mode === v ? 'on' : ''} onClick={() => save({ ...p, mode: v })}>{l}</button>)}</div>
+      <Toggle label="Tuck it away during games" hint="Shrinks to a small 🎧 button on the Games tab" on={p.games} onChange={(v) => save({ ...p, games: v })} />
     </div>
   );
 }
