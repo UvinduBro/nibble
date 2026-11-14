@@ -1,0 +1,35 @@
+# Builds the Windows runtime with Nibble's name + icon already baked into Nibble.exe, checks it on a
+# real Windows machine (name, icon, and that it starts), and publishes it for the installers:
+#   https://github.com/UvinduBro/nibble/releases/download/win-runtime/nibble-runtime-win32-x64.zip (+ .sha256)
+# So nobody's PC has to brand the exe itself any more.
+name: Windows runtime (branded Nibble.exe)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['public/app/brand.js', 'public/nibble.ico', 'lib/installer.js', 'tools/windows-runtime/**', '.github/workflows/win-runtime.yml']
+permissions:
+  contents: write
+concurrency:
+  group: win-runtime
+  cancel-in-progress: true
+jobs:
+  runtime:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build, brand and check
+        shell: pwsh
+        run: ./tools/windows-runtime/build.ps1
+      - name: Publish (release "win-runtime", not marked latest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="win-runtime"
+          NOTE="Electron $(cat dist-win/electron-version.txt) for Windows with Nibble's name and icon in Nibble.exe (checked on a Windows runner: name, icon, starts). Used by Get-Nibble.exe and the install script. SHA-256: $(cat dist-win/nibble-runtime-win32-x64.zip.sha256)"
+          if gh release view "$TAG" >/dev/null 2>&1; then gh release edit "$TAG" --notes "$NOTE" --latest=false; else gh release create "$TAG" --title "Nibble Windows runtime" --notes "$NOTE" --latest=false; fi
+          gh release upload "$TAG" dist-win/nibble-runtime-win32-x64.zip dist-win/nibble-runtime-win32-x64.zip.sha256 dist-win/icon-check.png --clobber

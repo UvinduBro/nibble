@@ -384,9 +384,26 @@
     }
   }
 
+  // a drag/press whose mouse-up never reached us (released over another window, a menu popped up,
+  // the screen locked…) must not keep the pets stuck
+  function endPress() {
+    if (dragging) { try { dragging.release(env); } catch (_) {} }
+    dragging = null;
+    press = null;
+    document.body.classList.remove('grabbing');
+  }
+  addEventListener('blur', endPress);
+  // keep the main process in step with what we think (it re-applies it to the window)
+  setInterval(() => {
+    if (!api) return;
+    if (press && performance.now() - press.t0 > 20000 && !dragging) press = null;
+    api.setIgnore(ignoring);
+  }, 1500);
+
   addEventListener('mousemove', (e) => {
     const x = e.clientX, y = e.clientY;
     env.cursor = { x, y, movedAt: env.time };
+    if ((press || dragging) && e.buttons === 0) { endPress(); updateHover(x, y); return; }
     if (press && !dragging && Math.hypot(x - press.x, y - press.y) > 5) {
       dragging = press.pet;
       dragging.startDrag(x, y);

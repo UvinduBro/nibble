@@ -24,15 +24,17 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("Nibble")]
 [assembly: AssemblyCompany("Uvi")]
 [assembly: AssemblyCopyright("Nibble by Uvi")]
-[assembly: AssemblyVersion("2.0.19.0")]
-[assembly: AssemblyFileVersion("2.0.19.0")]
+[assembly: AssemblyVersion("2.0.21.0")]
+[assembly: AssemblyFileVersion("2.0.21.0")]
 
 static class Cfg
 {
     public const string Site = "https://nibblex.vercel.app";
-    public static string Ver = "2.0.19";
+    public static string Ver = "2.0.21";
     public const string ElectronVer = "45.2.3";
     public const string ElectronSha = "489CD061908E697394B004298BF5FFD345C935D10E8CA197BA819F019AB2DEC0";
+    // Electron with Nibble's name + icon already in Nibble.exe, built and checked on a Windows machine by GitHub Actions
+    public const string RuntimeUrl = "https://github.com/UvinduBro/nibble/releases/download/win-runtime/nibble-runtime-win32-x64.zip";
 
     // [remote path on site, destination under resources/app]. The live list is read from
     // <site>/install-files.txt, so new app files never get left out; this is only the fallback.
@@ -156,15 +158,34 @@ class SetupForm : Form
         KillNibble();
         LoadLiveList();
 
+        // 1st choice: the ready-made runtime (Nibble.exe already has Nibble's name + icon)
+        string pre = Path.Combine(Path.GetTempPath(), "nibble-runtime-win32-x64.zip");
+        bool usePre = false;
+        try {
+            string want;
+            using (var wc = new WebClient()) { wc.Headers.Add("User-Agent", "NibbleSetup/" + Cfg.Ver); want = wc.DownloadString(Cfg.RuntimeUrl + ".sha256").Trim(); }
+            if (want.Length == 64) {
+                bool have = File.Exists(pre) && Sha256(pre).Equals(want, StringComparison.OrdinalIgnoreCase);
+                if (!have) {
+                    Say("Downloading Nibble (~110 MB)… grab a coffee");
+                    Download(Cfg.RuntimeUrl, pre, true);
+                }
+                usePre = Sha256(pre).Equals(want, StringComparison.OrdinalIgnoreCase);
+                if (!usePre) { try { File.Delete(pre); } catch {} Say("That download didn't check out; using the standard runtime instead."); }
+            }
+        } catch { usePre = false; }
+
         string zip = Path.Combine(Path.GetTempPath(), "nibble-electron-" + Cfg.ElectronVer + "-win32-x64.zip");
-        bool cached = File.Exists(zip) && Sha256(zip).Equals(Cfg.ElectronSha, StringComparison.OrdinalIgnoreCase);
-        if (!cached) {
-            Say("Downloading the runtime (Electron " + Cfg.ElectronVer + ", ~110 MB) from GitHub…");
-            Download("https://github.com/electron/electron/releases/download/v" + Cfg.ElectronVer + "/electron-v" + Cfg.ElectronVer + "-win32-x64.zip", zip, true);
-            string h = Sha256(zip);
-            if (!h.Equals(Cfg.ElectronSha, StringComparison.OrdinalIgnoreCase)) { try { File.Delete(zip); } catch {} throw new Exception("Runtime checksum did not match. Nothing was installed."); }
+        if (!usePre) {
+            bool cached = File.Exists(zip) && Sha256(zip).Equals(Cfg.ElectronSha, StringComparison.OrdinalIgnoreCase);
+            if (!cached) {
+                Say("Downloading the runtime (Electron " + Cfg.ElectronVer + ", ~110 MB) from GitHub…");
+                Download("https://github.com/electron/electron/releases/download/v" + Cfg.ElectronVer + "/electron-v" + Cfg.ElectronVer + "-win32-x64.zip", zip, true);
+                string h = Sha256(zip);
+                if (!h.Equals(Cfg.ElectronSha, StringComparison.OrdinalIgnoreCase)) { try { File.Delete(zip); } catch {} throw new Exception("Runtime checksum did not match. Nothing was installed."); }
+            }
         }
-        Say("Runtime verified (SHA-256 OK)");
+        Say("Download verified (SHA-256 OK)");
 
         SetBar(0, true);
         Say("Clearing any old copy…");
@@ -173,12 +194,17 @@ class SetupForm : Form
         }
         Directory.CreateDirectory(Paths.Dir);
 
-        Say("Unpacking the runtime…");
-        Extract(zip, Paths.Dir);
+        Say("Unpacking…");
+        if (usePre) {
+            Extract(pre, Paths.Dir, "Nibble.exe");
+            Say("Nibble.exe has Nibble's name and icon ✓");
+        } else {
+            Extract(zip, Paths.Dir, "electron.exe");
+        }
         string stub = Path.Combine(Paths.Dir, @"resources\default_app.asar");
         try { if (File.Exists(stub)) File.Delete(stub); } catch {}
         try { Download(Cfg.Site + "/nibble.ico", Paths.Ico, false); } catch {}
-        Brand();
+        if (!usePre) Brand();
 
         Say("Fetching Nibble…");
         Directory.CreateDirectory(Paths.App);
@@ -326,19 +352,19 @@ class SetupForm : Form
     }
 
     // Unzip without any extra assembly: the built-in tar.exe (Win10 1803+), else Shell COM.
-    static void Extract(string zip, string dir)
+    static void Extract(string zip, string dir, string marker)
     {
         string tar = Path.Combine(Environment.SystemDirectory, "tar.exe");
         if (File.Exists(tar)) {
             try {
                 var psi = new ProcessStartInfo { FileName = tar, Arguments = "-xf \"" + zip + "\" -C \"" + dir + "\"", WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true, UseShellExecute = false };
                 var p = Process.Start(psi); p.WaitForExit();
-                if (p.ExitCode == 0 && File.Exists(Path.Combine(dir, "electron.exe"))) return;
+                if (p.ExitCode == 0 && File.Exists(Path.Combine(dir, marker))) return;
             } catch {}
         }
         ShellExtract(zip, dir);
-        for (int i = 0; i < 240 && !File.Exists(Path.Combine(dir, "electron.exe")); i++) Thread.Sleep(500);
-        if (!File.Exists(Path.Combine(dir, "electron.exe"))) throw new Exception("Could not unpack the runtime.");
+        for (int i = 0; i < 240 && !File.Exists(Path.Combine(dir, marker)); i++) Thread.Sleep(500);
+        if (!File.Exists(Path.Combine(dir, marker))) throw new Exception("Could not unpack the runtime.");
     }
 
     static void ShellExtract(string zip, string dir)

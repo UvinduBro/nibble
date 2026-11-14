@@ -1,3 +1,4 @@
 dist-mac/
 tools/mac/node_modules/
 tools/mac/package*.json
+dist-win/

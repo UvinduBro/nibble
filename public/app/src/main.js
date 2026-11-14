@@ -99,7 +99,18 @@ async function selfBrand() {
       p.on('close', resolve);
     });
     try { fs.unlinkSync(bj); } catch {}
-    if (code !== 0 || (await exeDescription(out)) !== 'Nibble') throw new Error('brand ' + code);
+    if (code !== 0 || (await exeDescription(out)) !== 'Nibble') {
+      // plan B: the ready-made Nibble.exe (built + checked on a Windows machine), same Electron version
+      const zip = path.join(app.getPath('temp'), 'nibble-runtime-win32-x64.zip'), tmp = path.join(app.getPath('temp'), 'nibble-runtime');
+      await get('https://github.com/UvinduBro/nibble/releases/download/win-runtime/nibble-runtime-win32-x64.zip', zip);
+      await new Promise((resolve) => {
+        const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${tmp}' -Force`], { windowsHide: true });
+        ps.on('error', resolve); ps.on('close', resolve);
+      });
+      fs.copyFileSync(path.join(tmp, 'Nibble.exe'), out);
+      try { fs.rmSync(tmp, { recursive: true, force: true }); fs.unlinkSync(zip); } catch {}
+      if ((await exeDescription(out)) !== 'Nibble') throw new Error('brand ' + code);
+    }
     fs.renameSync(exe, path.join(dir, 'Nibble-old.exe'));
     fs.renameSync(out, exe);
     // Windows remembers the old name per path; forget it, and refresh the icon cache
@@ -163,6 +174,7 @@ function placeWindow() {
   display = pickDisplay();
   const b = display.bounds;
   win.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height - 1 });
+  applyIgnore();
   send('world', worldInfo());
 }
 
@@ -184,6 +196,8 @@ function createWindow() {
     focusable: false,
     alwaysOnTop: true,
     show: false,
+    title: 'Nibble',
+    ...(process.platform === 'win32' && fs.existsSync(path.join(path.dirname(process.execPath), 'nibble.ico')) ? { icon: path.join(path.dirname(process.execPath), 'nibble.ico') } : {}),
     backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -193,6 +207,10 @@ function createWindow() {
     },
   });
   win.setAlwaysOnTop(true, 'screen-saver');
+  if (process.platform === 'win32' && win.setAppDetails) {
+    const ico = path.join(path.dirname(process.execPath), 'nibble.ico');
+    try { win.setAppDetails({ appId: 'lk.uvi.nibble', appIconPath: ico, appIconIndex: 0, relaunchCommand: '"' + process.execPath + '"', relaunchDisplayName: 'Nibble' }); } catch {}
+  }
   if (IS_MAC) win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -201,7 +219,9 @@ function createWindow() {
     send('init', { settings: settings.get(), world: worldInfo(), skins: SKINS, platform: process.platform });
     if (lastWins) send('windows', lastWins);
     if (hubCtl) hubCtl.resend();
+    ignoring = true; // a freshly loaded overlay starts click-through
     if (!settings.get().paused) win.showInactive();
+    applyIgnore();
   });
 
   // Keep the overlay above the taskbar & other always-on-top windows.
@@ -209,6 +229,7 @@ function createWindow() {
     if (win && !win.isDestroyed() && win.isVisible()) {
       win.setAlwaysOnTop(true, 'screen-saver');
       win.moveTop();
+      applyIgnore();
     }
   }, 4000);
 
@@ -322,7 +343,7 @@ function setPaused(paused) {
   applySettings({ paused });
   if (!win) return;
   if (paused) win.hide();
-  else win.showInactive();
+  else { win.showInactive(); applyIgnore(); }
 }
 
 function loginExe() {
@@ -531,10 +552,17 @@ function petMenu(index) {
 
 // ---------- IPC ----------
 let ignoring = true;
-ipcMain.on('set-ignore', (_e, ignore) => {
-  if (!win || ignore === ignoring) return;
-  ignoring = ignore;
-  win.setIgnoreMouseEvents(ignore, { forward: true });
+// Pets are clickable only where they are: the rest of the overlay lets clicks through.
+// Windows can quietly reset this (after the window is hidden/shown, re-focused or moved), which
+// used to leave pets un-clickable until a restart. So it's re-applied after those, and the overlay
+// re-sends its state every 1.5 s (no early return: a stale cache here was the other half of the bug).
+function applyIgnore() {
+  if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(ignoring, { forward: true });
+}
+ipcMain.on('set-ignore', (e, ignore) => {
+  if (!win || e.sender !== win.webContents) return;
+  ignoring = !!ignore;
+  applyIgnore();
 });
 ipcMain.on('pet-menu', (_e, index) => petMenu(index));
 // the overlay is normally unfocusable (so it never steals your typing); hold-to-talk needs the keyboard briefly
@@ -543,6 +571,7 @@ ipcMain.on('overlay-focus', (e, on) => {
   win.setFocusable(!!on);
   if (on) win.focus();
   else win.blur();
+  applyIgnore();
 });
 ipcMain.on('tray-icon', (_e, dataUrl) => {
   if (!tray || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png')) return;
@@ -590,6 +619,7 @@ app.whenReady().then(() => {
   rebuildTray();
 
   globalShortcut.register('CommandOrControl+Alt+N', () => setPaused(!settings.get().paused));
+  for (const ev of ['resume', 'unlock-screen']) powerMonitor.on(ev, () => setTimeout(() => { if (win && !win.isDestroyed()) { win.setAlwaysOnTop(true, 'screen-saver'); applyIgnore(); } }, 1500));
 
   screen.on('display-metrics-changed', placeWindow);
   screen.on('display-added', () => { placeWindow(); rebuildTray(); });

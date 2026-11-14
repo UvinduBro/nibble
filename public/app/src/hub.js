@@ -63,6 +63,10 @@ function setupHub(ctx) {
       },
     });
     hub.setMenuBarVisibility(false);
+    // Windows: the taskbar button (and pinning it) shows Nibble's name + icon, whatever the exe says
+    if (process.platform === 'win32' && hub.setAppDetails) {
+      try { hub.setAppDetails({ appId: 'lk.uvi.nibble', appIconPath: iconPath, appIconIndex: 0, relaunchCommand: '"' + process.execPath + '"', relaunchDisplayName: 'Nibble' }); } catch {}
+    }
     hub.on('close', (e) => { if (!quitting) { e.preventDefault(); hub.hide(); } });
     // Mac: Nibble lives in the menu bar; it gets a Dock icon only while the Hub is open
     if (process.platform === 'darwin' && app.dock) {

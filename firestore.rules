@@ -163,8 +163,11 @@ service cloud.firestore {
     // Listen Together rooms: id = the host's uid. Only the host and the friends they invited can
     // see a room. Anyone in it can play / pause / skip / queue; only the host can invite or end it.
     function roomShape() {
-      return incoming().keys().hasOnly(['host', 'hostName', 'invited', 'names', 'inv', 'here', 'track', 'playing', 'pos', 'startedAt', 'queue', 'radio', 'updatedAt'])
+      return incoming().keys().hasOnly(['host', 'hostName', 'invited', 'names', 'inv', 'here', 'track', 'playing', 'pos', 'startedAt', 'queue', 'radio', 'repeat', 'shuffle', 'history', 'updatedAt'])
         && incoming().get('inv', {}) is map
+        && incoming().get('repeat', 'all') in ['off', 'all', 'one']
+        && incoming().get('shuffle', false) is bool
+        && incoming().get('history', []) is list && incoming().get('history', []).size() <= 60
         && incoming().invited is list && incoming().invited.size() <= 10
         && incoming().get('queue', []) is list && incoming().get('queue', []).size() <= 60
         && shortText(incoming().get('hostName', ''), 20)
@@ -192,11 +195,13 @@ service cloud.firestore {
     //   spend: owned items grow and points drop by at least 25 per new item
     //   gift out / gift in: matched against a gifts/{id} doc written in the same batch
     //   best: only personal best scores change
+    //   total: points earned all-time (the leaderboard); only earning raises it, set once for older wallets
     function today() { return math.floor(request.time.toMillis() / 86400000.0); }
     function wpath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
     function gpath(gid) { return /databases/$(database)/documents/gifts/$(gid); }
     function walletShape() {
-      return incoming().keys().hasOnly(['points', 'owned', 'day', 'earned', 'streak', 'daily', 'gin', 'gout', 'best', 'at'])
+      return incoming().keys().hasOnly(['points', 'owned', 'day', 'earned', 'streak', 'daily', 'gin', 'gout', 'best', 'total', 'at'])
+        && incoming().get('total', 0) is int && incoming().get('total', 0) >= 0
         && incoming().points is int && incoming().points >= 0
         && incoming().owned is list && incoming().owned.size() <= 200
         && incoming().day is int && incoming().earned is int && incoming().streak is int && incoming().daily is int
@@ -205,11 +210,13 @@ service cloud.firestore {
         && incoming().at == request.time;
     }
     function unchanged(keys) { return !incoming().diff(resource.data).affectedKeys().hasAny(keys); }
+    function sameTotal() { return incoming().get('total', 0) == resource.data.get('total', 0); }
     function earnOk() {
       let d = incoming().points - resource.data.points;
       let claimDaily = incoming().daily != resource.data.daily;
       return d > 0
         && unchanged(['owned', 'gin', 'gout'])
+        && incoming().get('total', 0) == resource.data.get('total', 0) + d
         && request.time > resource.data.at + duration.value(5, 's')
         && incoming().day == today()
         && incoming().earned == (resource.data.day == today() ? resource.data.earned : 0) + d
@@ -223,7 +230,7 @@ service cloud.firestore {
       let n = incoming().owned.size() - resource.data.owned.size();
       return n >= 1 && incoming().owned.hasAll(resource.data.owned)
         && incoming().points <= resource.data.points - 25 * n
-        && unchanged(['day', 'earned', 'streak', 'daily', 'gin', 'gout']);
+        && unchanged(['day', 'earned', 'streak', 'daily', 'gin', 'gout']) && sameTotal();
     }
     function giftOutOk() {
       return incoming().gout != resource.data.gout
@@ -231,7 +238,7 @@ service cloud.firestore {
         && existsAfter(gpath(incoming().gout))
         && getAfter(gpath(incoming().gout)).data.from == me()
         && incoming().points == resource.data.points - getAfter(gpath(incoming().gout)).data.amount
-        && unchanged(['owned', 'day', 'earned', 'streak', 'daily', 'gin']);
+        && unchanged(['owned', 'day', 'earned', 'streak', 'daily', 'gin']) && sameTotal();
     }
     function giftInOk() {
       return incoming().gin != resource.data.gin
@@ -239,16 +246,22 @@ service cloud.firestore {
         && get(gpath(incoming().gin)).data.claimed == false
         && getAfter(gpath(incoming().gin)).data.claimed == true
         && incoming().points == resource.data.points + get(gpath(incoming().gin)).data.amount
-        && unchanged(['owned', 'day', 'earned', 'streak', 'daily', 'gout']);
+        && unchanged(['owned', 'day', 'earned', 'streak', 'daily', 'gout']) && sameTotal();
     }
-    function bestOnly() { return incoming().diff(resource.data).affectedKeys().hasOnly(['best', 'at']); }
+    function bestOnly() { return incoming().diff(resource.data).affectedKeys().hasOnly(['best', 'total', 'at']) && sameTotal(); }
+    // wallets made before the leaderboard: their total starts at the current balance, once
+    function initTotal() {
+      return !('total' in resource.data) && incoming().total == resource.data.points
+        && incoming().diff(resource.data).affectedKeys().hasOnly(['total', 'at']);
+    }
     match /wallets/{uid} {
       allow read: if signedIn();
       allow create: if signedIn() && uid == me() && !isBanned() && walletShape()
         && incoming().points == 100 && incoming().owned.size() == 0 && incoming().earned == 0
-        && incoming().streak == 0 && incoming().daily == 0 && incoming().gin == '' && incoming().gout == '';
+        && incoming().streak == 0 && incoming().daily == 0 && incoming().gin == '' && incoming().gout == ''
+        && incoming().get('total', 0) == 0;
       allow update: if signedIn() && uid == me() && !isBanned() && walletShape()
-        && (earnOk() || spendOk() || giftOutOk() || giftInOk() || bestOnly());
+        && (earnOk() || spendOk() || giftOutOk() || giftInOk() || bestOnly() || initTotal());
       // admins can set points, grant items or reset a wallet
       allow update: if isAdmin() && walletShape();
       allow delete: if isAdmin();

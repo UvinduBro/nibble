@@ -1,10 +1,10 @@
 {
-  "version": "2.0.20",
-  "date": "2026-11-13",
+  "version": "2.0.21",
+  "date": "2026-11-14",
   "notes": [
-    "Nibble for Mac as a .dmg: open it and drag Nibble to Applications (Apple silicon and Intel)",
-    "On a Mac, Update Nibble in the menu bar installs the latest .dmg for you",
-    "Windows: the app is called Nibble with the pet icon everywhere, and older installs fix themselves",
-    "Fixed: installs from the Download button were missing the files that draw animals and outfits"
+    "Music: Shuffle, Repeat (all or one) and Previous, so the music keeps going like Spotify",
+    "Fixed: pets sometimes stopped responding to clicks and drags until a restart",
+    "New Leaderboard: see who earned the most points, among friends or everyone",
+    "Windows: Nibble.exe comes ready-made with Nibble's name and icon, and the taskbar shows Nibble"
   ]
 }

@@ -288,8 +288,9 @@ export function useRoomPlayer(social, state, toast) {
     on('pause', () => music.pause().catch(() => {}));
     on('play', () => music.resume().catch(() => {}));
     on('stop', () => music.pause().catch(() => {}));
-    on('nexttrack', () => { const r = roomRef.current; if (r && r.track) music.next(r.track.k).catch(() => {}); });
-    return () => { for (const a of ['pause', 'play', 'stop', 'nexttrack']) on(a, null); };
+    on('nexttrack', () => { const r = roomRef.current; if (r && r.track) music.next(r.track.k, { skip: true }).catch(() => {}); });
+    on('previoustrack', () => music.prev().catch(() => {}));
+    return () => { for (const a of ['pause', 'play', 'stop', 'nexttrack', 'previoustrack']) on(a, null); };
   }, [music]);
 
   // a click anywhere counts as permission to play sound
@@ -324,7 +325,7 @@ export function MusicDock({ social, state, player, go, tab }) {
           </button>
           {player.blocked && <button className="btn small" onClick={player.unlock}>🔊 Tap to hear</button>}
           {t && <button className="mu-icon" title={room.playing ? 'Pause for everyone' : 'Play for everyone'} onClick={() => (room.playing ? music.pause() : music.resume()).catch(() => {})}>{room.playing ? '⏸' : '▶'}</button>}
-          {t && <button className="mu-icon" title="Skip" onClick={() => music.next(t.k)}>⏭</button>}
+          {t && <button className="mu-icon" title="Next" onClick={() => music.next(t.k, { skip: true })}>⏭</button>}
           <button className="mu-icon" title={player.muted ? 'Unmute (just for me)' : 'Mute (just for me)'} onClick={() => player.setMuted(!player.muted)}>{player.muted ? '🔇' : '🔈'}</button>
         </div>
       )}
@@ -457,8 +458,12 @@ export function Music({ social, state, desktop, toast, player }) {
                 </div>
               )}
               <div className="mu-ctrls">
+                <button className={'mu-icon mu-mode' + (room.shuffle ? ' on' : '')} title={room.shuffle ? 'Shuffle is on' : 'Shuffle'} onClick={() => music.setShuffle(!room.shuffle).catch(err)}>🔀</button>
+                {t && <button className="mu-icon" title="Previous" onClick={() => music.prev().catch(err)}>⏮</button>}
                 {t && <button className="mu-big" title={room.playing ? 'Pause for everyone' : 'Play for everyone'} onClick={() => (room.playing ? music.pause() : music.resume()).catch(err)}>{room.playing ? '⏸' : '▶'}</button>}
-                {t && <button className="mu-icon" title="Skip" onClick={() => music.next(t.k).catch(err)}>⏭</button>}
+                {t && <button className="mu-icon" title="Next" onClick={() => music.next(t.k, { skip: true }).catch(err)}>⏭</button>}
+                <button className={'mu-icon mu-mode' + (room.repeat !== 'off' ? ' on' : '')} title={room.repeat === 'one' ? 'Repeating this song' : room.repeat === 'all' ? 'Repeating the list' : 'Repeat is off'}
+                  onClick={() => music.setRepeat(room.repeat === 'off' ? 'all' : room.repeat === 'all' ? 'one' : 'off').catch(err)}>🔁{room.repeat === 'one' && <sup>1</sup>}</button>
                 {player.blocked && <button className="btn small" onClick={player.unlock}>🔊 Tap to hear</button>}
                 <span className="mu-vol">
                   <button className="mu-icon" onClick={() => player.setMuted(!player.muted)} title="Just for me">{player.muted ? '🔇' : '🔈'}</button>
@@ -506,7 +511,7 @@ export function Music({ social, state, desktop, toast, player }) {
 
             <div className="sa-card">
               <h3>Up next <small>{room.queue.length}/{QUEUE_MAX}</small></h3>
-              {room.queue.length === 0 ? <p className="sa-empty">{'Queue’s empty. When this song ends the room goes quiet until someone adds more.'}</p> : (
+              {room.queue.length === 0 ? <p className="sa-empty">{room.repeat === 'all' ? 'Queue’s empty. With Repeat on, the songs you played start again from the top.' : room.repeat === 'one' ? 'Queue’s empty. Repeat one keeps this song going.' : 'Queue’s empty. Turn on 🔁 Repeat to keep the music going.'}</p> : (
                 <ul className="mu-list">
                   {room.queue.map((q, i) => (
                     <li key={q.k}>

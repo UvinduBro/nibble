@@ -11,6 +11,7 @@ import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess, cleanStyleMap } from 
 import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
 import Wardrobe from './Wardrobe';
 import Arcade from './Arcade';
+import Leaderboard from './Leaderboard';
 import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
 import { GAMES } from '../../lib/social/games';
 
@@ -39,7 +40,7 @@ const ago = (t) => {
 };
 const EMOTE_TITLE = { wave: 'Wave', hug: 'Cuddle', kiss: 'Kiss', poke: 'Poke', annoy: 'Tease', icecream: 'Share ice cream', heart: 'Send a heart', highfive: 'High five', tickle: 'Tickle', cheer: 'Cheer them on', snack: 'Share a snack', dance: 'Dance together', boop: 'Boop', flower: 'Give a flower', cake: 'Birthday cake', fistbump: 'Fist bump', pillow: 'Pillow fight', serenade: 'Serenade', gift: 'Gift box', bubbles: 'Bubbles' };
 const NAV = [
-  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['deadlines', 'Deadlines', '⏰'], ['profile', 'Profile', '☻'], ['settings', 'Settings', '⚙'],
+  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['board', 'Leaderboard', '🏆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['deadlines', 'Deadlines', '⏰'], ['profile', 'Profile', '☻'], ['settings', 'Settings', '⚙'],
 ];
 
 // `who` = a profile or friend: their accessories, colour, makeup and wardrobe look show on the avatar
@@ -666,6 +667,10 @@ function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith 
           <span className="sa-q-ico">🎮</span>
           <span><b>{myTurns(state) ? `${myTurns(state)} game${myTurns(state) > 1 ? 's' : ''} waiting` : 'Mini games'}</b><small>{myTurns(state) ? 'A friend is waiting on your move' : '12 solo games + play with friends'}</small></span>
         </button>
+        <button className="sa-q q-board" onClick={() => go('board')}>
+          <span className="sa-q-ico">🏆</span>
+          <span><b>Leaderboard</b><small>{state.wallet && state.wallet.ready ? `${PT} ${(state.wallet.total || 0).toLocaleString()} earned so far` : 'See who earned the most points'}</small></span>
+        </button>
         <button className="sa-q q-style" onClick={() => go('style')}>
           <span className="sa-q-ico">✿</span>
           <span><b>Customize</b><small>12 animals, outfits in any colour</small></span>
@@ -825,7 +830,7 @@ function useDesktopBridge(desktop, social, state) {
       else if (a.type === 'music' && social.music) { // pet menu → music controls
         const r = social.state.music && social.state.music.room;
         if (a.cmd === 'toggle' && r) social.music.toggle().catch(() => {});
-        else if (a.cmd === 'next' && r && r.track) social.music.next(r.track.k).catch(() => {});
+        else if (a.cmd === 'next' && r && r.track) social.music.next(r.track.k, { skip: true }).catch(() => {});
         else if (a.cmd === 'join' && a.host) social.music.join(a.host).catch(() => {});
       }
     });
@@ -945,6 +950,7 @@ export default function SocialApp({ mode = 'web' }) {
         {tab === 'music' && <Music {...props} player={player} />}
         {tab === 'style' && <Wardrobe {...props} />}
         {tab === 'games' && <Arcade {...props} />}
+        {tab === 'board' && <Leaderboard {...props} />}
         {tab === 'settings' && <Settings {...props} />}
       </>
     );
