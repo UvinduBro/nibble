@@ -1,0 +1,57 @@
+name: win-setup
+# Builds Get-Nibble.exe (tools/windows-setup/Setup.cs) on Windows against the real .NET Framework 4
+# reference assemblies, so any API that only exists on newer .NET fails the build here instead of
+# on someone's PC. Then runs it with --selftest on the runner's .NET Framework and publishes it to
+# the "win-setup" release (not latest). The site embeds this exact file.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['tools/windows-setup/**', 'public/nibble.ico', '.github/workflows/win-setup.yml']
+permissions:
+  contents: write
+concurrency:
+  group: win-setup
+  cancel-in-progress: true
+jobs:
+  setup:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build against .NET Framework 4
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $csc = & $vswhere -latest -products * -find 'MSBuild\**\Bin\Roslyn\csc.exe' | Select-Object -First 1
+          if (-not $csc) { throw 'Roslyn csc not found' }
+          $root = "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\.NETFramework"
+          $ref = Get-ChildItem $root -Directory | Where-Object { $_.Name -match '^v4\.[5-8]' -and (Test-Path (Join-Path $_.FullName 'mscorlib.dll')) } | Sort-Object Name | Select-Object -First 1
+          if (-not $ref) { throw 'No .NET Framework 4.x reference assemblies' }
+          $r = $ref.FullName
+          Write-Host "csc: $csc"
+          Write-Host "reference assemblies: $r"
+          New-Item -ItemType Directory -Force dist-setup | Out-Null
+          & $csc -nologo -noconfig -nostdlib+ -target:winexe -platform:anycpu -optimize+ -warnaserror- `
+            "-win32icon:public\nibble.ico" `
+            "-r:$r\mscorlib.dll" "-r:$r\System.dll" "-r:$r\System.Core.dll" "-r:$r\System.Windows.Forms.dll" "-r:$r\System.Drawing.dll" `
+            "-out:dist-setup\Get-Nibble.exe" tools\windows-setup\Setup.cs
+          if ($LASTEXITCODE -ne 0) { throw "csc failed ($LASTEXITCODE)" }
+          $ref.Name | Out-File -Encoding ascii dist-setup\framework.txt
+      - name: Self-test on the real .NET Framework
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist-setup\Get-Nibble.exe -ArgumentList '--selftest' -Wait -PassThru
+          $out = Join-Path $env:TEMP 'nibble-selftest.txt'
+          if (Test-Path $out) { Get-Content $out }
+          if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }
+          (Get-FileHash dist-setup\Get-Nibble.exe -Algorithm SHA256).Hash | Out-File -Encoding ascii -NoNewline dist-setup\Get-Nibble.exe.sha256
+          Get-Content dist-setup\Get-Nibble.exe.sha256
+      - name: Publish (release "win-setup", not marked latest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="win-setup"
+          NOTE="Get-Nibble.exe built on Windows against .NET Framework $(cat dist-setup/framework.txt) reference assemblies and self-tested on the runner. SHA-256: $(cat dist-setup/Get-Nibble.exe.sha256)"
+          if gh release view "$TAG" >/dev/null 2>&1; then gh release edit "$TAG" --notes "$NOTE" --latest=false; else gh release create "$TAG" --title "Get-Nibble.exe (Windows setup)" --notes "$NOTE" --latest=false; fi
+          gh release upload "$TAG" dist-setup/Get-Nibble.exe dist-setup/Get-Nibble.exe.sha256 --clobber

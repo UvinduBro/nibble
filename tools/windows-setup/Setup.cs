@@ -264,16 +264,27 @@ class SetupForm : Form
         try {
             string txt;
             using (var wc = new WebClient()) { wc.Headers.Add("User-Agent", "NibbleSetup"); txt = wc.DownloadString(Cfg.Site + "/install-files.txt"); }
-            var list = new System.Collections.Generic.List<string[]>();
-            foreach (var raw in txt.Split('\n')) {
-                var line = raw.Trim();
-                if (line.StartsWith("version ")) { Cfg.Ver = line.Substring(8).Trim(); continue; }
-                var parts = line.Split(' ');
-                if (parts.Length == 2 && parts[0].StartsWith("/") && !parts[1].Contains("..")) list.Add(parts);
-            }
-            if (list.Count >= 10) Cfg.Files = list.ToArray();
+            string ver;
+            var list = ParseList(txt, out ver);
+            if (ver != null) Cfg.Ver = ver;
+            if (list.Length >= 10) Cfg.Files = list;
             Say("Installing Nibble " + Cfg.Ver + " (" + Cfg.Files.Length + " files)");
         } catch { Say("Using the built-in file list"); }
+    }
+
+    // "version X" + "src dest" lines. Split takes a char[] on purpose: Split(char, options) only
+    // exists on newer .NET, and Get-Nibble.exe runs on Windows' built-in .NET Framework 4.
+    public static string[][] ParseList(string txt, out string ver)
+    {
+        ver = null;
+        var list = new System.Collections.Generic.List<string[]>();
+        foreach (var raw in txt.Split(new char[] { '\n' })) {
+            var line = raw.Trim();
+            if (line.StartsWith("version ")) { ver = line.Substring(8).Trim(); continue; }
+            var parts = line.Split(new char[] { ' ' });
+            if (parts.Length == 2 && parts[0].StartsWith("/") && !parts[1].Contains("..")) list.Add(parts);
+        }
+        return list.ToArray();
     }
 
     // ---- give Nibble.exe Nibble's name + icon (otherwise Windows shows "Electron") ----
@@ -471,6 +482,7 @@ static class Program
     static void Main(string[] argv)
     {
         bool uninstall = false, quiet = false;
+        foreach (var a in argv) if (a == "--selftest") { Environment.Exit(SelfTest()); return; }
         foreach (var a in argv) {
             string s = a.TrimStart('-', '/').ToLowerInvariant();
             if (s == "uninstall" || s == "remove") uninstall = true;
@@ -480,6 +492,25 @@ static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.Run(new SetupForm(uninstall));
+    }
+
+    // Run on a Windows build machine: reads the live file list from the site with the same code the
+    // installer uses, on the real .NET Framework. Exit 0 = fine.
+    static int SelfTest()
+    {
+        try { return SelfTestBody(); } catch { return 3; }
+    }
+    static int SelfTestBody()
+    {
+        ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+        string txt;
+        using (var wc = new WebClient()) { wc.Headers.Add("User-Agent", "NibbleSetup-selftest"); txt = wc.DownloadString(Cfg.Site + "/install-files.txt"); }
+        string ver;
+        var list = SetupForm.ParseList(txt, out ver);
+        if (ver == null || list.Length < 10) return 2;
+        var p = Path.Combine(Path.GetTempPath(), "nibble-selftest.txt");
+        File.WriteAllText(p, "version " + ver + ", " + list.Length + " files");
+        return 0;
     }
 
     static void QuietUninstall()
