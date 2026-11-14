@@ -7,9 +7,9 @@ import PetFigure, { useNibble, PetSnap } from '../PetFigure';
 import { ITEMS, SPECIES as SHOP_SPECIES, OUTFITS as SHOP_OUTFITS, SKILLS as SHOP_SKILLS, PT } from '../../lib/shop';
 import { SOLO as SOLO_A } from '../games/solo';
 import { SOLO2 } from '../games/solo2';
-import { GAMES as LIVE_GAMES } from '../../lib/social/games';
+import { SOLO3 } from '../games/solo3';
 
-const SOLO_ALL = [...SOLO2, ...SOLO_A];
+const SOLO_ALL = [...SOLO3, ...SOLO2, ...SOLO_A];
 const lookLabel = (u) => {
   const st = u.style || {};
   const parts = [];
@@ -18,6 +18,7 @@ const lookLabel = (u) => {
   return parts.join(' · ');
 };
 import { niceError, verLess, LEVELS, ms } from '../../lib/social/social';
+import { SOURCES, USES, countryName, flag } from '../../lib/signup';
 
 // ---------- helpers ----------
 const DAY = 86_400_000;
@@ -182,7 +183,7 @@ export function BannerView({ level = 'info', title, text, link, onClose, childre
 }
 
 // ---------- tabs ----------
-function Overview({ users, banned, latest, minVersion, go }) {
+function Overview({ social, users, banned, latest, minVersion, go }) {
   const [range, setRange] = useState(14);
   const now = Date.now();
   const total = users.length;
@@ -288,7 +289,39 @@ function Overview({ users, banned, latest, minVersion, go }) {
           {!active.length && <p className="sa-empty">Nobody seen yet.</p>}
         </div>
       </div>
+      <SignupStats social={social} total={total} />
     </>
+  );
+}
+
+// where people heard about Nibble + where they're from (signup/{uid}, loaded once)
+function SignupStats({ social, total }) {
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => { social.admin.signups().then(setList).catch((e) => { setList([]); setErr(niceError(e)); }); }, [social]);
+  if (!list) return <div className="sa-card"><h3>📣 How people found Nibble</h3><p className="sa-empty">Loading…</p></div>;
+  const by = (f) => { const m = new Map(); for (const x of list) for (const k of [].concat(f(x))) if (k) m.set(k, (m.get(k) || 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1]); };
+  const src = by((x) => x.source), ctry = by((x) => x.country), uses = by((x) => x.uses || []);
+  const label = (k) => (SOURCES.find(([s]) => s === k) || [, k])[1];
+  const others = list.filter((x) => x.source === 'other' && x.sourceOther).slice(0, 8);
+  return (
+    <div className="ad-grid2">
+      <div className="sa-card">
+        <h3>📣 How people found Nibble <small>{list.length} of {total} answered</small></h3>
+        {err && <p className="sa-empty">{err.includes('Not allowed') ? 'Publish the latest Firestore rules to see this.' : err}</p>}
+        {!err && !list.length && <p className="sa-empty">No answers yet. New sign-ups are asked, and existing users see a one-time question on Home.</p>}
+        <HBars rows={src.map(([k, n]) => ({ label: label(k), value: n, color: C.mint }))} max={src.length ? src[0][1] : 1} />
+        {others.length > 0 && <p className="sa-sub" style={{ marginTop: 10 }}>Somewhere else: {others.map((x) => x.sourceOther).join(', ')}</p>}
+      </div>
+      <div className="sa-card">
+        <h3>🌍 Where they're from</h3>
+        <HBars rows={ctry.slice(0, 12).map(([k, n]) => ({ label: `${flag(k)} ${countryName(k)}`, value: n, color: C.cyan }))} max={ctry.length ? ctry[0][1] : 1} />
+        {uses.length > 0 && <>
+          <h3 style={{ marginTop: 16 }}>🎯 What they want it for</h3>
+          <HBars rows={uses.map(([k, n]) => ({ label: (USES.find(([u]) => u === k) || [, k])[1], value: n, color: C.violet }))} max={uses[0][1]} />
+        </>}
+      </div>
+    </div>
   );
 }
 
@@ -467,12 +500,10 @@ function WalletBox({ u, social, toast }) {
   );
 }
 
-// games on/off, points economy and live matches
+// games on/off and the points economy (games are single-player)
 function GamesTab({ social, state, users, toast, setOpenUid, go }) {
   const cfg = state.config || {};
   const off = Array.isArray(cfg.gamesOff) ? cfg.gamesOff : [];
-  const [matches, setMatches] = useState([]);
-  useEffect(() => social.admin.watchMatches(setMatches), [social]);
   const save = async (patch, ok) => { try { await social.admin.setConfig(patch); toast({ text: ok }); } catch (x) { toast({ err: true, text: niceError(x) }); } };
   const toggleGame = (k) => save({ gamesOff: off.includes(k) ? off.filter((x) => x !== k) : [...off, k] }, off.includes(k) ? 'Game switched on' : 'Game switched off');
   const wallets = users.filter((u) => u.wallet);
@@ -481,7 +512,6 @@ function GamesTab({ social, state, users, toast, setOpenUid, go }) {
   const earnedToday = wallets.reduce((t, u) => t + (u.wallet.day === today ? u.wallet.earned : 0), 0);
   const sold = countBy(wallets.flatMap((u) => u.wallet.owned), (x) => x).slice(0, 8);
   const rich = [...wallets].sort((a, b) => b.wallet.points - a.wallet.points).slice(0, 8);
-  const live = (matches || []).filter((m) => m.status !== 'done');
   const name = (uid) => (users.find((u) => u.uid === uid) || {}).username || uid.slice(0, 6);
   const Sw = ({ on, onChange }) => <button className={'ad-switch' + (on ? ' on' : '')} onClick={onChange} aria-pressed={on}><i /></button>;
   return (
@@ -490,17 +520,17 @@ function GamesTab({ social, state, users, toast, setOpenUid, go }) {
         <Kpi n={`${PT} ${total.toLocaleString()}`} label="Points held" sub={`${wallets.length} wallets`} color={C.yellow} />
         <Kpi n={earnedToday.toLocaleString()} label="Earned today" sub="by everyone" color={C.mint} />
         <Kpi n={wallets.reduce((t, u) => t + u.wallet.owned.length, 0)} label="Items unlocked" sub="all time" color={C.pink} />
-        <Kpi n={live.length} label="Live friend games" sub={`${(matches || []).length} total`} color={C.cyan} />
+        <Kpi n={SOLO_ALL.length} label="Games" sub="all single-player" color={C.cyan} />
       </div>
       <div className="sa-card">
         <h3>🎮 Switches</h3>
         <div className="ad-switches">
-          <label><Sw on={cfg.games !== false} onChange={() => save({ games: cfg.games === false }, cfg.games === false ? 'Games are on for everyone' : 'Games switched off for everyone')} /><span><b>Games</b><small>All mini games and friend games</small></span></label>
+          <label><Sw on={cfg.games !== false} onChange={() => save({ games: cfg.games === false }, cfg.games === false ? 'Games are on for everyone' : 'Games switched off for everyone')} /><span><b>Games</b><small>All mini games</small></span></label>
           <label><Sw on={cfg.shop !== false} onChange={() => save({ shop: cfg.shop === false }, cfg.shop === false ? 'Shop is open' : 'Shop closed (nobody can buy)')} /><span><b>Shop</b><small>Unlocking items with points</small></span></label>
         </div>
         <h3 style={{ marginTop: 18 }}>Each game <small>{cfg.games === false ? 'all games are off right now' : 'switch single games off'}</small></h3>
         <div className="ad-gamelist">
-          {[...SOLO_ALL.map((g) => [g.key, g.emoji, g.title, 'Solo']), ...Object.entries(LIVE_GAMES).map(([k, g]) => [k, g.emoji, g.label, 'With friends'])].map(([k, e, t, kind]) => {
+          {SOLO_ALL.map((g) => [g.key, g.emoji, g.title, 'Solo']).map(([k, e, t, kind]) => {
             const best = users.filter((u) => u.wallet && u.wallet.best[k] > 0).sort((a, b) => b.wallet.best[k] - a.wallet.best[k])[0];
             return (
               <div key={k} className={'ad-game' + (off.includes(k) || cfg.games === false ? ' off' : '')}>
@@ -526,18 +556,6 @@ function GamesTab({ social, state, users, toast, setOpenUid, go }) {
           <h3>🛍 Most unlocked</h3>
           <HBars rows={sold.map(([id, n]) => ({ label: ITEMS[id] ? `${ITEMS[id].emoji} ${ITEMS[id].label}` : id, value: n, color: C.pink }))} max={sold.length ? sold[0][1] : 1} />
         </div>
-      </div>
-      <div className="sa-card">
-        <h3>⚔️ Friend games right now <small>{live.length}</small></h3>
-        {matches === null && <p className="sa-empty">Needs the latest Firestore rules.</p>}
-        {live.length === 0 && matches !== null && <p className="sa-empty">No games in progress.</p>}
-        {live.map((m) => (
-          <div key={m.id} className="ad-hist">
-            <span className="ad-hist-ico">{(LIVE_GAMES[m.game] || {}).emoji || '🎮'}</span>
-            <div><b>@{name(m.players[0])} vs @{name(m.players[1])}</b><p>{(LIVE_GAMES[m.game] || {}).label} · {m.status === 'invite' ? 'waiting to accept' : `${m.moves || 0} moves, @${name(m.turn)}’s turn`}</p><small>{ago(m.at)}</small></div>
-            <button className="btn small ghost" onClick={async () => { try { await social.admin.endMatch(m.id); toast({ text: 'Game ended' }); } catch (x) { toast({ err: true, text: niceError(x) }); } }}>End</button>
-          </div>
-        ))}
       </div>
     </>
   );
@@ -796,10 +814,8 @@ function UsageTab({ social, state, users, toast }) {
   const [u, setU] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const [matches, setMatches] = useState([]);
   const [form, setForm] = useState({ matches: lim.matches || 0, solo: lim.solo || 0 });
   useEffect(() => setForm({ matches: lim.matches || 0, solo: lim.solo || 0 }), [lim.matches, lim.solo]);
-  useEffect(() => social.admin.watchMatches(setMatches), [social]);
   const load = () => { setBusy(true); setErr(''); social.admin.usage().then((d) => { setU(d); if (d.error) setErr(d.error); }).catch((e) => setErr(niceError(e))).finally(() => setBusy(false)); };
   useEffect(() => { load(); const t = setInterval(() => { if (!document.hidden) load(); }, 5 * 60_000); return () => clearInterval(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const save = async (patch, ok) => { try { await social.admin.setConfig(patch); toast({ text: ok }); } catch (x) { toast({ err: true, text: niceError(x) }); } };
@@ -811,14 +827,12 @@ function UsageTab({ social, state, users, toast }) {
   const online = users.filter((x) => x.online);
   const inRooms = online.filter((x) => x.room).length;
   const rooms = new Set(online.map((x) => x.room).filter(Boolean)).size;
-  const liveGames = (matches || []).filter((m) => m.status === 'live').length;
   const beat = saver ? 200 : 100, roomBeat = saver ? 110 : 55;
   const presW = online.length * (86400 / beat);
   const roomW = inRooms * (86400 / roomBeat);
   const est = [
     { label: 'Online check-ins', w: presW, r: presW * 3, color: C.mint, hint: `${online.length} online, every ${beat / 60 > 2 ? Math.round(beat / 60) + ' min' : beat + ' s'}` },
     { label: 'Music rooms', w: roomW, r: roomW * Math.max(1, inRooms / Math.max(1, rooms)), color: C.violet, hint: `${inRooms} listening in ${rooms} room${rooms === 1 ? '' : 's'}` },
-    { label: 'Friend games', w: liveGames * 200, r: liveGames * 400, color: C.cyan, hint: `${liveGames} live now` },
     { label: 'This dashboard', w: 0, r: presW + users.length * 3, color: C.pink, hint: 'while it stays open' },
   ];
   const estW = est.reduce((t, e) => t + e.w, 0), estR = est.reduce((t, e) => t + e.r, 0);
@@ -888,13 +902,11 @@ function UsageTab({ social, state, users, toast }) {
           <label><Sw on={lim.music !== false} onChange={() => saveLimits({ music: lim.music === false }, lim.music === false ? 'Listen together is back on' : 'Listen together paused (no new rooms)')} /><span><b>Listen together</b><small>Turn off to stop new music rooms</small></span></label>
         </div>
         <form className="us-limits" onSubmit={(e) => { e.preventDefault(); saveLimits({ matches: form.matches, solo: form.solo }, 'Daily limits saved'); }}>
-          <label><b>Friend games per person per day</b><small>Tic-tac-toe and Connect Four. 0 = no limit.</small>
-            <input type="number" min="0" max="500" value={form.matches} onChange={(e) => setForm({ ...form, matches: e.target.value })} /></label>
           <label><b>Solo games that earn points per day</b><small>After this, games still play, just without points. 0 = no limit.</small>
             <input type="number" min="0" max="500" value={form.solo} onChange={(e) => setForm({ ...form, solo: e.target.value })} /></label>
           <button className="btn small">Save limits</button>
         </form>
-        <p className="sa-sub" style={{ marginTop: 10 }}>To switch single games off, use Games &amp; points → Each game.</p>
+        <p className="sa-sub" style={{ marginTop: 10 }}>Games are single-player, so they only write when points are earned. To switch single games off, use Games &amp; points → Each game.</p>
       </div>
     </>
   );
@@ -954,7 +966,7 @@ function Dashboard({ social, state }) {
           <span className="ad-sub">{users ? `${list.length} users · live` : 'Loading…'}{latest && ` · latest release v${latest}`}</span>
         </div>
         {!users && (users === null ? <div className="sa-card"><p className="sa-empty">Couldn't load users — check the Firestore rules are published.</p></div> : <div className="ad-skel"><i /><i /><i /></div>)}
-        {users && tab === 'overview' && <Overview users={list} banned={banned || []} latest={latest} minVersion={minVersion} go={go} />}
+        {users && tab === 'overview' && <Overview social={social} users={list} banned={banned || []} latest={latest} minVersion={minVersion} go={go} />}
         {users && tab === 'users' && <Users users={list} bannedMap={bannedMap} latest={latest} minVersion={minVersion} filter={filter} setFilter={setFilter} openUid={openUid} setOpenUid={setOpenUid} me={state.user.uid} />}
         {users && tab === 'games' && <GamesTab social={social} state={state} users={list} toast={toast} setOpenUid={setOpenUid} go={go} />}
         {users && tab === 'reports' && <ReportsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}

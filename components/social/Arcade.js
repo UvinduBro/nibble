@@ -4,8 +4,28 @@ import { useEffect, useRef, useState } from 'react';
 import { useNibble } from '../PetFigure';
 import { SOLO as SOLO1, MAKERS as MAKERS1 } from '../games/solo';
 import { SOLO2, MAKERS2, wordleDay } from '../games/solo2';
-const SOLO = [...SOLO2, ...SOLO1];
-const MAKERS = { ...MAKERS1, ...MAKERS2 };
+import { SOLO3, MAKERS3 } from '../games/solo3';
+import { GUIDES, tipFor } from '../../lib/gameGuides';
+const SOLO = [...SOLO3, ...SOLO2, ...SOLO1];
+const MAKERS = { ...MAKERS1, ...MAKERS2, ...MAKERS3 };
+
+// "How to play" card: goal, steps and tips
+export function Guide({ k, title, emoji, onClose, startLabel }) {
+  const g = GUIDES[k];
+  if (!g) return null;
+  return (
+    <div className="ar-guide" role="dialog" aria-label={`How to play ${title}`}>
+      <div className="ar-guide-card">
+        <h3>{emoji} How to play {title}</h3>
+        <p className="ar-guide-goal">{g.goal}</p>
+        <ol>{g.steps.map((x) => <li key={x}>{x}</li>)}</ol>
+        <h4>💡 Tips</h4>
+        <ul>{g.tips.map((x) => <li key={x}>{x}</li>)}</ul>
+        <button className="btn" autoFocus onClick={onClose}>{startLabel || 'Got it'}</button>
+      </div>
+    </div>
+  );
+}
 import { GAMES, judge, winLine, WIN_PTS, DRAW_PTS, LOSE_PTS } from '../../lib/social/games';
 import { DAY_CAP, GIFT_MAX, SOCIAL_CAP } from '../../lib/social/wallet';
 import { PT } from '../../lib/shop';
@@ -31,6 +51,10 @@ function GameRunner({ game, look, onEnd, onQuit }) {
   const wrap = useRef(null), cv = useRef(null);
   const [result, setResult] = useState(null);
   const [run, setRun] = useState(0);
+  const seenKey = 'nibble-guide-' + game.key;
+  const [guide, setGuide] = useState(() => { try { return !localStorage.getItem(seenKey); } catch { return false; } });
+  const paused = useRef(false); paused.current = guide;
+  const closeGuide = () => { try { localStorage.setItem(seenKey, '1'); } catch {} setGuide(false); };
   const endRef = useRef(onEnd); endRef.current = onEnd;
   useEffect(() => {
     if (!ready) return;
@@ -55,7 +79,7 @@ function GameRunner({ game, look, onEnd, onQuit }) {
       if (dead) return;
       raf = requestAnimationFrame(loop);
       const dt = Math.min(0.04, (now - last) / 1000); last = now;
-      if (document.hidden) return;
+      if (document.hidden || paused.current) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); g.draw(0); return; }
       t += dt;
       g.update(dt);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -64,12 +88,12 @@ function GameRunner({ game, look, onEnd, onQuit }) {
     raf = requestAnimationFrame(loop);
     const KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Enter', 'a', 'd', 'w', 'Backspace']);
     const kd = (e) => {
-      if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (KEYS.has(e.key) || (game.key === 'wordle' && /^[a-zA-Z]$/.test(e.key))) { e.preventDefault(); g.key(e.key, true); }
+      if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey || paused.current) return;
+      if (KEYS.has(e.key) || (game.key === 'wordle' && /^[a-zA-Z]$/.test(e.key)) || (game.key === 'ludo' && /^[1-4]$/.test(e.key))) { e.preventDefault(); g.key(e.key, true); }
     };
     const ku = (e) => { if (KEYS.has(e.key)) g.key(e.key, false); };
     const pos = (e) => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * (W / r.width), (e.clientY - r.top) * (H / r.height)]; };
-    const pd = (e) => { e.preventDefault(); c.setPointerCapture && c.setPointerCapture(e.pointerId); g.point(...pos(e), 'down'); };
+    const pd = (e) => { if (paused.current) return; e.preventDefault(); c.setPointerCapture && c.setPointerCapture(e.pointerId); g.point(...pos(e), 'down'); };
     const pm = (e) => g.point(...pos(e), 'move');
     const pu = (e) => g.point(...pos(e), 'up');
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
@@ -82,9 +106,11 @@ function GameRunner({ game, look, onEnd, onQuit }) {
         <button className="btn small ghost" onClick={onQuit}>← All games</button>
         <b>{game.emoji} {game.title}</b>
         <small>{game.how}</small>
+        <button className="btn small ghost ar-help" onClick={() => setGuide(true)} title="How to play">? How to play</button>
       </div>
       <div ref={wrap} className="ar-canvas">
         <canvas ref={cv} />
+        {guide && <Guide k={game.key} title={game.title} emoji={game.emoji} onClose={closeGuide} startLabel={run === 0 && !result ? 'Let’s play ▶' : 'Back to the game'} />}
         {result && (
           <div className="ar-result">
             <div className="ar-result-card">
@@ -92,6 +118,7 @@ function GameRunner({ game, look, onEnd, onQuit }) {
               <h3>Score {result.score}</h3>
               {result.best && <p className="ar-best">New personal best! 🏆</p>}
               <p className="ar-earned">{result.got > 0 ? `+${result.got} ${PT}` : result.daily ? 'You already got today’s points. New word tomorrow!' : result.capped ? 'Daily points limit reached — come back tomorrow!' : result.limited ? `You’ve earned points from ${result.limited} games today. Keep playing for fun, points are back tomorrow!` : 'No points this time'}</p>
+              {tipFor(game.key) && <p className="ar-tip">💡 {tipFor(game.key)}</p>}
               <div className="ar-result-btns">
                 <button className="btn" autoFocus onClick={() => setRun((n) => n + 1)}>Play again</button>
                 <button className="btn ghost" onClick={onQuit}>Back</button>
@@ -180,6 +207,14 @@ function FriendGames({ social, state, toast, off = [] }) {
         </div>
       )}
       {cur && <Board m={cur} me={me} social={social} toast={toast} />}
+      {cur && GUIDES[cur.game] && (
+        <details className="ar-guide-inline">
+          <summary>📖 How to play {GAMES[cur.game].label}</summary>
+          <p>{GUIDES[cur.game].goal}</p>
+          <ol>{GUIDES[cur.game].steps.map((x) => <li key={x}>{x}</li>)}</ol>
+          <p><b>Tips:</b> {GUIDES[cur.game].tips.join(' ')}</p>
+        </details>
+      )}
     </div>
   );
 }
@@ -293,11 +328,11 @@ export default function Arcade({ social, state, toast }) {
                 {lb.length > 0 && <span className="ar-lb">{lb.map((x, i) => <i key={i} className={x.me ? 'me' : ''}>{['🥇', '🥈', '🥉'][i]} {x.me ? 'you' : '@' + x.name} {x.s}</i>)}</span>}
               </span>
               <span className="ar-play">Play ▶</span>
+              {GUIDES[g.key] && <span className="ar-hint">💡 {GUIDES[g.key].tips[0]}</span>}
             </button>
           );
         })}
       </div>
-      {Object.keys(GAMES).some((k) => !gamesOff.includes(k)) && <FriendGames social={social} state={state} toast={toast} off={gamesOff} />}
       </>)}
     </div>
   );

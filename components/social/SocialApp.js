@@ -2,7 +2,8 @@
 import './social.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocial } from './useSocial';
-import { AuthScreen, Onboard } from './Auth';
+import { AuthScreen, Onboard, SignupQuestions } from './Auth';
+import { guessCountry } from '../../lib/signup';
 import LiveDesk from './LiveDesk';
 import { Music, MusicDock, useRoomPlayer, readDock, saveDock } from './Music';
 import PetFigure, { useNibble } from '../PetFigure';
@@ -111,7 +112,6 @@ function FriendActions({ social, f, toast, compact }) {
     <div className="sa-acts">
       {kinds.map((k) => <button key={k} title={EMOTE_TITLE[k] || k} onClick={() => act(k)}>{EMOTES[k]}</button>)}
       <button title="Private message" onClick={() => setWhisper('')}>💬</button>
-      {!compact && social.games && <button title="Challenge to Tic-tac-toe (open Games to play)" onClick={() => social.games.challenge(f.uid, 'ttt').then(() => toast({ text: `🎮 Challenged @${f.username} to ${GAMES.ttt.label}. Open Games to play.` })).catch((e) => toast({ err: true, text: niceError(e) }))}>🎮</button>}
       {social.music && <button title="Listen together" onClick={() => {
         const r = social.state.music && social.state.music.room;
         const mine = r && r.host === social.state.user.uid;
@@ -753,12 +753,43 @@ function Profile({ social, state, desktop, local, toast }) {
   );
 }
 
+// people who joined before the sign-up questions: ask once on Home (dismissable, never again after)
+function AskSignup({ social, state, toast }) {
+  const key = 'nibble-signup-' + state.user.uid;
+  const [show, setShow] = useState(false);
+  const [sq, setSq] = useState({ source: '', sourceOther: '', country: '', uses: [] });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let done = false; try { done = !!localStorage.getItem(key); } catch {}
+    const created = state.profile && state.profile.createdAt;
+    const ms = created ? (created.toMillis ? created.toMillis() : Number(created.seconds ? created.seconds * 1000 : created)) : 0;
+    if (!done && (!ms || Date.now() - ms > 10 * 60_000)) { setShow(true); setSq((x) => ({ ...x, country: guessCountry() })); }
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!show) return null;
+  const close = () => { try { localStorage.setItem(key, 'skip'); } catch {} setShow(false); };
+  const save = async () => {
+    setBusy(true);
+    try { await social.saveSignup(sq); toast({ text: 'Thanks! 🐾' }); setShow(false); }
+    catch (x) { if (x && x.code === 'permission-denied') { try { localStorage.setItem(key, '1'); } catch {} setShow(false); } else toast({ err: true, text: niceError(x) }); }
+    setBusy(false);
+  };
+  return (
+    <div className="sa-card sa-ask">
+      <button className="sa-x" onClick={close} title="Not now" aria-label="Not now">✕</button>
+      <p className="sa-sub" style={{ marginTop: 0 }}>Quick question, then we won't ask again. It helps us know where to share Nibble.</p>
+      <SignupQuestions value={sq} onChange={setSq} compact />
+      <button className="btn small" disabled={!sq.source || !sq.country || busy} onClick={save}>{busy ? 'Saving…' : 'Send'}</button>
+    </div>
+  );
+}
+
 function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith }) {
   const online = state.friends.filter((f) => f.online);
   const last = state.messages.filter((m) => !m.mine).slice(-3).reverse();
   return (
     <div className="sa-page">
       <h2>Hey {(state.about && state.about.nick) || '@' + state.profile.username} 👋</h2>
+      <AskSignup social={social} state={state} toast={toast} />
       {!state.about && (
         <div className="sa-card sa-tip">
           <span className="sa-tip-ico">💭</span>

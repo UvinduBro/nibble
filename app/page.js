@@ -38,7 +38,7 @@ const LOOKS = [
   { skin: 'mint', tint: '#b9a3ff', look: { sp: 'bunny', of: 'dress', oc: '#ffd23f' } },
 ];
 
-const GAMES = ['Block Blast', 'Fruit Merge', '2048 Pets', 'Flappy Pet', 'Pet Wordle', 'Snack Snake', 'Snack Catch', 'Window Hop', 'Scoop Stack', 'Bug Bash', 'Pet Pairs', 'Copy the Dance'];
+const GAMES = ['Pet Pool', 'Ludo', 'Block Blast', 'Fruit Merge', '2048 Pets', 'Flappy Pet', 'Pet Wordle', 'Snack Snake', 'Snack Catch', 'Window Hop', 'Scoop Stack', 'Bug Bash', 'Pet Pairs', 'Copy the Dance'];
 
 const CONTROLS = [
   ['Hover', 'Its ears perk up and it watches your cursor'],
@@ -111,7 +111,7 @@ function HubMock() {
           </div>
           <div className="hub-card hub-games">
             <small>Games</small>
-            <div className="hub-chips">{['Block Blast', 'Fruit Merge', 'Pet Wordle', 'Snack Snake', 'Connect four vs @wagee'].map((g) => <span key={g} className="chip">{g}</span>)}<span className="chip is-up">Up next: Window Hop</span></div>
+            <div className="hub-chips">{['Block Blast', 'Fruit Merge', 'Pet Wordle', 'Snack Snake', 'Pet Pool', 'Ludo'].map((g) => <span key={g} className="chip">{g}</span>)}<span className="chip is-up">New: Pet Pool</span></div>
           </div>
         </div>
       </div>
@@ -167,7 +167,7 @@ export default function Home() {
               {[
                 ['(•ᴗ•)', 'Live', 'It walks along your title bars, rides windows you drag, naps when you leave and reminds you to stretch, drink water and meet your deadlines.'],
                 ['<3', 'Connect', 'Friends’ pets visit your desktop with a name tag. Talk through your pets, whisper, high five, and find Nibble users on the same Wi-Fi.'],
-                ['▶', 'Play', 'Twelve quick games, live games against friends, music rooms that stay in sync, and points that unlock outfits, animals and moves.'],
+                ['▶', 'Play', 'Fourteen quick games including Pool and Ludo, music rooms that stay in sync, and points that unlock outfits, animals and moves.'],
               ].map(([g, t, d], i) => (
                 <article key={t} className="lp-pillar" data-reveal style={{ '--d': `${i * 0.08}s` }}>
                   <span className="lp-glyph" aria-hidden>{g}</span>
@@ -207,7 +207,7 @@ export default function Home() {
               <article className="lp-feat" data-reveal>
                 <div className="lp-feat-top"><span className="lp-num">04</span><span className="chip is-live">Live</span></div>
                 <h3>Games and points</h3>
-                <p>Twelve quick games to play alone, plus live tic-tac-toe and connect four against friends. A daily bonus grows with your streak.</p>
+                <p>Fourteen quick games, now with Pet Pool and Ludo against the computer. Every game has a how-to-play guide, and a daily bonus grows with your streak.</p>
                 <ul className="lp-tags" aria-label="Games">{GAMES.map((g) => <li key={g}>{g}</li>)}</ul>
               </article>
               <article className="lp-feat" data-reveal style={{ '--d': '.06s' }}>

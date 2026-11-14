@@ -1,8 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PetFigure from '../PetFigure';
 import { CHARACTERS, byKey } from '../../lib/characters';
 import { NAME_RE, niceError } from '../../lib/social/social';
+import { SOURCES, USES, countries, guessCountry, flag } from '../../lib/signup';
 
 const GoogleG = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -79,19 +80,50 @@ export function CharacterGrid({ value, onPick, compact }) {
   );
 }
 
+export function SignupQuestions({ value, onChange, compact }) {
+  const list = useMemo(() => countries(), []);
+  const v = value;
+  const set = (patch) => onChange({ ...v, ...patch });
+  return (
+    <div className={'sa-sq' + (compact ? ' compact' : '')}>
+      <h3>How did you find Nibble?</h3>
+      <div className="sa-sq-chips">
+        {SOURCES.map(([k, l]) => <button type="button" key={k} className={v.source === k ? 'on' : ''} onClick={() => set({ source: k })}>{l}</button>)}
+      </div>
+      {v.source === 'other' && <input className="sa-sq-other" value={v.sourceOther} maxLength={60} onChange={(e) => set({ sourceOther: e.target.value })} placeholder="Where? (optional)" />}
+      <label className="sa-sq-row"><span>Where are you from?</span>
+        <select value={v.country} onChange={(e) => set({ country: e.target.value })}>
+          <option value="">Pick your country</option>
+          {list.map(([c, n]) => <option key={c} value={c}>{flag(c)} {n}</option>)}
+        </select>
+      </label>
+      <div className="sa-sq-row"><span>What will you use it for? <small>pick any</small></span>
+        <div className="sa-sq-chips small">
+          {USES.map(([k, l]) => <button type="button" key={k} className={v.uses.includes(k) ? 'on' : ''} onClick={() => set({ uses: v.uses.includes(k) ? v.uses.filter((x) => x !== k) : [...v.uses, k] })}>{l}</button>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Onboard({ social, state, initialSkin }) {
   const [name, setName] = useState('');
   const [skin, setSkin] = useState(initialSkin || 'mojo');
   const [petName, setPetName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [sq, setSq] = useState({ source: '', sourceOther: '', country: '', uses: [] });
+  useEffect(() => { setSq((x) => (x.country ? x : { ...x, country: guessCountry() })); }, []);
   const clean = name.trim().toLowerCase().replace(/^@/, '');
-  const ok = NAME_RE.test(clean);
+  const ok = NAME_RE.test(clean) && !!sq.source && !!sq.country;
 
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true); setErr('');
-    try { await social.claimUsername(clean, { skin, petName: petName || byKey[skin]?.name || 'Nibble' }); }
+    try {
+      await social.claimUsername(clean, { skin, petName: petName || byKey[skin]?.name || 'Nibble' });
+      social.saveSignup(sq).catch(() => {}); // never blocks getting in
+    }
     catch (x) { setErr(niceError(x)); }
     setBusy(false);
   };
@@ -108,7 +140,9 @@ export function Onboard({ social, state, initialSkin }) {
       <h3>Pick the pet your friends will see</h3>
       <CharacterGrid value={skin} onPick={setSkin} compact />
       <label className="sa-inline">Pet name <input value={petName} onChange={(e) => setPetName(e.target.value)} placeholder={byKey[skin]?.name || 'Nibble'} maxLength={20} /></label>
+      <SignupQuestions value={sq} onChange={setSq} />
       {err && <p className="sa-msg err">{err}</p>}
+      {!ok && NAME_RE.test(clean) && <p className="sa-sub">{!sq.source ? 'Tell us how you found Nibble' : 'Pick your country'} to continue.</p>}
       <button className="btn big" disabled={!ok || busy}>{busy ? 'Claiming…' : `Let’s go, @${clean || 'you'}`}</button>
     </form>
   );

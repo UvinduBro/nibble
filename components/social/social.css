@@ -1008,3 +1008,40 @@
 .sa-rem-bell { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; background: rgba(126, 232, 198, 0.12); font-size: 15px; }
 .sa-rem-people { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .sa-rem-people i { font-style: normal; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.07); color: var(--muted); }
+/* sign-up questions */
+.sa-sq { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 6px; text-align: left; width: 100%; }
+.sa-sq h3 { margin: 4px 0 0; }
+.sa-sq-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sa-sq-chips button { font: inherit; font-size: 13.5px; font-weight: 600; color: var(--muted); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; cursor: pointer; }
+.sa-sq-chips.small button { font-size: 12.5px; padding: 5px 10px; }
+.sa-sq-chips button.on { color: var(--text); border-color: var(--mint); background: rgba(126, 232, 198, 0.13); }
+.sa-sq-row { display: flex; flex-direction: column; gap: 6px; }
+.sa-sq-row > span { font-weight: 700; font-size: 14px; }
+.sa-sq-row small { color: var(--muted); font-weight: 500; margin-left: 6px; }
+.sa-sq select, .sa-sq-other { max-width: 360px; }
+.sa-ask { position: relative; }
+.sa-ask > .sa-x { position: absolute; top: 12px; right: 12px; }
+/* games: guides, hints, ludo with friends */
+.ar-guide { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 14px; background: rgba(10, 8, 24, 0.72); backdrop-filter: blur(3px); overflow: auto; }
+.ar-guide-card { width: min(470px, 100%); max-height: 100%; overflow: auto; background: #1d1838; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 18px; padding: 18px 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+.ar-guide-card h3 { margin: 0 0 6px; }
+.ar-guide-card h4 { margin: 12px 0 4px; font-size: 14px; }
+.ar-guide-goal { margin: 0 0 8px; color: #e9e6ff; }
+.ar-guide-card ol, .ar-guide-card ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
+.ar-guide-card .btn { margin-top: 14px; }
+.ar-canvas { position: relative; }
+.ar-help { margin-left: auto; }
+.ar-tip { font-size: 13px; color: var(--muted); margin: 4px 0 10px; max-width: 320px; }
+.ar-hint { display: block; font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
+.ar-guide-inline { margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
+.ar-guide-inline summary { cursor: pointer; font-weight: 700; }
+.ar-guide-inline ol { padding-left: 20px; color: var(--muted); }
+.ar-ludo { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 12px; }
+.ar-ludo-board { width: 100%; height: auto; border-radius: 12px; display: block; }
+.ar-ludo-tok.on circle:first-child { animation: ar-pulse 0.9s ease-in-out infinite alternate; }
+@keyframes ar-pulse { from { opacity: 0.35; } to { opacity: 0.95; } }
+.ar-ludo-side { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.ar-ludo-die { width: 64px; height: 64px; display: grid; place-items: center; font-size: 46px; line-height: 1; background: #fff; color: #1b1530; border-radius: 14px; border: 3px solid; }
+.ar-ludo-who { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.ar-ludo-who i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+@media (max-width: 700px) { .ar-ludo { grid-template-columns: minmax(0, 1fr); } }

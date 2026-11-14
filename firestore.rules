@@ -324,6 +324,20 @@ service cloud.firestore {
       allow delete: if signedIn() && uid == me();
     }
 
+    // sign-up answers: how they found Nibble, country, what for. Written once by the person; admins read.
+    match /signup/{uid} {
+      allow get: if signedIn() && (uid == me() || isAdmin());
+      allow list: if isAdmin();
+      allow create: if signedIn() && uid == me()
+        && incoming().keys().hasOnly(['source', 'sourceOther', 'country', 'uses', 'at'])
+        && shortText(incoming().source, 12) && shortText(incoming().sourceOther, 60)
+        && shortText(incoming().country, 2)
+        && incoming().uses is list && incoming().uses.size() <= 10
+        && incoming().at == request.time;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     // bug reports + feedback (Hub when signed in, website as an anonymous visitor via /api/feedback).
     // Anyone can send one in this exact shape; only admins can read, mark or delete them.
     match /reports/{id} {
