@@ -324,6 +324,47 @@ service cloud.firestore {
       allow delete: if signedIn() && uid == me();
     }
 
+    // bug reports + feedback (Hub when signed in, website as an anonymous visitor via /api/feedback).
+    // Anyone can send one in this exact shape; only admins can read, mark or delete them.
+    match /reports/{id} {
+      allow create: if incoming().keys().hasOnly(['kind', 'cat', 'title', 'what', 'doing', 'expected', 'actual', 'text', 'contact', 'shot', 'ver', 'os', 'client', 'page', 'uid', 'username', 'status', 'at'])
+        && incoming().kind in ['bug', 'feedback']
+        && incoming().cat in ['like', 'dislike', 'feature', 'idea', 'problem', '']
+        && incoming().status == 'new' && incoming().at == request.time
+        && shortText(incoming().title, 80) && shortText(incoming().text, 2000)
+        && shortText(incoming().what, 1000) && shortText(incoming().doing, 1000)
+        && shortText(incoming().expected, 1000) && shortText(incoming().actual, 1000)
+        && shortText(incoming().contact, 100) && shortText(incoming().shot, 700000)
+        && shortText(incoming().ver, 16) && shortText(incoming().os, 40)
+        && shortText(incoming().client, 16) && shortText(incoming().page, 80)
+        && shortText(incoming().uid, 40) && shortText(incoming().username, 20)
+        && (signedIn() ? (incoming().uid == me() && !isBanned()) : (incoming().uid == '' && incoming().username == ''));
+      allow read, delete: if isAdmin();
+      allow update: if isAdmin() && incoming().diff(resource.data).affectedKeys().hasOnly(['status'])
+        && incoming().status in ['new', 'seen', 'done'];
+    }
+
+    // shared reminders: rings at `at` for everyone in `people` (the owner + up to 10 friends).
+    // Only people on it can see it; the owner can delete it; anyone else can only take themselves off.
+    match /reminders/{id} {
+      allow read: if signedIn() && me() in resource.data.people;
+      allow create: if signedIn() && !isBanned()
+        && incoming().keys().hasOnly(['owner', 'ownerName', 'title', 'at', 'people', 'names', 'created'])
+        && incoming().owner == me()
+        && incoming().people is list && incoming().people.size() >= 1 && incoming().people.size() <= 11
+        && incoming().people[0] == me()
+        && incoming().names is map && incoming().names.size() <= 11
+        && incoming().title is string && incoming().title.size() > 0 && incoming().title.size() <= 60
+        && shortText(incoming().ownerName, 20)
+        && incoming().at is int
+        && incoming().created == request.time;
+      allow update: if signedIn() && me() in resource.data.people && resource.data.owner != me()
+        && incoming().diff(resource.data).affectedKeys().hasOnly(['people'])
+        && !(me() in incoming().people)
+        && resource.data.people.hasAll(incoming().people);
+      allow delete: if signedIn() && resource.data.owner == me();
+    }
+
     // direct pokes, waves, cuddles and whispers. Only friends can send; only you can read.
     match /inbox/{uid}/items/{id} {
       allow read, delete: if signedIn() && uid == me();

@@ -689,6 +689,72 @@ function SettingsTab({ social, state, users, banned, history, latest, toast, set
 }
 
 // ---------- shell ----------
+// ---------- Reports: bug reports + feedback from the Hub and the website ----------
+const REPORT_CAT = { like: '💚 Likes', dislike: '😕 Doesn’t like', feature: '✨ Feature request', idea: '💡 Idea', problem: '🧩 Problem' };
+function ReportsTab({ social, users, toast, go, setOpenUid }) {
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState('');
+  const [show, setShow] = useState('open');
+  const [big, setBig] = useState('');
+  const load = () => { setErr(''); social.admin.reports().then(setList).catch((e) => { setList([]); setErr(niceError(e)); }); };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const act = async (fn, ok) => { try { await fn(); if (ok) toast({ text: ok }); load(); } catch (x) { toast({ err: true, text: niceError(x) }); } };
+  const all = list || [];
+  const shown = all.filter((r) => (show === 'open' ? r.status !== 'done' : show === 'bug' ? r.kind === 'bug' : show === 'feedback' ? r.kind === 'feedback' : true));
+  const n = (f) => all.filter(f).length;
+  return (
+    <>
+      <div className="ad-kpis ad-kpis4">
+        <Kpi n={n((r) => r.status === 'new')} label="New" sub="not looked at yet" color={C.pink} onClick={() => setShow('open')} />
+        <Kpi n={n((r) => r.kind === 'bug' && r.status !== 'done')} label="Open bugs" sub="not done" color={C.coral} onClick={() => setShow('bug')} />
+        <Kpi n={n((r) => r.kind === 'feedback')} label="Feedback" sub="likes, ideas, requests" color={C.mint} onClick={() => setShow('feedback')} />
+        <Kpi n={all.length} label="Latest" sub="newest 50" color={C.cyan} onClick={() => setShow('all')} />
+      </div>
+      <div className="sa-card">
+        <h3>📬 Reports <small>{shown.length}</small>
+          <span className="rp-filter">{[['open', 'Open'], ['bug', 'Bugs'], ['feedback', 'Feedback'], ['all', 'All']].map(([k, l]) => <button key={k} className={show === k ? 'on' : ''} onClick={() => setShow(k)}>{l}</button>)}</span>
+          <button className="btn small ghost" onClick={load}>Refresh</button>
+        </h3>
+        {list === null && <p className="sa-empty">Loading…</p>}
+        {err && <p className="sa-empty">{err.includes('Not allowed') ? 'Publish the latest Firestore rules to see reports.' : err}</p>}
+        {list && !err && shown.length === 0 && <p className="sa-empty">Nothing here. 🎉</p>}
+        {shown.map((r) => {
+          const u = r.uid && users.find((x) => x.uid === r.uid);
+          return (
+            <article key={r.id} className={'rp rp-' + r.status}>
+              <header>
+                <span className="rp-kind">{r.kind === 'bug' ? '🐛 Bug' : REPORT_CAT[r.cat] || '💬 Feedback'}</span>
+                <b>{r.title || (r.kind === 'bug' ? r.what : r.text).slice(0, 80)}</b>
+                <span className={'rp-status rp-s-' + r.status}>{r.status}</span>
+              </header>
+              <p className="rp-who">
+                {u ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(u.uid); }}>@{u.username}</button> : r.username ? '@' + r.username : 'Website visitor'}
+                {r.contact ? ` · reply to: ${r.contact}` : ''} · {[r.ver && 'v' + r.ver, r.os, r.client].filter(Boolean).join(' · ')} · {ago(r.at)}
+              </p>
+              {r.kind === 'bug' ? (
+                <dl className="rp-body">
+                  <dt>What happened</dt><dd>{r.what}</dd>
+                  {r.doing && <><dt>Doing</dt><dd>{r.doing}</dd></>}
+                  {r.expected && <><dt>Expected</dt><dd>{r.expected}</dd></>}
+                  {r.actual && <><dt>Instead</dt><dd>{r.actual}</dd></>}
+                </dl>
+              ) : <p className="rp-text">{r.text}</p>}
+              {r.shot && <button className="rp-shot" onClick={() => setBig(r.shot)} title="Open screenshot"><img src={r.shot} alt="Screenshot" /></button>}
+              <footer>
+                {r.status !== 'seen' && r.status !== 'done' && <button className="btn small ghost" onClick={() => act(() => social.admin.setReport(r.id, 'seen'))}>Mark seen</button>}
+                {r.status !== 'done' ? <button className="btn small" onClick={() => act(() => social.admin.setReport(r.id, 'done'), 'Marked done')}>Done</button>
+                  : <button className="btn small ghost" onClick={() => act(() => social.admin.setReport(r.id, 'new'))}>Reopen</button>}
+                <button className="btn small ghost" onClick={() => { if (window.confirm('Delete this report?')) act(() => social.admin.deleteReport(r.id), 'Deleted'); }}>Delete</button>
+              </footer>
+            </article>
+          );
+        })}
+      </div>
+      {big && <div className="rp-big" onClick={() => setBig('')} role="dialog" aria-label="Screenshot"><img src={big} alt="Screenshot, full size" /></div>}
+    </>
+  );
+}
+
 // ---------- Firebase usage: real numbers from Cloud Monitoring + controls that use less ----------
 const fmtN = (n) => Math.round(n || 0).toLocaleString();
 function Meter({ label, used, limit, color }) {
@@ -834,7 +900,7 @@ function UsageTab({ social, state, users, toast }) {
   );
 }
 
-const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['games', 'Games & points', '🎮'], ['usage', 'Firebase usage', '📈'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
+const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['games', 'Games & points', '🎮'], ['reports', 'Reports', '📬'], ['usage', 'Firebase usage', '📈'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
 
 function Dashboard({ social, state }) {
   useNibble(); // loads the character palettes used for avatars and charts
@@ -891,6 +957,7 @@ function Dashboard({ social, state }) {
         {users && tab === 'overview' && <Overview users={list} banned={banned || []} latest={latest} minVersion={minVersion} go={go} />}
         {users && tab === 'users' && <Users users={list} bannedMap={bannedMap} latest={latest} minVersion={minVersion} filter={filter} setFilter={setFilter} openUid={openUid} setOpenUid={setOpenUid} me={state.user.uid} />}
         {users && tab === 'games' && <GamesTab social={social} state={state} users={list} toast={toast} setOpenUid={setOpenUid} go={go} />}
+        {users && tab === 'reports' && <ReportsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'usage' && <UsageTab social={social} state={state} users={list} toast={toast} />}
         {tab === 'announce' && <Announce social={social} state={state} history={history} toast={toast} />}
         {users && tab === 'settings' && <SettingsTab social={social} state={state} users={list} banned={banned} history={history} latest={latest} toast={toast} setOpenUid={setOpenUid} go={go} />}

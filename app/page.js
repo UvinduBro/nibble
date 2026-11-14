@@ -5,6 +5,7 @@ import About from '../components/About';
 import PetFigure from '../components/PetFigure';
 import Globe, { PLACES } from '../components/landing/Globe';
 import { Reveal, ThemeToggle } from '../components/landing/LandingFx';
+import SiteFeedback from '../components/landing/SiteFeedback';
 import release from '../public/version.json';
 import './landing.css';
 
@@ -67,7 +68,7 @@ const STEPS = [
   ['Bring your friends', 'Add friends by username. Their pets visit your screen, and you can message, play and listen to music together.'],
 ];
 
-const NAV = [['#try', 'Demo'], ['#features', 'Features'], ['#crew', 'Pets'], ['#download', 'Download'], ['#faq', 'FAQ'], ['#about', 'About']];
+const NAV = [['#try', 'Demo'], ['#features', 'Features'], ['#crew', 'Pets'], ['#download', 'Download'], ['#faq', 'FAQ'], ['#feedback', 'Feedback']];
 
 function HubMock() {
   return (
@@ -285,7 +286,7 @@ export default function Home() {
 
         <section className="lp-sec" id="faq">
           <div className="lp-wrap lp-faq-wrap">
-            <Head title="Frequently asked questions" sub="Can’t find your answer? Message @uvindu in the Hub." />
+            <Head title="Frequently asked questions" sub="Can’t find your answer? Send us a message in the feedback form below." />
             <div className="lp-faq">
               {FAQ.map(([q, a]) => (
                 <details key={q} data-reveal>
@@ -294,6 +295,20 @@ export default function Home() {
                 </details>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="lp-sec" id="feedback">
+          <div className="lp-wrap lp-fb-wrap">
+            <div data-reveal>
+              <Head kicker="Feedback" title="Tell us what you think." sub="Love something, hate something, want something new, or found a bug? Send it here. Nibble is built by two people in Sri Lanka, and we read every message." />
+              <ul className="lp-ticks">
+                <li>No account needed</li>
+                <li>Screenshots welcome (paste or attach)</li>
+                <li>Already using Nibble? Hub → Feedback adds your version for you</li>
+              </ul>
+            </div>
+            <div className="lp-panel" data-reveal style={{ '--d': '.08s' }}><SiteFeedback version={release.version} /></div>
           </div>
         </section>
 
@@ -328,7 +343,7 @@ export default function Home() {
             <p>A desktop pet that walks on your windows, visits your friends and plays music with you. Developed by Uvindu Rajapakshe in Sri Lanka.</p>
           </div>
           <nav aria-label="Product"><b>Product</b><a href="#download">Download</a><a href="/app">Web app</a><a href="#features">Features</a><a href="#crew">Pets</a></nav>
-          <nav aria-label="Help"><b>Help</b><a href="#faq">FAQ</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
+          <nav aria-label="Help"><b>Help</b><a href="#faq">FAQ</a><a href="#feedback">Report a bug</a><a href="#feedback">Suggest a feature</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
           <nav aria-label="Nibble"><b>Nibble</b><a href="#about">About</a><a href="/app">Sign in</a></nav>
         </div>
         <div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble. Version {release.version}.</div>

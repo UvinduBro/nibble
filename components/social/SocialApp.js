@@ -12,6 +12,7 @@ import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
 import Wardrobe from './Wardrobe';
 import Arcade from './Arcade';
 import Leaderboard from './Leaderboard';
+import FeedbackForm, { systemName } from './Feedback';
 import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
 import { GAMES } from '../../lib/social/games';
 
@@ -40,7 +41,7 @@ const ago = (t) => {
 };
 const EMOTE_TITLE = { wave: 'Wave', hug: 'Cuddle', kiss: 'Kiss', poke: 'Poke', annoy: 'Tease', icecream: 'Share ice cream', heart: 'Send a heart', highfive: 'High five', tickle: 'Tickle', cheer: 'Cheer them on', snack: 'Share a snack', dance: 'Dance together', boop: 'Boop', flower: 'Give a flower', cake: 'Birthday cake', fistbump: 'Fist bump', pillow: 'Pillow fight', serenade: 'Serenade', gift: 'Gift box', bubbles: 'Bubbles' };
 const NAV = [
-  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['board', 'Leaderboard', '🏆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['deadlines', 'Deadlines', '⏰'], ['profile', 'Profile', '☻'], ['settings', 'Settings', '⚙'],
+  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['board', 'Leaderboard', '🏆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['deadlines', 'Reminders', '⏰'], ['profile', 'Profile', '☻'], ['feedback', 'Feedback', '🐛'], ['settings', 'Settings', '⚙'],
 ];
 
 // `who` = a profile or friend: their accessories, colour, makeup and wardrobe look show on the avatar
@@ -391,7 +392,7 @@ function ConnectionCheck({ state, local, desktop }) {
 }
 
 const SIZES = [['Tiny', 0.65], ['Small', 0.82], ['Normal', 1], ['Big', 1.3], ['Chonky', 1.65]];
-function Settings({ social, state, desktop, local, toast }) {
+function Settings({ social, state, desktop, local, toast, go }) {
   const s = (local && local.settings) || {};
   const set = (patch) => desktop.setLocal(patch);
   const [status, setStatus] = useState(state.prefs.status || '');
@@ -426,6 +427,11 @@ function Settings({ social, state, desktop, local, toast }) {
           <Toggle label="Hide pets" hint={desktop.platform === 'darwin' ? '⌘ + ⌥ + N' : 'Ctrl + Alt + N'} on={s.paused} onChange={(v) => set({ paused: v })} />
         </div>
       )}
+      <div className="sa-card">
+        <h3>🐛 Something not working?</h3>
+        <p className="sa-sub">Report a bug or send an idea. Your version and system are included for you.</p>
+        <button className="btn small" onClick={() => go && go('feedback')}>Report a bug or send feedback</button>
+      </div>
       <div className="sa-card">
         <h3>Account</h3>
         <p className="sa-sub">@{state.profile.username} · {state.user.email || 'signed in'} · {state.user.provider === 'google.com' ? 'Google' : 'Email'}</p>
@@ -466,6 +472,85 @@ function DockSettings() {
       <p className="sa-sub">The player in the bottom-right corner while you’re in a music room. Music keeps playing whichever you pick.</p>
       <div className="sa-seg">Show {[['video', 'Video'], ['bar', 'Just controls'], ['tiny', 'Small button']].map(([v, l]) => <button key={v} className={p.mode === v ? 'on' : ''} onClick={() => save({ ...p, mode: v })}>{l}</button>)}</div>
       <Toggle label="Tuck it away during games" hint="Shrinks to a small 🎧 button on the Games tab" on={p.games} onChange={(v) => save({ ...p, games: v })} />
+    </div>
+  );
+}
+
+// ---------- Shared reminders: rings at the time, for you and the friends you add ----------
+const REM_QUICK = [
+  ['In 30 min', () => Date.now() + 30 * 60_000], ['In 1 hour', () => Date.now() + 3600_000], ['Today 4 PM', () => atDay(0, 16)],
+  ['Today 7 PM', () => atDay(0, 19)], ['Today 9 PM', () => atDay(0, 21)], ['Tomorrow 10 AM', () => atDay(1, 10)],
+];
+function SharedReminders({ social, state, toast }) {
+  const [title, setTitle] = useState('');
+  const [when, setWhen] = useState(() => toLocalInput(atDay(0, 19) > Date.now() + 60_000 ? atDay(0, 19) : atDay(1, 19)));
+  const [who, setWho] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const me = state.user.uid;
+  const list = (state.reminders || []).filter((r) => r.at > Date.now() - 30 * 60_000);
+  const flip = (uid) => setWho((w) => (w.includes(uid) ? w.filter((x) => x !== uid) : w.length >= 10 ? w : [...w, uid]));
+  const add = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await social.reminders.add(title, new Date(when).getTime(), who);
+      toast({ text: who.length ? `Reminder set for you and ${who.length} friend${who.length > 1 ? 's' : ''} 🔔` : 'Reminder set 🔔' });
+      setTitle(''); setWho([]);
+    } catch (x) { toast({ err: true, text: niceError(x) }); }
+    setBusy(false);
+  };
+  const nameOf = (r, uid) => (uid === me ? 'you' : '@' + (r.names[uid] || (state.friends.find((f) => f.uid === uid) || {}).username || 'friend'));
+  return (
+    <>
+      <div className="sa-card">
+        <h3>🔔 Add a reminder</h3>
+        <form className="sa-form" onSubmit={add}>
+          <label><span>What’s happening?</span><input value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Dinner 🍕, Study session, Movie night" /></label>
+          <label><span>When?</span><input type="datetime-local" value={when} min={toLocalInput(Date.now() + 60_000)} onChange={(e) => setWhen(e.target.value)} /></label>
+          <div className="sa-quick">{REM_QUICK.map(([l, f]) => { const t = f(); return t > Date.now() + 60_000 ? <button type="button" key={l} className={toLocalInput(t) === when ? 'on' : ''} onClick={() => setWhen(toLocalInput(t))}>{l}</button> : null; })}</div>
+          <div className="sa-rem-who">
+            <span>Remind friends too <small>optional, up to 10</small></span>
+            {state.friends.length === 0 ? <small className="sa-sub">Add friends to share reminders with them.</small> : (
+              <div className="sa-quick">{state.friends.map((f) => <button type="button" key={f.uid} className={who.includes(f.uid) ? 'on' : ''} onClick={() => flip(f.uid)}>@{f.username}</button>)}</div>
+            )}
+          </div>
+          <button className="btn" disabled={!title.trim() || !when || busy}>{busy ? 'Adding…' : who.length ? `Remind me + ${who.length}` : 'Add reminder'}</button>
+        </form>
+      </div>
+      <div className="sa-card">
+        <h3>Upcoming reminders <small>{list.length}</small></h3>
+        {list.length === 0 && <p className="sa-empty">No reminders yet.</p>}
+        {list.map((r) => {
+          const past = r.at <= Date.now();
+          return (
+            <div key={r.id} className={'sa-dl sa-rem' + (past ? ' done' : '')}>
+              <span className="sa-rem-bell" aria-hidden>{past ? '✓' : '🔔'}</span>
+              <div className="sa-dl-main">
+                <b>{r.title}</b>
+                <small>{fmtDue(r.at)} · {past ? 'rang' : dueLeft(r.at).txt}{r.owner !== me ? ` · from @${r.ownerName}` : ''}</small>
+                {r.people.length > 1 && <span className="sa-rem-people">{r.people.map((u) => <i key={u}>{nameOf(r, u)}</i>)}</span>}
+              </div>
+              <button className="sa-x" onClick={() => social.reminders.remove(r.id).catch((x) => toast({ err: true, text: niceError(x) }))} title={r.owner === me ? 'Delete for everyone' : 'Remove from my list'}>✕</button>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ---------- Feedback: report a bug or tell us what you think (reports/{id}) ----------
+function FeedbackPage({ social, state, desktop, local }) {
+  const meta = {
+    ver: (local && local.version) || '',
+    os: systemName(desktop && desktop.platform),
+    client: desktop ? 'desktop' : 'web',
+  };
+  return (
+    <div className="sa-page">
+      <h2>Feedback</h2>
+      <p className="sa-sub">Found a bug, or have an idea? It goes straight to the Nibble team. Your Nibble version, system and the time are added for you.</p>
+      <div className="sa-card"><FeedbackForm meta={meta} send={(r) => social.report(r)} signedInAs={state.profile.username} /></div>
     </div>
   );
 }
@@ -516,7 +601,9 @@ function Deadlines({ social, state, desktop, local, toast }) {
 
   return (
     <div className="sa-page">
-      <h2>Deadlines</h2>
+      <h2>Deadlines &amp; reminders</h2>
+      <p className="sa-sub sa-dl-intro"><b>Deadline:</b> something you have to finish by a time. Your pet warns you a day before and 3 hours before. <b>Reminder:</b> something happening at a time, like dinner or a study session. It rings right then, for you and any friends you add.</p>
+      <SharedReminders social={social} state={state} toast={toast} />
       <div className="sa-card">
         <h3>⏰ Add a deadline</h3>
         <p className="sa-sub">Your pet reminds you <b>1 day before</b> and again <b>3 hours before</b>. It drops in right next to your cursor and tells you. If you're away from your PC, it waits until you're back.</p>
@@ -973,6 +1060,7 @@ export default function SocialApp({ mode = 'web' }) {
         {tab === 'games' && <Arcade {...props} />}
         {tab === 'board' && <Leaderboard {...props} />}
         {tab === 'settings' && <Settings {...props} />}
+        {tab === 'feedback' && <FeedbackPage {...props} />}
       </>
     );
   }
