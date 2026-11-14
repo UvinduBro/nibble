@@ -50,11 +50,14 @@ service cloud.firestore {
       allow update: if false;
     }
 
-    // site config: minimum desktop version + pinned notice. Everyone reads, admins write.
+    // site config: minimum desktop version, pinned notice, game switches, Saver mode and daily
+    // limits (config/app.limits: matches, solo, music). Everyone reads, admins write.
     match /config/{doc} {
       allow read: if signedIn();
       allow write: if isAdmin()
-        && incoming().keys().hasOnly(['minVersion', 'updateMsg', 'notice', 'noticeLevel', 'updatedAt', 'by', 'games', 'gamesOff', 'shop'])
+        && incoming().keys().hasOnly(['minVersion', 'updateMsg', 'notice', 'noticeLevel', 'updatedAt', 'by', 'games', 'gamesOff', 'shop', 'saver', 'limits'])
+        && (!('saver' in incoming()) || incoming().saver is bool)
+        && (!('limits' in incoming()) || (incoming().limits is map && incoming().limits.keys().hasOnly(['matches', 'solo', 'music'])))
         && (!('gamesOff' in incoming()) || (incoming().gamesOff is list && incoming().gamesOff.size() <= 30))
         && shortText(incoming().get('minVersion', ''), 12)
         && shortText(incoming().get('updateMsg', ''), 160)

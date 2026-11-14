@@ -91,7 +91,7 @@ function GameRunner({ game, look, onEnd, onQuit }) {
               <span className="ar-big">{game.emoji}</span>
               <h3>Score {result.score}</h3>
               {result.best && <p className="ar-best">New personal best! 🏆</p>}
-              <p className="ar-earned">{result.got > 0 ? `+${result.got} ${PT}` : result.daily ? 'You already got today’s points. New word tomorrow!' : result.capped ? 'Daily points limit reached — come back tomorrow!' : 'No points this time'}</p>
+              <p className="ar-earned">{result.got > 0 ? `+${result.got} ${PT}` : result.daily ? 'You already got today’s points. New word tomorrow!' : result.capped ? 'Daily points limit reached — come back tomorrow!' : result.limited ? `You’ve earned points from ${result.limited} games today. Keep playing for fun, points are back tomorrow!` : 'No points this time'}</p>
               <div className="ar-result-btns">
                 <button className="btn" autoFocus onClick={() => setRun((n) => n + 1)}>Play again</button>
                 <button className="btn ghost" onClick={onQuit}>Back</button>
@@ -207,8 +207,14 @@ export default function Arcade({ social, state, toast }) {
       let done = false; try { done = localStorage.getItem(k) === '1'; localStorage.setItem(k, '1'); } catch {}
       if (done) { social.wallet.best(game.key, score).catch(() => {}); return { got: 0, best: false, capped: false, daily: true }; }
     }
+    // admin's daily cap on point-earning solo games (config/app.limits.solo; 0 = no cap)
+    const cap = Number(state.config && state.config.limits && state.config.limits.solo) || 0;
+    const ck = 'nibble-solo-' + state.user.uid + '-' + Math.floor(Date.now() / 86400_000);
+    let played = 0; try { played = Number(localStorage.getItem(ck)) || 0; } catch {}
+    if (cap > 0 && played >= cap) return { got: 0, best: false, capped: false, limited: cap };
     const pts = game.pts(score);
     const got = social.wallet.earn(pts, game.key);
+    if (cap > 0 && got > 0) { try { localStorage.setItem(ck, String(played + 1)); } catch {} }
     const prev = (w.best || {})[game.key] || 0;
     social.wallet.best(game.key, score).catch(() => {});
     return { got, best: score > prev && score > 0, capped: pts > 0 && !got };

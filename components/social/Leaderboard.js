@@ -12,6 +12,9 @@ export default function Leaderboard({ social, state, go, toast }) {
   const [scope, setScope] = useState('friends');
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState('');
+  // Saver mode (admin switch): only the friends board, which costs far fewer reads
+  const saver = !!(state.config && state.config.saver);
+  useEffect(() => { if (saver && scope === 'all') setScope('friends'); }, [saver, scope]);
   const myTotal = state.wallet && state.wallet.ready ? state.wallet.total : null;
   const load = (force) => {
     setErr('');
@@ -36,7 +39,7 @@ export default function Leaderboard({ social, state, go, toast }) {
         </div>
         <div className="lb-tabs" role="tablist">
           <button role="tab" aria-selected={scope === 'friends'} className={scope === 'friends' ? 'on' : ''} onClick={() => setScope('friends')}>👯 Friends</button>
-          <button role="tab" aria-selected={scope === 'all'} className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>🌍 Everyone</button>
+          {!saver && <button role="tab" aria-selected={scope === 'all'} className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>🌍 Everyone</button>}
         </div>
       </div>
 

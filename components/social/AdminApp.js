@@ -140,7 +140,7 @@ function HBars({ rows, max, unit = '' }) {
         <div key={r.label} className="ad-hbar" title={`${r.label}: ${r.value}${unit}`}>
           <span className="ad-hbar-l">{r.icon && <i className="ad-sw" style={{ background: r.icon }} />}{r.label}{r.tag && <em className={'ad-tag ' + r.tagCls}>{r.tag}</em>}</span>
           <span className="ad-hbar-t"><span style={{ width: `${Math.max(2, (r.value / m) * 100)}%`, background: r.color || C.mint }} /></span>
-          <b>{r.value}{unit}</b>
+          <b>{typeof r.value === 'number' ? r.value.toLocaleString() : r.value}{unit}</b>
         </div>
       ))}
     </div>
@@ -689,7 +689,152 @@ function SettingsTab({ social, state, users, banned, history, latest, toast, set
 }
 
 // ---------- shell ----------
-const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['games', 'Games & points', '🎮'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
+// ---------- Firebase usage: real numbers from Cloud Monitoring + controls that use less ----------
+const fmtN = (n) => Math.round(n || 0).toLocaleString();
+function Meter({ label, used, limit, color }) {
+  const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
+  const tone = pct >= 90 ? C.coral : pct >= 70 ? C.yellow : color;
+  return (
+    <div className="us-meter">
+      <div className="us-meter-top"><b>{label}</b><span>{fmtN(used)} <small>/ {fmtN(limit)}</small></span></div>
+      <div className="us-bar"><i style={{ width: pct + '%', background: tone }} /></div>
+      <small className="us-pct" style={{ color: tone }}>{pct >= 100 ? 'Limit reached: Firebase refuses more until the reset' : `${Math.round(pct)}% of the free daily limit`}</small>
+    </div>
+  );
+}
+function HourBars({ hours }) {
+  const max = Math.max(1, ...hours.map((h) => h.reads + h.writes));
+  return (
+    <div className="us-hours" role="img" aria-label="Reads and writes per hour today">
+      {hours.map((h) => (
+        <div key={h.t} className="us-hour" title={`${new Date(h.t).toLocaleTimeString([], { hour: 'numeric' })}: ${fmtN(h.reads)} reads, ${fmtN(h.writes)} writes`}>
+          <i className="r" style={{ height: (h.reads / max) * 100 + '%' }} />
+          <i className="w" style={{ height: (h.writes / max) * 100 + '%' }} />
+          <small>{new Date(h.t).toLocaleTimeString([], { hour: 'numeric' }).replace(/\s?[AP]M/i, (x) => x.trim()[0].toLowerCase())}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+function Countdown({ at }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
+  const left = Math.max(0, at - Date.now());
+  const h = Math.floor(left / 3600_000), m = Math.floor((left % 3600_000) / 60_000);
+  return <>{h}h {m}m <small>({new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} your time)</small></>;
+}
+
+function UsageTab({ social, state, users, toast }) {
+  const cfg = state.config || {};
+  const lim = cfg.limits || {};
+  const [u, setU] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [matches, setMatches] = useState([]);
+  const [form, setForm] = useState({ matches: lim.matches || 0, solo: lim.solo || 0 });
+  useEffect(() => setForm({ matches: lim.matches || 0, solo: lim.solo || 0 }), [lim.matches, lim.solo]);
+  useEffect(() => social.admin.watchMatches(setMatches), [social]);
+  const load = () => { setBusy(true); setErr(''); social.admin.usage().then((d) => { setU(d); if (d.error) setErr(d.error); }).catch((e) => setErr(niceError(e))).finally(() => setBusy(false)); };
+  useEffect(() => { load(); const t = setInterval(() => { if (!document.hidden) load(); }, 5 * 60_000); return () => clearInterval(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const save = async (patch, ok) => { try { await social.admin.setConfig(patch); toast({ text: ok }); } catch (x) { toast({ err: true, text: niceError(x) }); } };
+  const saveLimits = (patch, ok) => save({ limits: { matches: lim.matches || 0, solo: lim.solo || 0, music: lim.music !== false, ...patch } }, ok);
+  const Sw = ({ on, onChange }) => <button className={'ad-switch' + (on ? ' on' : '')} onClick={onChange} aria-pressed={on}><i /></button>;
+
+  // rough estimate of a day at the current activity (labelled as an estimate in the UI)
+  const saver = !!cfg.saver;
+  const online = users.filter((x) => x.online);
+  const inRooms = online.filter((x) => x.room).length;
+  const rooms = new Set(online.map((x) => x.room).filter(Boolean)).size;
+  const liveGames = (matches || []).filter((m) => m.status === 'live').length;
+  const beat = saver ? 200 : 100, roomBeat = saver ? 110 : 55;
+  const presW = online.length * (86400 / beat);
+  const roomW = inRooms * (86400 / roomBeat);
+  const est = [
+    { label: 'Online check-ins', w: presW, r: presW * 3, color: C.mint, hint: `${online.length} online, every ${beat / 60 > 2 ? Math.round(beat / 60) + ' min' : beat + ' s'}` },
+    { label: 'Music rooms', w: roomW, r: roomW * Math.max(1, inRooms / Math.max(1, rooms)), color: C.violet, hint: `${inRooms} listening in ${rooms} room${rooms === 1 ? '' : 's'}` },
+    { label: 'Friend games', w: liveGames * 200, r: liveGames * 400, color: C.cyan, hint: `${liveGames} live now` },
+    { label: 'This dashboard', w: 0, r: presW + users.length * 3, color: C.pink, hint: 'while it stays open' },
+  ];
+  const estW = est.reduce((t, e) => t + e.w, 0), estR = est.reduce((t, e) => t + e.r, 0);
+  const maxE = Math.max(1, ...est.map((e) => e.r + e.w));
+
+  return (
+    <>
+      {u && u.configured && !u.error && (
+        <>
+          <div className="us-meters">
+            <Meter label="Reads today" used={u.today.reads} limit={u.limits.reads} color={C.mint} />
+            <Meter label="Writes today" used={u.today.writes} limit={u.limits.writes} color={C.cyan} />
+            <Meter label="Deletes today" used={u.today.deletes} limit={u.limits.deletes} color={C.violet} />
+          </div>
+          <p className="us-note">Free limits reset in <Countdown at={u.resetAt} />. Google’s numbers run a few minutes behind. Updated {new Date(u.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. <button className="btn small ghost" disabled={busy} onClick={load}>{busy ? 'Loading…' : 'Refresh'}</button></p>
+          <div className="ad-grid2">
+            <div className="sa-card">
+              <h3>📈 Today, hour by hour <small><i className="us-key r" /> reads <i className="us-key w" /> writes</small></h3>
+              {u.hours.length ? <HourBars hours={u.hours} /> : <p className="sa-empty">Nothing recorded yet today.</p>}
+            </div>
+            <div className="sa-card">
+              <h3>🗓 Last 7 days</h3>
+              <HBars rows={u.days.slice().reverse().map((d) => ({ label: new Date(d.day + 'T12:00:00').toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }), value: d.reads, color: d.reads > u.limits.reads ? C.coral : C.mint }))} max={Math.max(u.limits.reads, ...u.days.map((d) => d.reads))} unit=" reads" />
+              <p className="sa-sub" style={{ marginTop: 8 }}>Red days went over the free {fmtN(u.limits.reads)} reads.</p>
+            </div>
+          </div>
+        </>
+      )}
+      {(!u || !u.configured || u.error) && (
+        <div className="sa-card us-setup">
+          <h3>📈 Firebase usage {busy && <small>loading…</small>}</h3>
+          {err && <p className="sa-sub" style={{ color: C.coral }}>{err}</p>}
+          {u && u.local ? <p className="sa-sub">Live numbers show on the real site (not in local test mode).</p> : (
+            <>
+              <p className="sa-sub">To see real reads and writes here, give the site read-only access to Google’s usage numbers (one time, about 5 minutes):</p>
+              <ol className="us-steps">
+                <li>Open <a className="sa-link" href="https://console.cloud.google.com/apis/library/monitoring.googleapis.com?project=nibblex" target="_blank" rel="noreferrer">Cloud Monitoring API</a> for the <b>nibblex</b> project and click <b>Enable</b> (it’s free).</li>
+                <li>Open <a className="sa-link" href="https://console.cloud.google.com/iam-admin/serviceaccounts/create?project=nibblex" target="_blank" rel="noreferrer">Create service account</a>. Name it <code>nibble-usage</code>, click <b>Create and continue</b>, pick the role <b>Monitoring Viewer</b>, then <b>Done</b>.</li>
+                <li>Open the new account → <b>Keys</b> → <b>Add key</b> → <b>Create new key</b> → <b>JSON</b>. A .json file downloads.</li>
+                <li>In Vercel → project <b>nibble</b> → Settings → Environment Variables, add <code>GCP_USAGE_KEY</code> and paste the whole contents of that file as the value (Production). Then redeploy.</li>
+              </ol>
+              <p className="sa-sub">The key can only read usage numbers. It can’t see or change anyone’s data.</p>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="sa-card">
+        <h3>💡 What uses it right now <small>rough estimate for a full day at this activity</small></h3>
+        <p className="sa-sub">About <b>{fmtN(estW)}</b> writes and <b>{fmtN(estR)}</b> reads a day if things stay like this ({fmtN((estW / 20000) * 100)}% / {fmtN((estR / 50000) * 100)}% of the free limits).</p>
+        <div className="us-est">
+          {est.map((e) => (
+            <div key={e.label} className="us-est-row">
+              <span><b>{e.label}</b><small>{e.hint}</small></span>
+              <div className="us-bar"><i style={{ width: ((e.r + e.w) / maxE) * 100 + '%', background: e.color }} /></div>
+              <em>{fmtN(e.w)} w · {fmtN(e.r)} r</em>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="sa-card">
+        <h3>🪫 Use less</h3>
+        <p className="sa-sub">These apply to everyone within a minute. Limits count per person per day.</p>
+        <div className="ad-switches us-switches">
+          <label><Sw on={saver} onChange={() => save({ saver: !saver }, saver ? 'Saver mode off' : 'Saver mode on: about half the writes')} /><span><b>Saver mode</b><small>Online check-ins every ~3 min instead of ~2 (dots update slower), slower music sync, friends-only leaderboard</small></span></label>
+          <label><Sw on={lim.music !== false} onChange={() => saveLimits({ music: lim.music === false }, lim.music === false ? 'Listen together is back on' : 'Listen together paused (no new rooms)')} /><span><b>Listen together</b><small>Turn off to stop new music rooms</small></span></label>
+        </div>
+        <form className="us-limits" onSubmit={(e) => { e.preventDefault(); saveLimits({ matches: form.matches, solo: form.solo }, 'Daily limits saved'); }}>
+          <label><b>Friend games per person per day</b><small>Tic-tac-toe and Connect Four. 0 = no limit.</small>
+            <input type="number" min="0" max="500" value={form.matches} onChange={(e) => setForm({ ...form, matches: e.target.value })} /></label>
+          <label><b>Solo games that earn points per day</b><small>After this, games still play, just without points. 0 = no limit.</small>
+            <input type="number" min="0" max="500" value={form.solo} onChange={(e) => setForm({ ...form, solo: e.target.value })} /></label>
+          <button className="btn small">Save limits</button>
+        </form>
+        <p className="sa-sub" style={{ marginTop: 10 }}>To switch single games off, use Games &amp; points → Each game.</p>
+      </div>
+    </>
+  );
+}
+
+const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['games', 'Games & points', '🎮'], ['usage', 'Firebase usage', '📈'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
 
 function Dashboard({ social, state }) {
   useNibble(); // loads the character palettes used for avatars and charts
@@ -703,7 +848,15 @@ function Dashboard({ social, state }) {
   const [note, setNote] = useState(null);
   const toast = (n) => setNote(n);
 
-  useEffect(() => social.admin.watchUsers(setUsers), [social]);
+  // the live lists read every change from every user; pause them after 3 minutes in the background
+  const [awake, setAwake] = useState(true);
+  useEffect(() => {
+    let t = null;
+    const f = () => { clearTimeout(t); if (document.hidden) t = setTimeout(() => setAwake(false), 3 * 60_000); else setAwake(true); };
+    document.addEventListener('visibilitychange', f);
+    return () => { document.removeEventListener('visibilitychange', f); clearTimeout(t); };
+  }, []);
+  useEffect(() => (awake ? social.admin.watchUsers(setUsers) : undefined), [social, awake]);
   useEffect(() => social.admin.watchBanned(setBanned), [social]);
   useEffect(() => social.admin.watchHistory(setHistory), [social]);
   useEffect(() => { fetch('/version.json', { cache: 'no-store' }).then((r) => r.json()).then((v) => setLatest(v.version || '')).catch(() => {}); }, []);
@@ -738,6 +891,7 @@ function Dashboard({ social, state }) {
         {users && tab === 'overview' && <Overview users={list} banned={banned || []} latest={latest} minVersion={minVersion} go={go} />}
         {users && tab === 'users' && <Users users={list} bannedMap={bannedMap} latest={latest} minVersion={minVersion} filter={filter} setFilter={setFilter} openUid={openUid} setOpenUid={setOpenUid} me={state.user.uid} />}
         {users && tab === 'games' && <GamesTab social={social} state={state} users={list} toast={toast} setOpenUid={setOpenUid} go={go} />}
+        {users && tab === 'usage' && <UsageTab social={social} state={state} users={list} toast={toast} />}
         {tab === 'announce' && <Announce social={social} state={state} history={history} toast={toast} />}
         {users && tab === 'settings' && <SettingsTab social={social} state={state} users={list} banned={banned} history={history} latest={latest} toast={toast} setOpenUid={setOpenUid} go={go} />}
       </main>
