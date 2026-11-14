@@ -119,9 +119,29 @@ function HubMock() {
   );
 }
 
+// structured data for search engines: the app, the FAQ and the site
+function jsonLd() {
+  const site = 'https://nibblex.vercel.app';
+  return [
+    {
+      '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'Nibble',
+      applicationCategory: 'EntertainmentApplication', applicationSubCategory: 'Desktop pet',
+      operatingSystem: 'Windows 10, Windows 11, macOS 12 or later', softwareVersion: release.version,
+      description: 'A free desktop pet that walks on your windows, visits your friends’ screens, plays music with you and plays games for points.',
+      url: site, downloadUrl: `${site}/#download`, image: `${site}/og/home.jpg`, screenshot: `${site}/og/home.jpg`,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      author: { '@type': 'Person', name: 'Uvindu Rajapakshe' },
+      featureList: ['Walks on your windows', 'Friends’ pets visit your desktop', 'Listen to music together', 'Pool, Ludo and 12 more games', 'Deadlines and shared reminders', 'Outfits, animals and characters'],
+    },
+    { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: FAQ.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) },
+    { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Nibble', url: site },
+  ];
+}
+
 export default function Home() {
   return (
     <div className="lp" data-theme="dark">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()).replace(/</g, '\\u003c') }} />
       <Reveal />
       <header className="lp-nav">
         <a href="#" className="lp-brand"><img src="/favicon.svg" alt="" width={28} height={28} />nibble</a>
