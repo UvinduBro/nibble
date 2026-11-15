@@ -1104,7 +1104,7 @@ export default function SocialApp({ mode = 'web' }) {
       {signedIn && (
         <aside className="sa-side">
           <div className="sa-side-top">
-            <a className="logo" href={isDesk ? undefined : '/'}><span className="sa-logo">◕‿◕</span><span className="sa-lt"> Nibble</span></a>
+            <a className="logo" href={isDesk ? undefined : '/'}><span className="sa-logo"><img src="/logo.svg" alt="" /></span><span className="sa-lt"> Nibble</span></a>
             {!phone && <button className="sa-collapse" onClick={() => toggleNav(!mini)} title={mini ? 'Open the menu' : 'Collapse the menu'} aria-label={mini ? 'Open the menu' : 'Collapse the menu'}>{mini ? '»' : '«'}</button>}
           </div>
           <div className="sa-me">

@@ -708,7 +708,7 @@ function SettingsTab({ social, state, users, banned, history, latest, toast, set
 
 // ---------- shell ----------
 // ---------- Reports: bug reports + feedback from the Hub and the website ----------
-const REPORT_CAT = { like: '💚 Likes', dislike: '😕 Doesn’t like', feature: '✨ Feature request', idea: '💡 Idea', problem: '🧩 Problem' };
+const REPORT_CAT = { like: '💚 Likes', dislike: '😕 Doesn’t like', feature: '✨ Feature request', idea: '💡 Idea', problem: '🧩 Problem', general: '✉️ Contact', support: '🛟 Contact: help', press: '📰 Contact: press', partner: '🤝 Contact: partnership' };
 function ReportsTab({ social, users, toast, go, setOpenUid }) {
   const [list, setList] = useState(null);
   const [err, setErr] = useState('');
@@ -718,19 +718,20 @@ function ReportsTab({ social, users, toast, go, setOpenUid }) {
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
   const act = async (fn, ok) => { try { await fn(); if (ok) toast({ text: ok }); load(); } catch (x) { toast({ err: true, text: niceError(x) }); } };
   const all = list || [];
-  const shown = all.filter((r) => (show === 'open' ? r.status !== 'done' : show === 'bug' ? r.kind === 'bug' : show === 'feedback' ? r.kind === 'feedback' : true));
+  const shown = all.filter((r) => (show === 'open' ? r.status !== 'done' : show === 'bug' ? r.kind === 'bug' : show === 'feedback' ? r.kind === 'feedback' : show === 'contact' ? r.kind === 'contact' : true));
   const n = (f) => all.filter(f).length;
   return (
     <>
-      <div className="ad-kpis ad-kpis4">
+      <div className="ad-kpis">
         <Kpi n={n((r) => r.status === 'new')} label="New" sub="not looked at yet" color={C.pink} onClick={() => setShow('open')} />
         <Kpi n={n((r) => r.kind === 'bug' && r.status !== 'done')} label="Open bugs" sub="not done" color={C.coral} onClick={() => setShow('bug')} />
         <Kpi n={n((r) => r.kind === 'feedback')} label="Feedback" sub="likes, ideas, requests" color={C.mint} onClick={() => setShow('feedback')} />
+        <Kpi n={n((r) => r.kind === 'contact' && r.status !== 'done')} label="Messages" sub="from the contact form" color={C.violet} onClick={() => setShow('contact')} />
         <Kpi n={all.length} label="Latest" sub="newest 50" color={C.cyan} onClick={() => setShow('all')} />
       </div>
       <div className="sa-card">
         <h3>📬 Reports <small>{shown.length}</small>
-          <span className="rp-filter">{[['open', 'Open'], ['bug', 'Bugs'], ['feedback', 'Feedback'], ['all', 'All']].map(([k, l]) => <button key={k} className={show === k ? 'on' : ''} onClick={() => setShow(k)}>{l}</button>)}</span>
+          <span className="rp-filter">{[['open', 'Open'], ['bug', 'Bugs'], ['feedback', 'Feedback'], ['contact', 'Contact'], ['all', 'All']].map(([k, l]) => <button key={k} className={show === k ? 'on' : ''} onClick={() => setShow(k)}>{l}</button>)}</span>
           <button className="btn small ghost" onClick={load}>Refresh</button>
         </h3>
         {list === null && <p className="sa-empty">Loading…</p>}
@@ -746,8 +747,8 @@ function ReportsTab({ social, users, toast, go, setOpenUid }) {
                 <span className={'rp-status rp-s-' + r.status}>{r.status}</span>
               </header>
               <p className="rp-who">
-                {u ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(u.uid); }}>@{u.username}</button> : r.username ? '@' + r.username : 'Website visitor'}
-                {r.contact ? ` · reply to: ${r.contact}` : ''} · {[r.ver && 'v' + r.ver, r.os, r.client].filter(Boolean).join(' · ')} · {ago(r.at)}
+                {u ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(u.uid); }}>@{u.username}</button> : r.username ? '@' + r.username : r.name || 'Website visitor'}
+                {r.contact ? <> · reply to: {/@/.test(r.contact) ? <a className="sa-link" href={`mailto:${r.contact}?subject=${encodeURIComponent('Re: ' + (r.title || 'Nibble'))}`}>{r.contact}</a> : r.contact}</> : ''} · {[r.ver && 'v' + r.ver, r.os, r.client].filter(Boolean).join(' · ')} · {ago(r.at)}
               </p>
               {r.kind === 'bug' ? (
                 <dl className="rp-body">
@@ -949,7 +950,7 @@ function Dashboard({ social, state }) {
   return (
     <div className="ad-wrap">
       <header className="ad-top">
-        <a className="ad-brand" href="/"><span className="sa-logo">◕‿◕</span> Nibble <em>Admin</em></a>
+        <a className="ad-brand" href="/"><span className="sa-logo"><img src="/logo.svg" alt="" /></span> Nibble <em>Admin</em></a>
         <nav className="ad-tabs">
           {TABS.map(([k, l, i]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => go(k)}><span>{i}</span>{l}</button>)}
         </nav>

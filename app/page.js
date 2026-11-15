@@ -6,6 +6,7 @@ import PetFigure from '../components/PetFigure';
 import Globe, { PLACES } from '../components/landing/Globe';
 import { Reveal, ThemeToggle } from '../components/landing/LandingFx';
 import SiteFeedback from '../components/landing/SiteFeedback';
+import ContactForm from '../components/landing/ContactForm';
 import release from '../public/version.json';
 import './landing.css';
 
@@ -55,7 +56,7 @@ const CONTROLS = [
 const FAQ = [
   ['Is Nibble free?', 'Yes. Every pet, every game and every feature is free. There are no ads and nothing to buy with real money. Points are earned by playing.'],
   ['Will it slow my computer down?', 'No. The pets sleep when you’re away and step aside in full-screen apps and games. Nibble uses about as much as a browser tab.'],
-  ['Which computers does it run on?', 'Windows 10 and 11, and macOS 12 or newer on Apple silicon and Intel. You can also open the Hub in any browser at nibblex.vercel.app/app.'],
+  ['Which computers does it run on?', 'Windows 10 and 11, and macOS 12 or newer on Apple silicon and Intel. You can also open the Hub in any browser at meetnibble.com/app.'],
   ['My Mac says it can’t check the app. What do I do?', 'Open System Settings, then Privacy & Security, and click Open Anyway next to Nibble. Or install with the one Terminal line on the download panel, which never shows that prompt.'],
   ['How do my friends see my pet?', 'Sign in, add them by username, and once they accept, your pet visits their desktop whenever you’re both online, wearing whatever you dressed it in.'],
   ['What can friends see about me?', 'Only your username, your pet and the messages you send. The names of the apps you use never leave your computer.'],
@@ -68,7 +69,7 @@ const STEPS = [
   ['Bring your friends', 'Add friends by username. Their pets visit your screen, and you can message, play and listen to music together.'],
 ];
 
-const NAV = [['#try', 'Demo'], ['#features', 'Features'], ['#crew', 'Pets'], ['#download', 'Download'], ['#faq', 'FAQ'], ['#feedback', 'Feedback']];
+const NAV = [['#try', 'Demo'], ['#features', 'Features'], ['#crew', 'Pets'], ['#download', 'Download'], ['#faq', 'FAQ'], ['#contact', 'Contact']];
 
 function HubMock() {
   return (
@@ -76,7 +77,7 @@ function HubMock() {
       <div className="hub-top"><span className="hub-dots"><i /><i /><i /></span><span>Nibble Hub</span><span className="hub-live">● 3 friends online</span></div>
       <div className="hub-body">
         <nav className="hub-side">
-          <b><img src="/favicon.svg" alt="" width={18} height={18} /> nibble</b>
+          <b><img src="/logo.svg" alt="" width={20} height={20} /> nibble</b>
           {[['🏠', 'Home', 1], ['👥', 'Friends'], ['💬', 'Messages'], ['🎧', 'Music'], ['🎨', 'Customize'], ['🎮', 'Games'], ['🏆', 'Leaderboard'], ['⚙️', 'Settings']].map(([ic, t, on]) => (
             <span key={t} className={on ? 'on' : ''}><em>{ic}</em>{t}</span>
           ))}
@@ -121,7 +122,7 @@ function HubMock() {
 
 // structured data for search engines: the app, the FAQ and the site
 function jsonLd() {
-  const site = 'https://nibblex.vercel.app';
+  const site = 'https://meetnibble.com';
   return [
     {
       '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'Nibble',
@@ -144,7 +145,7 @@ export default function Home() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()).replace(/</g, '\\u003c') }} />
       <Reveal />
       <header className="lp-nav">
-        <a href="#" className="lp-brand"><img src="/favicon.svg" alt="" width={28} height={28} />nibble</a>
+        <a href="#" className="lp-brand"><img src="/logo.svg" alt="" width={34} height={34} />nibble</a>
         <nav className="lp-links" aria-label="Sections">{NAV.map(([h, t]) => <a key={h} href={h}>{t}</a>)}</nav>
         <div className="lp-nav-end">
           <ThemeToggle />
@@ -339,6 +340,20 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="lp-sec" id="contact">
+          <div className="lp-wrap lp-fb-wrap">
+            <div data-reveal>
+              <Head kicker="Contact" title="Talk to the people behind Nibble." sub="Questions, press, partnerships, or just to say hi. Messages go straight to Uvindu and Wageesha in Colombo, Sri Lanka." />
+              <ul className="lp-ticks">
+                <li>We usually reply within a couple of days</li>
+                <li>Found a bug? The feedback form above includes your version for you</li>
+                <li>Using Nibble? You can also message @uvindu in the Hub</li>
+              </ul>
+            </div>
+            <div className="lp-panel" data-reveal style={{ '--d': '.08s' }}><ContactForm /></div>
+          </div>
+        </section>
+
         <section className="lp-final">
           <div className="lp-wrap" data-reveal>
             <div className="lp-final-pets" aria-hidden>
@@ -359,14 +374,14 @@ export default function Home() {
       <footer className="lp-foot">
         <div className="lp-wrap lp-foot-grid">
           <div>
-            <a href="#" className="lp-brand"><img src="/favicon.svg" alt="" width={26} height={26} />nibble</a>
+            <a href="#" className="lp-brand"><img src="/logo.svg" alt="" width={30} height={30} />nibble</a>
             <p>A desktop pet that walks on your windows, visits your friends and plays music with you. Developed by Uvindu Rajapakshe in Sri Lanka.</p>
           </div>
           <nav aria-label="Product"><b>Product</b><a href="#download">Download</a><a href="/app">Web app</a><a href="#features">Features</a><a href="#crew">Pets</a></nav>
           <nav aria-label="Help"><b>Help</b><a href="#faq">FAQ</a><a href="#feedback">Report a bug</a><a href="#feedback">Suggest a feature</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
-          <nav aria-label="Nibble"><b>Nibble</b><a href="#about">About</a><a href="/app">Sign in</a></nav>
+          <nav aria-label="Nibble"><b>Nibble</b><a href="#about">About</a><a href="#contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
         </div>
-        <div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble. Version {release.version}.</div>
+        <div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · Version {release.version} · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
       </footer>
     </div>
   );

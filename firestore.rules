@@ -341,9 +341,10 @@ service cloud.firestore {
     // bug reports + feedback (Hub when signed in, website as an anonymous visitor via /api/feedback).
     // Anyone can send one in this exact shape; only admins can read, mark or delete them.
     match /reports/{id} {
-      allow create: if incoming().keys().hasOnly(['kind', 'cat', 'title', 'what', 'doing', 'expected', 'actual', 'text', 'contact', 'shot', 'ver', 'os', 'client', 'page', 'uid', 'username', 'status', 'at'])
-        && incoming().kind in ['bug', 'feedback']
-        && incoming().cat in ['like', 'dislike', 'feature', 'idea', 'problem', '']
+      allow create: if incoming().keys().hasOnly(['kind', 'cat', 'name', 'title', 'what', 'doing', 'expected', 'actual', 'text', 'contact', 'shot', 'ver', 'os', 'client', 'page', 'uid', 'username', 'status', 'at'])
+        && incoming().kind in ['bug', 'feedback', 'contact']
+        && incoming().cat in ['like', 'dislike', 'feature', 'idea', 'problem', 'general', 'support', 'press', 'partner', '']
+        && shortText(incoming().get('name', ''), 60)
         && incoming().status == 'new' && incoming().at == request.time
         && shortText(incoming().title, 80) && shortText(incoming().text, 2000)
         && shortText(incoming().what, 1000) && shortText(incoming().doing, 1000)

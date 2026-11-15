@@ -404,3 +404,11 @@ kbd { font-size: 12.5px; background: var(--card2); border: 1px solid rgba(255, 2
 .dl-os button.on { background: var(--mint); color: #0b1a16; }
 .cmd-big { padding: 14px 14px 14px 18px; }
 .cmd-big code { font-size: 15px; }
+
+/* analytics consent banner (all public pages) */
+.consent { position: fixed; z-index: 300; left: 16px; right: 16px; bottom: 16px; margin: 0 auto; max-width: 620px; display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 14px 16px; border-radius: 16px; background: #16211d; color: #e9f3ef; border: 1px solid rgba(214, 255, 238, 0.16); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45); font: 500 14.5px/1.45 system-ui, sans-serif; }
+.consent p { margin: 0; flex: 1 1 280px; }
+.consent a { color: #7ee8c6; }
+.consent div { display: flex; gap: 8px; }
+.consent button { font: inherit; font-weight: 700; border-radius: 10px; padding: 9px 16px; cursor: pointer; border: 1px solid rgba(214, 255, 238, 0.2); background: transparent; color: #e9f3ef; }
+.consent .consent-yes { background: #7ee8c6; color: #062a1f; border-color: #7ee8c6; }

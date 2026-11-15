@@ -33,6 +33,7 @@ export async function POST(req) {
 
   const r = cleanReport({ ...body, client: 'site' }, {});
   if (r.kind === 'bug' ? r.what.length < 4 : r.text.length < 4) return Response.json({ error: 'Tell us a little more first.' }, { status: 400, headers: h });
+  if (r.kind === 'contact' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(r.contact)) return Response.json({ error: 'Add an email address so we can reply.' }, { status: 400, headers: h });
 
   const id = reportId();
   const base = `projects/${firebaseConfig.projectId}/databases/(default)/documents`;

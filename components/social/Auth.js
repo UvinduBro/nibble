@@ -4,6 +4,7 @@ import PetFigure from '../PetFigure';
 import { CHARACTERS, byKey } from '../../lib/characters';
 import { NAME_RE, niceError } from '../../lib/social/social';
 import { SOURCES, USES, countries, guessCountry, flag } from '../../lib/signup';
+import { track } from '../landing/Analytics';
 
 const GoogleG = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -123,6 +124,7 @@ export function Onboard({ social, state, initialSkin }) {
     try {
       await social.claimUsername(clean, { skin, petName: petName || byKey[skin]?.name || 'Nibble' });
       social.saveSignup(sq).catch(() => {}); // never blocks getting in
+      track('sign_up', { source: sq.source, country: sq.country });
     }
     catch (x) { setErr(niceError(x)); }
     setBusy(false);

@@ -1,11 +1,13 @@
 'use client';
 // Website version of the feedback form: no sign-in, sends to /api/feedback.
 import FeedbackForm from '../social/Feedback';
+import { track } from './Analytics';
 
 async function send(report) {
   const r = await fetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(report) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j.ok) { const e = new Error(j.error || 'Couldn’t send that right now. Try again in a minute.'); e.friendly = e.message; throw e; }
+  track(report.kind === 'bug' ? 'bug_report' : 'feedback_submit');
 }
 
 export default function SiteFeedback({ version }) {
