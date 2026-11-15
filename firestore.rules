@@ -338,7 +338,8 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // bug reports + feedback (Hub when signed in, website as an anonymous visitor via /api/feedback).
+    // bug reports, feedback and contact-form messages (Hub when signed in, website as an anonymous
+    // visitor via /api/feedback; contact messages are also emailed to hello@meetnibble.com).
     // Anyone can send one in this exact shape; only admins can read, mark or delete them.
     match /reports/{id} {
       allow create: if incoming().keys().hasOnly(['kind', 'cat', 'name', 'title', 'what', 'doing', 'expected', 'actual', 'text', 'contact', 'shot', 'ver', 'os', 'client', 'page', 'uid', 'username', 'status', 'at'])
@@ -350,6 +351,7 @@ service cloud.firestore {
         && shortText(incoming().what, 1000) && shortText(incoming().doing, 1000)
         && shortText(incoming().expected, 1000) && shortText(incoming().actual, 1000)
         && shortText(incoming().contact, 100) && shortText(incoming().shot, 700000)
+        && (incoming().kind != 'contact' || incoming().contact.matches('^[^@ ]+@[^@ ]+[.][^@ ]{2,}$'))
         && shortText(incoming().ver, 16) && shortText(incoming().os, 40)
         && shortText(incoming().client, 16) && shortText(incoming().page, 80)
         && shortText(incoming().uid, 40) && shortText(incoming().username, 20)
