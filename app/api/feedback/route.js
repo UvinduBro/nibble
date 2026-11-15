@@ -3,6 +3,7 @@
 // Light spam protection: a hidden honeypot field and a per-address limit.
 import { firebaseConfig } from '../../../lib/social/config';
 import { cleanReport, reportId } from '../../../lib/reports';
+import { sendContactMail } from '../../../lib/mail';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -43,14 +44,34 @@ export async function POST(req) {
     updateTransforms: [{ fieldPath: 'at', setToServerValue: 'REQUEST_TIME' }],
     currentDocument: { exists: false },
   };
-  try {
+  const saveToFirestore = async () => {
     const res = await fetch(`https://firestore.googleapis.com/v1/${base}:commit?key=${firebaseConfig.apiKey}`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ writes: [write] }),
     });
+    if (res.ok) return { ok: true };
+    const j = await res.json().catch(() => ({}));
+    return { ok: false, code: j.error && j.error.status };
+  };
+
+  // Contact messages: email hello@ and save to the admin Reports tab at the same time.
+  // If either one works, the visitor's message is safe.
+  if (r.kind === 'contact') {
+    const [saved, mailed] = await Promise.allSettled([
+      saveToFirestore(),
+      sendContactMail(r, { id, ip }),
+    ]);
+    const savedOk = saved.status === 'fulfilled' && saved.value.ok;
+    const mailedOk = mailed.status === 'fulfilled' && mailed.value.sent;
+    if (mailed.status === 'rejected') console.error('contact mail failed:', mailed.reason && mailed.reason.message);
+    else if (!mailedOk) console.warn('contact mail skipped:', mailed.value.reason);
+    if (savedOk || mailedOk) return Response.json({ ok: true, id }, { headers: h });
+    return Response.json({ error: 'Couldn’t send that right now. Try again in a minute, or email hello@meetnibble.com.' }, { status: 502, headers: h });
+  }
+
+  try {
+    const res = await saveToFirestore();
     if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      const code = j.error && j.error.status;
-      if (code === 'RESOURCE_EXHAUSTED') return Response.json({ error: 'Our server is resting for today. Please try again after 1:30 PM Sri Lanka time.' }, { status: 503, headers: h });
+      if (res.code === 'RESOURCE_EXHAUSTED') return Response.json({ error: 'Our server is resting for today. Please try again after 1:30 PM Sri Lanka time.' }, { status: 503, headers: h });
       return Response.json({ error: 'Couldn’t send that right now. Try again in a minute.' }, { status: 502, headers: h });
     }
     return Response.json({ ok: true, id }, { headers: h });

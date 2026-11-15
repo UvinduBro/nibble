@@ -51,7 +51,7 @@ export default function ContactForm() {
       {err && <p className="ct-err" role="alert">{err}</p>}
       <div className="ct-foot">
         <button className="lp-btn" disabled={!ok || busy}>{busy ? 'Sending…' : 'Send message'}</button>
-        <small>We only use your email to reply. See our <a href="/privacy">privacy policy</a>.</small>
+        <small>Goes straight to <a href="mailto:hello@meetnibble.com">hello@meetnibble.com</a>. We only use your email to reply. See our <a href="/privacy">privacy policy</a>.</small>
       </div>
     </form>
   );
