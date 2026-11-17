@@ -19,6 +19,9 @@ export default {
     ];
     return [
       { source: '/:path*', headers: security },
+      // the same site on *.vercel.app (the desktop app still loads it there) must not compete with
+      // meetnibble.com in search results
+      { source: '/:path*', has: [{ type: 'host', value: '(?<vhost>.+)\\.vercel\\.app' }], headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] },
       { source: '/nibble/engine/:file*', headers: [{ key: 'cache-control', value: 'public, max-age=300' }] },
       { source: '/admin', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] },
     ];

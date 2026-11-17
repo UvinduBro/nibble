@@ -9,6 +9,7 @@ import { Reveal, ThemeToggle } from '../components/landing/LandingFx';
 import SiteFeedback from '../components/landing/SiteFeedback';
 import ContactForm from '../components/landing/ContactForm';
 import release from '../public/version.json';
+import { orgLd, appLd, siteLd, faqLd, howToLd, ldJson } from '../lib/facts';
 import './landing.css';
 
 // Headline that rises in word by word on load.
@@ -55,6 +56,7 @@ const CONTROLS = [
 ];
 
 const FAQ = [
+  ['What is Nibble?', 'Nibble is a free desktop pet app for Windows and Mac: a small animated pet that walks along the top of your windows, naps when you’re away, reacts to the apps you use, and visits your friends’ screens.'],
   ['Is Nibble free?', 'Yes. Every pet, every game and every feature is free. There are no ads and nothing to buy with real money. Points are earned by playing.'],
   ['Will it slow my computer down?', 'No. The pets sleep when you’re away and step aside in full-screen apps and games. Nibble uses about as much as a browser tab.'],
   ['Which computers does it run on?', 'Windows 10 and 11, and macOS 12 or newer on Apple silicon and Intel. You can also open the Hub in any browser at meetnibble.com/app.'],
@@ -122,29 +124,15 @@ function HubMock() {
   );
 }
 
-// structured data for search engines: the app, the FAQ and the site
+// structured data for search engines and AI assistants (facts live in lib/facts.js)
 function jsonLd() {
-  const site = 'https://meetnibble.com';
-  return [
-    {
-      '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'Nibble',
-      applicationCategory: 'EntertainmentApplication', applicationSubCategory: 'Desktop pet',
-      operatingSystem: 'Windows 10, Windows 11, macOS 12 or later', softwareVersion: release.version,
-      description: 'A free desktop pet that walks on your windows, visits your friends’ screens, plays music with you and plays games for points.',
-      url: site, downloadUrl: `${site}/#download`, image: `${site}/og/home.jpg`, screenshot: `${site}/og/home.jpg`,
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-      author: { '@type': 'Person', name: 'Uvindu Rajapakshe' },
-      featureList: ['Walks on your windows', 'Friends’ pets visit your desktop', 'Listen to music together', 'Pool, Ludo and 12 more games', 'Deadlines and shared reminders', 'Outfits, animals and characters'],
-    },
-    { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: FAQ.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) },
-    { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Nibble', url: site },
-  ];
+  return [orgLd(), siteLd(), appLd(), howToLd(), faqLd(FAQ)];
 }
 
 export default function Home() {
   return (
     <div className="lp" data-theme="dark">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()).replace(/</g, '\\u003c') }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd()) }} />
       <Reveal />
       <header className="lp-nav">
         <a href="#" className="lp-brand"><img src="/logo.svg" alt="" width={34} height={34} />nibble</a>
@@ -160,9 +148,9 @@ export default function Home() {
         <section className="lp-hero">
           <div className="lp-hero-glow" aria-hidden />
           <div className="lp-wrap">
-            <a href="#features" className="lp-pill"><span className="chip is-new">New</span>Version {release.version}: shuffle, repeat and a points leaderboard</a>
+            <a href="#features" className="lp-pill"><span className="chip is-new">New</span>Version {release.version}: {String((release.notes || [])[0] || 'new pets and fixes').replace(/^[^:]+:\s*/, '').slice(0, 70)}</a>
             <Rise text="A desktop pet that walks, plays & visits your friends." />
-            <p className="lp-sub rise-sub">Nibble lives on top of your windows. It naps when you’re away, dances to your music, codes along with you and drops onto your friends’ screens to say hi.</p>
+            <p className="lp-sub rise-sub"><strong>Nibble is a free desktop pet app for Windows and Mac.</strong> It lives on top of your windows. It naps when you’re away, dances to your music, codes along with you and drops onto your friends’ screens to say hi.</p>
             <div className="lp-cta rise-sub">
               <a href="#download" className="lp-btn">Download for Windows or Mac</a>
               <a href="/app" className="lp-btn ghost">Open in your browser</a>
@@ -382,7 +370,7 @@ export default function Home() {
             <a href="#" className="lp-brand"><img src="/logo.svg" alt="" width={30} height={30} />nibble</a>
             <p>A desktop pet that walks on your windows, visits your friends and plays music with you. Developed by Uvindu Rajapakshe in Sri Lanka.</p>
           </div>
-          <nav aria-label="Product"><b>Product</b><a href="#download">Download</a><a href="/app">Web app</a><a href="#features">Features</a><a href="#crew">Pets</a></nav>
+          <nav aria-label="Product"><b>Product</b><a href="#download">Download</a><a href="/desktop-pet">Desktop pet app</a><a href="/app">Web app</a><a href="#features">Features</a><a href="#crew">Pets</a></nav>
           <nav aria-label="Help"><b>Help</b><a href="#faq">FAQ</a><a href="#feedback">Report a bug</a><a href="#feedback">Suggest a feature</a><a href="/install-help">Install help</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
           <nav aria-label="Nibble"><b>Nibble</b><a href="/about">About</a><a href="#contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
           <NewsletterForm />

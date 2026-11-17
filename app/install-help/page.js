@@ -1,6 +1,14 @@
 import LegalPage from '../../components/landing/LegalPage';
 import release from '../../public/version.json';
 import { pageMetadata } from '../../lib/seo';
+import { crumbsLd, faqLd, ldJson, SITE } from '../../lib/facts';
+
+const HELP_QA = [
+  ['Windows says “Windows protected your PC”. How do I install Nibble?', 'Click More info, check it says Get-Nibble.exe, then click Run anyway. Or install with PowerShell: irm https://meetnibble.com/install.ps1 | iex'],
+  ['Microsoft Defender removed Nibble. What do I do?', 'Open Windows Security, go to Virus & threat protection, then Protection history, choose the Nibble entry and click Allow on device, then run the installer again.'],
+  ['My Mac says Apple cannot check Nibble. How do I open it?', 'Open System Settings, then Privacy & Security, scroll to Security and click Open Anyway next to Nibble, then confirm with your password.'],
+  ['My Mac says Nibble is damaged. What do I do?', 'Move Nibble to Applications, open Terminal and run: xattr -cr /Applications/Nibble.app, then open Nibble again.'],
+];
 
 export function generateMetadata() {
   return pageMetadata('installHelp', '/install-help');
@@ -11,6 +19,7 @@ export function generateMetadata() {
 export default function InstallHelp() {
   return (
     <LegalPage title="Installing Nibble: if Windows or your Mac blocks it" updated={`for version ${release.version}`}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson([faqLd(HELP_QA), crumbsLd([['Install help', SITE + '/install-help']])]) }} />
       <p>Nibble is new and made by a small team, so Windows and macOS don’t recognise it yet. The first time you install it, your computer may warn you or stop it. That’s normal for new apps. The steps below allow <b>only Nibble</b> and keep the rest of your computer protected. You only need to do this once.</p>
       <p>Nibble is free, has no ads, and every file is checked (SHA-256) before it’s installed. Only download it from <b>meetnibble.com</b>.</p>
 

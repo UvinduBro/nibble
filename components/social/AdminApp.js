@@ -1252,6 +1252,7 @@ const SEO_LINKS = [
   ['Rich Results Test', 'https://search.google.com/test/rich-results?url=' + encodeURIComponent(SEO_SITE)],
   ['PageSpeed Insights', 'https://pagespeed.web.dev/analysis?url=' + encodeURIComponent(SEO_SITE)],
   ['Facebook Sharing Debugger', 'https://developers.facebook.com/tools/debug/?q=' + encodeURIComponent(SEO_SITE)],
+  ['llms.txt (for AI assistants)', SEO_SITE + '/llms.txt'],
   ['LinkedIn Post Inspector', 'https://www.linkedin.com/post-inspector/inspect/' + encodeURIComponent(SEO_SITE)],
   ['Bing Webmaster Tools', 'https://www.bing.com/webmasters'],
 ];
@@ -1360,6 +1361,10 @@ function SeoTab({ social, toast }) {
             <li><b>URL inspection</b> → paste the home page → <b>Request indexing</b>.</li>
           </ol>
           <div className="ad-links">{SEO_LINKS.map(([l, u]) => <a key={l} className="btn small ghost" href={u} target="_blank" rel="noreferrer">{l} ↗</a>)}</div>
+          <h3 style={{ marginTop: 18 }}>🤖 AI assistants &amp; Bing</h3>
+          <p className="ad-foot" style={{ marginTop: 0 }}>ChatGPT, Claude, Perplexity, Gemini and Copilot can read <code>/llms.txt</code> and <code>/llms-full.txt</code> (facts about Nibble) and the structured data on every page. Bing’s index also feeds ChatGPT search and Copilot: after a big change, ask it to re-crawl.</p>
+          <CopyRow label="llms.txt" value={SEO_SITE + '/llms.txt'} toast={toast} />
+          <button className="btn small" style={{ marginTop: 8 }} onClick={async () => { try { const r = await social.admin.indexNow(); toast({ text: `Sent ${r.count} pages to Bing & IndexNow ✓` }); } catch (x) { toast({ err: true, text: niceError(x) }); } }}>Ask Bing &amp; others to re-crawl</button>
         </div>
       </div>
     </>

@@ -1,5 +1,6 @@
 import { Story, Team } from '../../components/About';
 import { pageMetadata } from '../../lib/seo';
+import { orgLd, crumbsLd, ldJson, SITE, ONE_LINER } from '../../lib/facts';
 import '../landing.css';
 
 export function generateMetadata() {
@@ -10,6 +11,11 @@ export function generateMetadata() {
 export default function AboutPage() {
   return (
     <div className="lp" data-theme="dark">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson([
+        { '@context': 'https://schema.org', '@type': 'AboutPage', name: 'About Nibble', url: SITE + '/about', description: ONE_LINER, about: { '@id': SITE + '/#org' } },
+        orgLd(),
+        crumbsLd([['About', SITE + '/about']]),
+      ]) }} />
       <header className="lp-nav">
         <a href="/" className="lp-brand"><img src="/logo.svg" alt="" width={34} height={34} />nibble</a>
         <nav className="lp-links" aria-label="Site"><a href="/">Home</a><a href="/#features">Features</a><a href="/#download">Download</a><a href="/about" aria-current="page">About</a><a href="/#contact">Contact</a></nav>
