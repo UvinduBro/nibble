@@ -61,6 +61,7 @@ const FAQ = [
   ['My Mac says it can’t check the app. What do I do?', 'Open System Settings, then Privacy & Security, and click Open Anyway next to Nibble. Or install with the one Terminal line on the download panel, which never shows that prompt.'],
   ['How do my friends see my pet?', 'Sign in, add them by username, and once they accept, your pet visits their desktop whenever you’re both online, wearing whatever you dressed it in.'],
   ['What can friends see about me?', 'Only your username, your pet and the messages you send. The names of the apps you use never leave your computer.'],
+  ['Windows or my antivirus blocked the installer. Is it safe?', 'Yes. Nibble is new and not code-signed yet, so Windows SmartScreen and some antivirus apps are cautious. Click More info → Run anyway, or follow the step-by-step install help at meetnibble.com/install-help (it also covers Defender, Smart App Control and Macs that say the app is damaged).'],
   ['How do I update?', 'Nibble checks for updates on its own and the Hub refreshes itself. To reinstall from scratch on Windows, download Get-Nibble.exe again from this page.'],
 ];
 
@@ -379,7 +380,7 @@ export default function Home() {
             <p>A desktop pet that walks on your windows, visits your friends and plays music with you. Developed by Uvindu Rajapakshe in Sri Lanka.</p>
           </div>
           <nav aria-label="Product"><b>Product</b><a href="#download">Download</a><a href="/app">Web app</a><a href="#features">Features</a><a href="#crew">Pets</a></nav>
-          <nav aria-label="Help"><b>Help</b><a href="#faq">FAQ</a><a href="#feedback">Report a bug</a><a href="#feedback">Suggest a feature</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
+          <nav aria-label="Help"><b>Help</b><a href="#faq">FAQ</a><a href="#feedback">Report a bug</a><a href="#feedback">Suggest a feature</a><a href="/install-help">Install help</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
           <nav aria-label="Nibble"><b>Nibble</b><a href="#about">About</a><a href="#contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
           <NewsletterForm />
         </div>

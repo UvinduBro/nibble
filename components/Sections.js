@@ -71,7 +71,7 @@ export function Quotes() {
 }
 
 export function Download() {
-  const [origin, setOrigin] = useState('https://nibblex.vercel.app');
+  const [origin, setOrigin] = useState('https://meetnibble.com');
   const [os, setOs] = useState('win');
   const [copied, setCopied] = useState('');
   const [mac, setMac] = useState(null); // { ready, version, signed, notarized, size }
@@ -107,6 +107,7 @@ export function Download() {
               <button onClick={() => copy('win', winCmd)}>{copied === 'win' ? 'Copied ✓' : 'Copy'}</button>
             </div>
             <p className="dl-upd">Already have Nibble? Download and run the installer again (or use <b>Update Nibble</b> in the tray menu). Your pets and settings stay.</p>
+            <a className="btn ghost dl-guide" href="/install-help#windows">🛡️ Windows blocked it? Step-by-step help</a>
             <a className="btn ghost dl-guide" href="/Nibble-Reinstall-Guide.pdf" target="_blank" rel="noopener">📄 How to reinstall the latest version</a>
           </div>
         ) : (
@@ -125,6 +126,7 @@ export function Download() {
             </div>
             {!(mac && mac.ready) && <p className="dl-meta">macOS 12 Monterey or newer · Apple silicon and Intel · ~110 MB runtime · free</p>}
             <p className="dl-upd">Updates install from the menu bar icon (<b>Update Nibble</b>). Your pets and settings stay.</p>
+            <a className="btn ghost dl-guide" href="/install-help#mac">🛡️ Mac blocked it, or says it’s damaged? Step-by-step help</a>
           </div>
         )}
       </div>
@@ -135,7 +137,7 @@ export function Download() {
         </div>
         {os === 'win' ? (
           <ol className="steps">
-            <li><b>Run Get-Nibble.exe.</b> A small Nibble setup window opens. First time only, Windows SmartScreen may say "unknown publisher". Click <i>More info → Run anyway</i> (it's safe; it just isn't code-signed yet).</li>
+            <li><b>Run Get-Nibble.exe.</b> A small Nibble setup window opens. First time only, Windows SmartScreen may say "unknown publisher". Click <i>More info → Run anyway</i> (it's safe; it just isn't code-signed yet). Blocked by Defender, Smart App Control or your antivirus? See the <a href="/install-help#windows"><u>install help</u></a>.</li>
             <li><b>It fetches the runtime</b> (Electron, ~110 MB) from GitHub and checks its SHA-256 before installing. You'll see the progress bar fill.</li>
             <li><b>Nibble drops onto your screen</b>, installed to <code>%LOCALAPPDATA%\Programs\Nibble</code> with Start menu and Desktop shortcuts, and listed in <i>Add or remove programs</i>.</li>
             <li><b>Say hi to friends:</b> double-click the tray icon to open the Nibble Hub, sign in with Google or email and add friends by username.</li>
@@ -146,7 +148,7 @@ export function Download() {
             {mac && mac.ready ? (
               <>
                 <li><b>Open Nibble.dmg</b> and drag <i>Nibble</i> onto <i>Applications</i>.</li>
-                <li><b>Open Nibble</b> from Applications (or Launchpad). {mac.notarized ? 'It’s signed and checked by Apple, so it opens straight away.' : 'First time only, if macOS says it can’t check it: System Settings → Privacy & Security → Open Anyway.'}</li>
+                <li><b>Open Nibble</b> from Applications (or Launchpad). {mac.notarized ? 'It’s signed and checked by Apple, so it opens straight away.' : <>First time only, if macOS says it can’t check it: System Settings → Privacy &amp; Security → Open Anyway. Says it’s damaged? See the <a href="/install-help#mac"><u>install help</u></a>.</>}</li>
               </>
             ) : (
               <>

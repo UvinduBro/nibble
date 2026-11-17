@@ -292,6 +292,10 @@ body:has(.lp[data-theme='light']) { background: #f4f8f6; }
 .lp-legal li { margin: 6px 0; }
 .lp-legal a { color: var(--accent); }
 .lp-legal strong { color: var(--ink); }
+.lp-legal h3 { font: 700 18px/1.3 var(--display); color: var(--ink); margin: 24px 0 8px; }
+.lp-legal b { color: var(--ink); }
+.lp-legal code { font: 500 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink); background: var(--line); border: 1px solid var(--line-2); border-radius: 8px; padding: 2px 7px; overflow-wrap: anywhere; user-select: all; }
+.lp-legal ol, .lp-legal ul { padding-left: 22px; }
 
 /* about */
 .lp-about { border-radius: 22px; background: var(--panel); border: 1px solid rgba(214, 255, 238, 0.09); padding: clamp(18px, 3vw, 36px); color: #e9f3ef; }
