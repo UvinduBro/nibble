@@ -38,6 +38,7 @@ export default function Privacy() {
         <li><strong>Google Firebase</strong> stores accounts and app data.</li>
         <li><strong>Vercel</strong> hosts this website.</li>
         <li><strong>Resend</strong> sends our emails, and keeps the news list if you sign up.</li>
+        <li><strong>Stripe</strong> handles Premium payments. Your card details go straight to Stripe; we only keep whether you have Premium and until when.</li>
         <li><strong>GitHub</strong> hosts the app downloads.</li>
         <li><strong>Google Analytics</strong>, only if you agree to it.</li>
       </ul>

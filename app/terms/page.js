@@ -13,6 +13,10 @@ export default function Terms() {
       <h2>Nibble is free</h2>
       <p>The app, the pets, the games and the social features are free. Points are earned by playing and can’t be bought or exchanged for money.</p>
 
+      <h2>Nibble Premium (optional)</h2>
+      <p>Premium is an optional subscription with a few extras, like a badge, a bigger daily bonus and bigger music rooms. Everything else stays free. The price is shown before you pay. Payments are handled by Stripe; we never see or store your card.</p>
+      <p>Premium renews automatically at the end of each period until you cancel. You can cancel any time from the app (Premium → Manage subscription) and keep Premium until the end of the period you paid for. If something went wrong with a payment, contact us and we’ll sort it out.</p>
+
       <h2>Your account</h2>
       <ul>
         <li>You need to be at least 13 to create an account.</li>

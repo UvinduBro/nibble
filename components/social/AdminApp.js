@@ -20,6 +20,7 @@ const lookLabel = (u) => {
 import { niceError, verLess, LEVELS, ms } from '../../lib/social/social';
 import { SOURCES, USES, countryName, flag } from '../../lib/signup';
 import { SEO_PAGES, SEO_LIMITS, SITE as SEO_SITE, mergeSeo } from '../../lib/seo';
+import { BUILTIN as PREMIUM_BUILTIN, DEFAULT_PLAN, CURRENCIES, INTERVALS, priceLabel, cleanFeature } from '../../lib/premium';
 import { TEMPLATES as MAIL_TEMPLATES, TEMPLATE_DEFAULTS, renderEmail, fillForPreview } from '../../lib/emailTemplates';
 
 // ---------- helpers ----------
@@ -1366,6 +1367,178 @@ function SeoTab({ social, toast }) {
 }
 
 // Sidebar: grouped pages, each with a one-line purpose and a short guide (shown under the title)
+// ---------- Premium: Stripe subscriptions ----------
+const money = (cents, cur) => { try { return new Intl.NumberFormat('en', { style: 'currency', currency: String(cur || 'usd').toUpperCase() }).format((cents || 0) / 100); } catch { return ((cents || 0) / 100).toFixed(2) + ' ' + cur; } };
+const SUB_COLOR = { active: C.mint, trialing: C.cyan, past_due: C.yellow, canceled: C.slate, unpaid: C.coral, incomplete: C.slate, incomplete_expired: C.slate };
+function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
+  const [info, setInfo] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState('');
+  const [key, setKey] = useState('');
+  const plan = state.premiumPlan || DEFAULT_PLAN;
+  const [price, setPrice] = useState({ amount: (plan.amount / 100).toFixed(2), currency: plan.currency, interval: plan.interval, name: plan.name });
+  const [feats, setFeats] = useState(plan.features);
+  const [featsDirty, setFeatsDirty] = useState(false);
+  const [gift, setGift] = useState({ who: '', days: 365 });
+  useEffect(() => { if (!featsDirty) setFeats(plan.features); }, [state.premiumPlan]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPrice({ amount: (plan.amount / 100).toFixed(2), currency: plan.currency, interval: plan.interval, name: plan.name }); }, [plan.amount, plan.currency, plan.interval, plan.name]);
+  const load = () => { setErr(''); social.admin.premium().then(setInfo).catch((e) => { setInfo({}); setErr(niceError(e)); }); };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const act = async (name, body, ok) => {
+    setBusy(name);
+    try { const r = await social.admin.premium(body); if (ok) toast({ text: ok }); load(); return r; }
+    catch (x) { toast({ err: true, text: niceError(x) }); }
+    finally { setBusy(''); }
+  };
+  const st = (info && info.stripe) || {};
+  const ck = (info && info.checks) || {};
+  const sa = ck.serviceAccount;
+  const ready = st.connected && st.webhook && plan.priceId && ck.encryption !== false && sa && sa.canWrite;
+  const toggle = async (on) => {
+    if (on && !plan.priceId) { toast({ err: true, text: 'Connect Stripe first: that creates the price people pay.' }); return; }
+    if (on && !window.confirm(`Switch Premium on? Everyone will see it in the app for ${priceLabel(plan)}${st.mode === 'test' ? ' (Stripe is in TEST mode: no real money)' : ''}.`)) return;
+    try { await social.admin.savePremiumPlan({ enabled: on }); toast({ text: on ? 'Premium is on' : 'Premium is off' }); } catch (x) { toast({ err: true, text: niceError(x) }); }
+  };
+  const saveFeats = async () => {
+    try { await social.admin.savePremiumPlan({ features: feats.map(cleanFeature) }); setFeatsDirty(false); toast({ text: 'Features saved' }); } catch (x) { toast({ err: true, text: niceError(x) }); }
+  };
+  const setF = (i, patch) => { setFeats(feats.map((f, j) => (j === i ? { ...f, ...patch } : f))); setFeatsDirty(true); };
+  const savePrice = () => {
+    const amount = Math.round(Number(price.amount) * 100);
+    if (!window.confirm(`Set the price to ${money(amount, price.currency)} per ${price.interval}? New subscribers pay this; current ones keep their price.`)) return;
+    act('price', { action: 'price', amount, currency: price.currency, interval: price.interval, name: price.name }, 'Price saved in Stripe');
+  };
+  const giftUser = users.find((u) => u.username === gift.who.replace(/^@/, '').trim().toLowerCase() || u.uid === gift.who.trim());
+  const stats = info && info.stats;
+  const subs = (info && info.subscribers) || [];
+  const nameOf = (uid) => (users.find((u) => u.uid === uid) || {}).username;
+  return (
+    <>
+      <div className="ad-kpis">
+        <Kpi n={stats ? stats.active : '–'} label="Premium members" sub="paying now" color={C.mint} />
+        <Kpi n={stats ? money(stats.yearly, stats.currency) : '–'} label="Yearly revenue" sub="from active subscriptions" color={C.violet} />
+        <Kpi n={stats ? stats.cancelling : '–'} label="Cancelling" sub="end at the period end" color={C.yellow} />
+        <Kpi n={stats ? stats.pastDue : '–'} label="Payment problems" sub="card failed, retrying" color={C.coral} />
+      </div>
+      {err && <div className="sa-card"><p className="sa-empty">{err}</p></div>}
+
+      <div className="ad-grid2">
+        <div className="sa-card">
+          <h3>💎 Premium <small>{plan.enabled ? 'on for everyone' : 'off'}</small></h3>
+          <label className="sa-toggle"><span><b>Offer Premium in the app</b><small>{ready ? 'Everything is set up.' : 'Finish the Stripe set-up on the right first.'}{st.mode === 'test' ? ' Stripe is in TEST mode: payments aren’t real.' : ''}</small></span><input type="checkbox" checked={!!plan.enabled} onChange={(e) => toggle(e.target.checked)} /></label>
+          <form className="sa-form" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); savePrice(); }}>
+            <label><span>Plan name</span><input value={price.name} maxLength={40} onChange={(e) => setPrice({ ...price, name: e.target.value })} /></label>
+            <div className="ad-two">
+              <label><span>Price</span><input type="number" min="0.5" step="0.01" value={price.amount} onChange={(e) => setPrice({ ...price, amount: e.target.value })} /></label>
+              <label><span>Currency</span><select value={price.currency} onChange={(e) => setPrice({ ...price, currency: e.target.value })}>{CURRENCIES.map((c) => <option key={c} value={c}>{c.toUpperCase()}</option>)}</select></label>
+            </div>
+            <label><span>Billed every</span><select value={price.interval} onChange={(e) => setPrice({ ...price, interval: e.target.value })}>{INTERVALS.map((i) => <option key={i} value={i}>{i}</option>)}</select></label>
+            <button className="btn" disabled={!st.connected || !!busy}>{busy === 'price' ? 'Saving…' : 'Save price'}</button>
+            <p className="ad-foot">Now: <b>{priceLabel(plan)}</b>{plan.priceId ? ` · Stripe price ${plan.priceId}` : ' · not in Stripe yet'}. A new price is created in Stripe; the old one is archived, and people already subscribed keep paying the old price.</p>
+          </form>
+        </div>
+
+        <div className="sa-card">
+          <h3>💳 Stripe <small>{st.connected ? (st.mode === 'live' ? 'LIVE' : 'TEST mode') : 'not connected'}</small><button className="btn small ghost" onClick={load}>Refresh</button></h3>
+          {st.connected && <p className="ad-foot" style={{ marginTop: 0 }}>Connected to <b>{st.account || 'your Stripe account'}</b> with {st.key}{st.fromEnv ? ' (from Vercel env)' : ''}.</p>}
+          <ul className="ad-checklist">
+            <li className={st.connected ? 'ok' : ''}>Secret key saved {st.connected ? '✓' : ''}</li>
+            <li className={st.webhook ? 'ok' : ''}>Webhook created {st.webhook ? '✓' : '(made for you when you connect)'}</li>
+            <li className={plan.priceId ? 'ok' : ''}>Price in Stripe {plan.priceId ? '✓' : ''}</li>
+            {info && info.checks ? (
+              <>
+                <li className={ck.encryption ? 'ok' : 'bad'}>Encryption key (BILLING_KEY) {ck.encryption ? '✓' : 'missing in Vercel'}</li>
+                <li className={sa && sa.canWrite ? 'ok' : 'bad'}>Server can update Firestore {sa && sa.canWrite ? '✓' : sa ? <>: give <code>{sa.email}</code> the <b>Cloud Datastore User</b> role in Google Cloud → IAM, then Refresh</> : ': add a service account key (FIREBASE_ADMIN_KEY)'}</li>
+              </>
+            ) : <li>Checking the server set-up…</li>}
+            <li>Turn on the customer portal once: Stripe → Settings → Billing → Customer portal (lets people cancel or change card)</li>
+          </ul>
+          <form className="sa-form" onSubmit={(e) => { e.preventDefault(); act('connect', { action: 'connect', secretKey: key }, 'Stripe connected ✓').then((r) => { if (r) setKey(''); }); }}>
+            <label><span>{st.connected ? 'Replace secret key' : 'Stripe secret key'} <small>Stripe → Developers → API keys. Saved encrypted; never shown again.</small></span><input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value.trim())} placeholder="sk_test_… or sk_live_…" /></label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn" disabled={!key || !!busy}>{busy === 'connect' ? 'Connecting…' : st.connected ? 'Replace key' : 'Connect Stripe'}</button>
+              {st.connected && !st.fromEnv && <button type="button" className="btn ghost" disabled={!!busy} onClick={() => { if (window.confirm('Disconnect Stripe? Premium switches off and the webhook is removed. Existing subscriptions keep running in Stripe.')) act('disconnect', { action: 'disconnect' }, 'Stripe disconnected'); }}>Disconnect</button>}
+            </div>
+          </form>
+          {st.error && <p className="sa-empty">Stripe said: {st.error}</p>}
+        </div>
+      </div>
+
+      <div className="sa-card">
+        <h3>✨ Features <small>what people get</small><button className="btn small" style={{ marginLeft: 'auto' }} disabled={!featsDirty} onClick={saveFeats}>{featsDirty ? 'Save features' : 'Saved'}</button></h3>
+        <div className="ad-feats">
+          {feats.map((f, i) => (
+            <div key={f.id + i} className={'ad-feat' + (f.on === false ? ' off' : '')}>
+              <input className="ad-feat-icon" value={f.icon} maxLength={4} onChange={(e) => setF(i, { icon: e.target.value })} aria-label="Icon" />
+              <div className="ad-feat-main">
+                <input value={f.title} maxLength={40} onChange={(e) => setF(i, { title: e.target.value })} aria-label="Title" />
+                <input value={f.desc} maxLength={140} onChange={(e) => setF(i, { desc: e.target.value })} placeholder="Short description" aria-label="Description" />
+              </div>
+              <select value={f.key} onChange={(e) => setF(i, { key: e.target.value })} aria-label="What it does">
+                {Object.entries(PREMIUM_BUILTIN).map(([k, b]) => <option key={k} value={k}>Built-in: {b.title}</option>)}
+                <option value="custom">Custom (listed only)</option>
+              </select>
+              <label className="ad-feat-on"><input type="checkbox" checked={f.on !== false} onChange={(e) => setF(i, { on: e.target.checked })} /> on</label>
+              <button className="btn small ghost" onClick={() => { setFeats(feats.filter((_, j) => j !== i)); setFeatsDirty(true); }} aria-label="Remove">✕</button>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button className="btn small ghost" disabled={feats.length >= 12} onClick={() => { setFeats([...feats, { id: 'f' + Date.now().toString(36), key: 'custom', icon: '✨', title: 'New feature', desc: '', on: true }]); setFeatsDirty(true); }}>＋ Add feature</button>
+          <button className="btn small ghost" onClick={() => { setFeats(DEFAULT_PLAN.features); setFeatsDirty(true); }}>Reset to defaults</button>
+        </div>
+      </div>
+
+      <div className="ad-grid2">
+        <div className="sa-card">
+          <h3>🎁 Gift Premium</h3>
+          <form className="sa-form" onSubmit={(e) => { e.preventDefault(); if (giftUser) act('grant', { action: 'grant', uid: giftUser.uid, days: Number(gift.days) }, `Premium gifted to @${giftUser.username}`); }}>
+            <div className="ad-two">
+              <label><span>Username</span><input value={gift.who} onChange={(e) => setGift({ ...gift, who: e.target.value })} placeholder="@username" list="ad-users" /></label>
+              <label><span>For</span><select value={gift.days} onChange={(e) => setGift({ ...gift, days: e.target.value })}>{[[30, '1 month'], [90, '3 months'], [365, '1 year'], [3650, '10 years']].map(([d, l]) => <option key={d} value={d}>{l}</option>)}</select></label>
+            </div>
+            <datalist id="ad-users">{users.slice(0, 500).map((u) => <option key={u.uid} value={'@' + u.username} />)}</datalist>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn" disabled={!giftUser || !!busy}>Gift Premium</button>
+              <button type="button" className="btn ghost" disabled={!giftUser || !!busy} onClick={() => { if (window.confirm(`Remove Premium from @${giftUser.username}? (A paid Stripe subscription would switch it back on at its next renewal.)`)) act('revoke', { action: 'revoke', uid: giftUser.uid }, 'Premium removed'); }}>Remove Premium</button>
+            </div>
+            <p className="ad-foot">{giftUser ? `@${giftUser.username} · ${giftUser.uid}` : 'Type a username from the list.'} Gifts add to any time they already have and never charge anyone.</p>
+          </form>
+        </div>
+        <div className="sa-card">
+          <h3>🧪 Test it</h3>
+          <ol className="ad-steps">
+            <li>Connect with your <b>test</b> key (sk_test_…) and switch Premium on.</li>
+            <li>In the app → <b>Premium</b> → Get Premium. Pay with card <code>4242 4242 4242 4242</code>, any future date, any CVC.</li>
+            <li>You land back in the app and Premium switches on within a few seconds. It shows below too.</li>
+            <li>Then connect your <b>live</b> key (sk_live_…). Test subscribers don’t carry over.</li>
+          </ol>
+          <p className="ad-foot">Webhook address: <code>{info && info.webhookUrl}</code> (created for you).</p>
+        </div>
+      </div>
+
+      <div className="sa-card">
+        <h3>👥 Subscribers <small>{subs.length}{stats && stats.more ? '+' : ''}</small></h3>
+        {!subs.length && <p className="sa-empty">{st.connected ? 'No subscribers yet.' : 'Connect Stripe to see subscribers.'}</p>}
+        {subs.length > 0 && (
+          <table className="ad-mini">
+            <thead><tr><th>Who</th><th>Status</th><th>Renews / ends</th><th>Price</th><th /></tr></thead>
+            <tbody>{subs.map((x) => (
+              <tr key={x.id}>
+                <td>{nameOf(x.uid) ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(x.uid); }}>@{nameOf(x.uid)}</button> : x.uid}<br /><small style={{ color: 'var(--muted)' }}>{x.email}</small></td>
+                <td><b style={{ color: SUB_COLOR[x.status] || C.slate }}>{x.status.replace('_', ' ')}</b>{x.cancelAtEnd ? <small> · cancelling</small> : null}</td>
+                <td>{x.until ? new Date(x.until).toLocaleDateString() : '—'}</td>
+                <td>{money(x.amount, x.currency)}/{x.interval}</td>
+                <td><button className="btn small ghost" disabled={!!busy} onClick={() => act('resync', { action: 'resync', uid: x.uid }, 'Synced')}>Sync</button> <a className="btn small ghost" href={`https://dashboard.stripe.com/${st.mode === 'test' ? 'test/' : ''}subscriptions/${x.id}`} target="_blank" rel="noreferrer">Stripe ↗</a></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
 const NAV = [
   ['Insights', [
     ['overview', 'Overview', '📊', 'How Nibble is doing right now: people online, sign-ups, versions and activity.', ['Click any number to jump to the matching list.', 'Numbers are live while this tab is open; it pauses after 3 minutes in the background to save Firebase reads.']],
@@ -1380,6 +1553,9 @@ const NAV = [
     ['announce', 'Announcements', '📣', 'A banner inside the app for everyone signed in (desktop users also get a notification).', ['Keep it short: 200 characters at most.', 'Use “Update” when a new version is out, “Warning” only for real problems.']],
     ['email', 'Email', '✉️', 'Send a one-off email to one person or a few (up to 20), from no-reply@meetnibble.com.', ['Replies go to hello@meetnibble.com.', 'For news to everyone who subscribed, use Marketing instead.']],
     ['marketing', 'Marketing', '📢', 'Bulk email: import contacts, pick a designed template, preview it, test it and send it to a list.', ['Import only people who agreed to hear from you; keep them in “Imported contacts”.', 'Always send yourself a test first, and check the phone preview.', 'Free plan: 3,000 emails a month, 100 a day. Bigger lists need a paid Resend plan.', 'Every email gets an unsubscribe link automatically.']],
+  ]],
+  ['Money', [
+    ['premium', 'Premium', '💎', 'Nibble Premium: switch it on or off, set the price and the features, connect Stripe and see who’s subscribed.', ['Start with a Stripe test key (sk_test_…) and buy Premium yourself with card 4242 4242 4242 4242, then switch to your live key.', 'A new price only applies to new subscribers; people already subscribed keep theirs.', 'Built-in features change the app (badge, double bonus, bigger rooms); custom ones are just listed.']],
   ]],
   ['Grow', [
     ['seo', 'SEO', '🔎', 'How Nibble looks on Google and when shared: page titles, descriptions and share images.', ['Titles: 30–60 characters. Descriptions: 120–160.', 'After big changes, ask Google to re-crawl from Search Console → URL inspection.', 'Use Facebook’s Sharing Debugger to refresh old share previews.']],
@@ -1494,6 +1670,7 @@ function Dashboard({ social, state }) {
         {tab === 'email' && <EmailTab social={social} toast={toast} draft={draft} setDraft={setDraft} />}
         {tab === 'marketing' && <MarketingTab social={social} state={state} toast={toast} />}
         {tab === 'seo' && <SeoTab social={social} toast={toast} />}
+        {users && tab === 'premium' && <PremiumTab social={social} state={state} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'usage' && <UsageTab social={social} state={state} users={list} toast={toast} />}
         {tab === 'announce' && <Announce social={social} state={state} history={history} toast={toast} />}
         {users && tab === 'settings' && <SettingsTab social={social} state={state} users={list} banned={banned} history={history} latest={latest} toast={toast} setOpenUid={setOpenUid} go={go} />}

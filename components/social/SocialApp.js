@@ -10,6 +10,7 @@ import PetFigure, { useNibble } from '../PetFigure';
 import { byKey, CHARACTERS } from '../../lib/characters';
 import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess, cleanStyleMap } from '../../lib/social/social';
 import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
+import { priceLabel, BUILTIN as PREMIUM_PERKS } from '../../lib/premium';
 import Wardrobe from './Wardrobe';
 import Arcade from './Arcade';
 import Leaderboard from './Leaderboard';
@@ -42,7 +43,7 @@ const ago = (t) => {
 };
 const EMOTE_TITLE = { wave: 'Wave', hug: 'Cuddle', kiss: 'Kiss', poke: 'Poke', annoy: 'Tease', icecream: 'Share ice cream', heart: 'Send a heart', highfive: 'High five', tickle: 'Tickle', cheer: 'Cheer them on', snack: 'Share a snack', dance: 'Dance together', boop: 'Boop', flower: 'Give a flower', cake: 'Birthday cake', fistbump: 'Fist bump', pillow: 'Pillow fight', serenade: 'Serenade', gift: 'Gift box', bubbles: 'Bubbles' };
 const NAV = [
-  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['board', 'Leaderboard', '🏆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['deadlines', 'Reminders', '⏰'], ['profile', 'Profile', '☻'], ['feedback', 'Feedback', '🐛'], ['settings', 'Settings', '⚙'],
+  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['board', 'Leaderboard', '🏆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['deadlines', 'Reminders', '⏰'], ['profile', 'Profile', '☻'], ['feedback', 'Feedback', '🐛'], ['premium', 'Premium', '✦'], ['settings', 'Settings', '⚙'],
 ];
 
 // `who` = a profile or friend: their accessories, colour, makeup and wardrobe look show on the avatar
@@ -136,7 +137,7 @@ function FriendRow({ social, f, toast, full, desktop }) {
     <div className={'sa-friend' + (f.online ? ' on' : '')}>
       <Avatar skin={f.skin} who={f} mood={f.online ? (f.typing ? 'work' : 'idle') : 'sleep'} />
       <div className="sa-friend-main">
-        <b>@{f.username}</b>
+        <b>@{f.username}{f.premium && <span className="sa-prem" title="Nibble Premium">⭐</span>}</b>
         <small>
           <span className={'sa-dot' + (f.online ? ' on' : '') + (f.dnd ? ' dnd' : '')} />
           {f.typing ? 'thinking…' : f.online ? (f.dnd ? 'busy' : 'online') : f.lastSeen ? 'seen ' + ago(f.lastSeen) : 'offline'}
@@ -453,6 +454,83 @@ function Settings({ social, state, desktop, local, toast, go }) {
           <button className="btn small" onClick={() => desktop.update()}>{local.latest ? `Update to ${local.latest}` : 'Reinstall / update'}</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------- Nibble Premium ----------
+function PremiumPage({ social, state, toast, desktop }) {
+  const plan = state.premiumPlan;
+  const prem = state.premium;
+  const active = social.premium.active();
+  const [busy, setBusy] = useState('');
+  const [waiting, setWaiting] = useState(false);
+  // after paying, Stripe tells our server in a few seconds; check a few times so Premium shows up
+  const check = async (quiet) => {
+    try { await social.premium.refresh(); } catch (e) { if (!quiet) toast({ err: true, text: niceError(e) }); }
+  };
+  useEffect(() => {
+    const ret = window.__nibblePremiumReturn; window.__nibblePremiumReturn = '';
+    if (ret === 'cancel') toast({ text: 'No problem: nothing was charged.' });
+    if (ret === 'success') {
+      setWaiting(true);
+      let n = 0;
+      const t = setInterval(() => { n++; check(true); if (n >= 6) { clearInterval(t); setWaiting(false); } }, 4000);
+      check(true);
+      return () => clearInterval(t);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (active && waiting) { setWaiting(false); toast({ text: 'Welcome to Premium ⭐ Thank you!' }); } }, [active, waiting]); // eslint-disable-line react-hooks/exhaustive-deps
+  // desktop: you pay in the browser, then come back: re-check when the Hub is shown again
+  useEffect(() => {
+    if (!desktop || active) return;
+    const on = () => { if (!window.__nibbleHidden) check(true); };
+    window.addEventListener('nibble-visibility', on);
+    return () => window.removeEventListener('nibble-visibility', on);
+  }, [desktop, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  const go = async (kind) => {
+    setBusy(kind);
+    try {
+      const url = kind === 'buy' ? await social.premium.checkout() : await social.premium.portal();
+      if (!/^https:\/\/(checkout|billing)\.stripe\.com\//.test(url)) throw new Error('Unexpected payment link.');
+      if (desktop) { window.open(url, '_blank'); toast({ text: 'Finish in your browser, then come back here.' }); }
+      else location.href = url;
+    } catch (e) { toast({ err: true, text: niceError(e) }); }
+    setBusy('');
+  };
+  const feats = ((plan && plan.features) || []).filter((f) => f.on !== false);
+  const until = prem && prem.until ? new Date(prem.until).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  return (
+    <div className="sa-page">
+      <div className="sa-premium-hero">
+        <div>
+          <h2>✦ {plan ? plan.name : 'Nibble Premium'}</h2>
+          <p className="sa-sub">{active ? 'You’re Premium. Thank you for supporting Nibble 💖' : 'A few extra treats for you and your pet, and you help keep Nibble free and ad-free for everyone.'}</p>
+        </div>
+        {plan && <div className="sa-premium-price"><b>{priceLabel(plan)}</b><small>cancel any time</small></div>}
+      </div>
+      <div className="sa-premium-grid">
+        {feats.map((f) => (
+          <div key={f.id} className="sa-premium-feat"><span>{f.icon}</span><b>{f.title}</b><small>{f.desc || (PREMIUM_PERKS[f.key] && PREMIUM_PERKS[f.key].desc)}</small></div>
+        ))}
+      </div>
+      <div className="sa-card">
+        {active ? (
+          <>
+            <h3>⭐ Premium is on</h3>
+            <p className="sa-sub">{prem.source === 'admin' ? `Gifted by the Nibble team until ${until}.` : prem.cancelAtEnd ? `Ends on ${until}. You won’t be charged again.` : `Renews on ${until}.`}{prem.status === 'past_due' ? ' Your last payment didn’t go through: update your card to keep Premium.' : ''}</p>
+            {prem.source !== 'admin' && <button className="btn small" disabled={!!busy} onClick={() => go('manage')}>{busy === 'manage' ? 'Opening…' : 'Manage subscription'}</button>}
+          </>
+        ) : plan && plan.enabled ? (
+          <>
+            <h3>Get Premium</h3>
+            <p className="sa-sub">Secure payment by Stripe. Card, Apple Pay and Google Pay where available. You can cancel any time from here.</p>
+            <button className="btn" disabled={!!busy || waiting} onClick={() => go('buy')}>{waiting ? 'Confirming your payment…' : busy === 'buy' ? 'Opening Stripe…' : `Get Premium · ${priceLabel(plan)}`}</button>
+            {(desktop || waiting) && <button className="btn small ghost" style={{ marginLeft: 8 }} onClick={() => check(false)}>I’ve paid: check again</button>}
+          </>
+        ) : <p className="sa-empty">Premium isn’t available right now. Check back soon!</p>}
+        {prem && !active && prem.source === 'stripe' && <p className="ad-foot">Your Premium ended{until ? ' on ' + until : ''}. Get it again any time.</p>}
+      </div>
     </div>
   );
 }
@@ -1025,6 +1103,12 @@ export default function SocialApp({ mode = 'web' }) {
     if (q.get('add')) { setPresetAdd(q.get('add')); setTab('friends'); }
     const fixTab = (t) => (t === 'pets' ? 'settings' : t);
     if (q.get('tab')) setTab(fixTab(q.get('tab')));
+    // back from Stripe: open the Premium page and tidy the address
+    if (q.get('premium')) {
+      setTab('premium');
+      window.__nibblePremiumReturn = q.get('premium');
+      try { window.history.replaceState(null, '', location.pathname); } catch {}
+    }
     if (window.nibbleDesktop && window.nibbleDesktop.onTab) window.nibbleDesktop.onTab((t) => setTab(fixTab(t)));
     // desktop Hub hidden → pause every little animated pet on the page (saves CPU/GPU, less lag)
     if (window.nibbleDesktop && window.nibbleDesktop.onVisible) window.nibbleDesktop.onVisible((v) => { window.__nibbleHidden = !v; window.dispatchEvent(new Event('nibble-visibility')); });
@@ -1114,6 +1198,7 @@ export default function SocialApp({ mode = 'web' }) {
         {tab === 'style' && <Wardrobe {...props} />}
         {tab === 'games' && <Arcade {...props} />}
         {tab === 'board' && <Leaderboard {...props} />}
+        {tab === 'premium' && <PremiumPage {...props} />}
         {tab === 'settings' && <Settings {...props} />}
         {tab === 'feedback' && <FeedbackPage {...props} />}
       </>
@@ -1133,14 +1218,14 @@ export default function SocialApp({ mode = 'web' }) {
           </div>
           <div className="sa-me">
             <Avatar skin={state.profile.skin} who={state.profile} size={52} mood="happy" />
-            <div><b>@{state.profile.username}</b><small><span className={'sa-dot' + (state.prefs.invisible ? '' : ' on') + (state.prefs.dnd ? ' dnd' : '')} />{state.prefs.invisible ? 'appearing offline' : state.prefs.dnd ? 'do not disturb' : 'online'}</small></div>
+            <div><b>@{state.profile.username}{social.premium.perk('badge') && <span className="sa-prem" title="Nibble Premium">⭐</span>}</b><small><span className={'sa-dot' + (state.prefs.invisible ? '' : ' on') + (state.prefs.dnd ? ' dnd' : '')} />{state.prefs.invisible ? 'appearing offline' : state.prefs.dnd ? 'do not disturb' : 'online'}</small></div>
           </div>
           <button className="sa-pts" onClick={() => setTab('games')} title="Your points: earn them in Games, spend them in Customize">
             <span>{PT}</span><b>{state.wallet && state.wallet.ready ? state.wallet.points : '…'}</b><small>points</small>
             {state.wallet && state.wallet.canDaily && <em>🎁 bonus</em>}
           </button>
           <nav>
-            {NAV.map(([k, l, i]) => (
+            {NAV.filter(([k]) => k !== 'premium' || (state.premiumPlan && state.premiumPlan.enabled) || social.premium.active()).map(([k, l, i]) => (
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)} title={mini ? l : undefined}>
                 <span>{i}</span><b className="sa-nl">{l}</b>
                 {k === 'friends' && state.incoming.length > 0 && <em className="sa-badge">{state.incoming.length}</em>}

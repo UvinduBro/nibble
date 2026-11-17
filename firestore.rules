@@ -15,6 +15,11 @@ service cloud.firestore {
     function validName(n) { return n is string && n.matches('^[a-z0-9_]{3,20}$'); }
     function shortText(t, max) { return t is string && t.size() <= max; }
     function incoming() { return request.resource.data; }
+    // Nibble Premium: premium/{uid} is written only by the server (Stripe webhook) and admins
+    function isPremium(uid) {
+      let p = /databases/$(database)/documents/premium/$(uid);
+      return exists(p) && get(p).data.active == true && get(p).data.until > request.time.toMillis();
+    }
     // wardrobe look: { sp: species, of: outfit, oc: outfit colour, sk: skill }
     function validStyle(st) {
       return st is map && st.keys().hasOnly(['sp', 'of', 'oc', 'sk'])
@@ -64,6 +69,30 @@ service cloud.firestore {
         && shortText(incoming().get('notice', ''), 200)
         && shortText(incoming().get('noticeLevel', 'info'), 10);
     }
+
+    // ---------- Nibble Premium ----------
+    // the public plan (price, features, on/off). Anyone can read it (the website shows the price);
+    // admins edit it. The Stripe price id is set by the server when an admin changes the price.
+    match /config/premium {
+      allow read: if true;
+      allow write: if isAdmin()
+        && incoming().keys().hasOnly(['enabled', 'name', 'amount', 'currency', 'interval', 'priceId', 'productId', 'features', 'updatedAt', 'by'])
+        && incoming().get('enabled', false) is bool
+        && shortText(incoming().get('name', ''), 40)
+        && shortText(incoming().get('currency', 'usd'), 3)
+        && incoming().get('interval', 'year') in ['year', 'month']
+        && (!('amount' in incoming()) || (incoming().amount is int && incoming().amount >= 50))
+        && (!('features' in incoming()) || (incoming().features is list && incoming().features.size() <= 12));
+    }
+    // who has Premium: friends see the badge; only the server and admins (through the server) write
+    match /premium/{uid} {
+      allow get: if signedIn();
+      allow list: if isAdmin();
+      allow write: if false;
+    }
+    // Stripe keys (encrypted) and Stripe customer ids: server only, never readable from a browser
+    match /billing/{doc} { allow read, write: if false; }
+    match /billingCustomers/{uid} { allow read, write: if false; }
 
     // SEO settings (Admin → SEO): titles, descriptions, share images, search verification codes.
     // Public (the website reads it to build every page's tags); only admins write.
@@ -188,12 +217,14 @@ service cloud.firestore {
         && incoming().get('repeat', 'all') in ['off', 'all', 'one']
         && incoming().get('shuffle', false) is bool
         && incoming().get('history', []) is list && incoming().get('history', []).size() <= 60
-        && incoming().invited is list && incoming().invited.size() <= 10
+        && incoming().invited is list
+        // Premium hosts can invite up to 20 friends, everyone else 10
+        && (incoming().invited.size() <= 10 || (incoming().invited.size() <= 20 && isPremium(incoming().host)))
         && incoming().get('queue', []) is list && incoming().get('queue', []).size() <= 60
         && shortText(incoming().get('hostName', ''), 20)
-        && incoming().get('names', {}) is map && incoming().get('names', {}).size() <= 12
-        && incoming().get('here', {}) is map && incoming().get('here', {}).size() <= 12
-        && incoming().get('inv', {}).size() <= 12;
+        && incoming().get('names', {}) is map && incoming().get('names', {}).size() <= 22
+        && incoming().get('here', {}) is map && incoming().get('here', {}).size() <= 22
+        && incoming().get('inv', {}).size() <= 22;
     }
     match /rooms/{rid} {
       allow get: if signedIn() && (resource == null || resource.data.host == me() || me() in resource.data.invited);
@@ -244,7 +275,8 @@ service cloud.firestore {
         && incoming().earned == (resource.data.day == today() ? resource.data.earned : 0) + d
         && incoming().earned <= 1500
         && (claimDaily
-          ? (incoming().daily == today() && resource.data.daily != today() && d <= 160
+          // Premium doubles the daily bonus (up to 200)
+          ? (incoming().daily == today() && resource.data.daily != today() && d <= (isPremium(me()) ? 260 : 160)
              && incoming().streak == (resource.data.daily == today() - 1 ? resource.data.streak + 1 : 1))
           : (d <= 60 && unchanged(['streak'])));
     }
