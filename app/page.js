@@ -2,7 +2,7 @@ import NewsletterForm from '../components/landing/NewsletterForm';
 import Desktop from '../components/Desktop';
 import CharacterSelect from '../components/CharacterSelect';
 import { Quotes, Download } from '../components/Sections';
-import About from '../components/About';
+import { Story } from '../components/About';
 import PetFigure from '../components/PetFigure';
 import Globe, { PLACES } from '../components/landing/Globe';
 import { Reveal, ThemeToggle } from '../components/landing/LandingFx';
@@ -71,7 +71,7 @@ const STEPS = [
   ['Bring your friends', 'Add friends by username. Their pets visit your screen, and you can message, play and listen to music together.'],
 ];
 
-const NAV = [['#try', 'Demo'], ['#features', 'Features'], ['#crew', 'Pets'], ['#download', 'Download'], ['#faq', 'FAQ'], ['#contact', 'Contact']];
+const NAV = [['#try', 'Demo'], ['#features', 'Features'], ['#crew', 'Pets'], ['#download', 'Download'], ['#faq', 'FAQ'], ['/about', 'About'], ['#contact', 'Contact']];
 
 function HubMock() {
   return (
@@ -338,7 +338,10 @@ export default function Home() {
         <section className="lp-sec" id="about">
           <div className="lp-wrap">
             <Head kicker="About" title="A tiny friend for your desktop, and your friends’ too." />
-            <div className="lp-about" data-reveal><About /></div>
+            <div className="lp-about" data-reveal>
+              <Story />
+              <a href="/about" className="lp-btn ghost lp-about-more">Meet the people behind Nibble →</a>
+            </div>
           </div>
         </section>
 
@@ -381,7 +384,7 @@ export default function Home() {
           </div>
           <nav aria-label="Product"><b>Product</b><a href="#download">Download</a><a href="/app">Web app</a><a href="#features">Features</a><a href="#crew">Pets</a></nav>
           <nav aria-label="Help"><b>Help</b><a href="#faq">FAQ</a><a href="#feedback">Report a bug</a><a href="#feedback">Suggest a feature</a><a href="/install-help">Install help</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
-          <nav aria-label="Nibble"><b>Nibble</b><a href="#about">About</a><a href="#contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+          <nav aria-label="Nibble"><b>Nibble</b><a href="/about">About</a><a href="#contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
           <NewsletterForm />
         </div>
         <div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · Version {release.version} · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>

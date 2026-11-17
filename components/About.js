@@ -1,4 +1,4 @@
-// "About" — the idea behind Nibble, and the two people behind it.
+// "About": the idea behind Nibble (Story) and the two people behind it (Team, on /about).
 const PEOPLE = [
   {
     name: 'Uvindu Rajapakshe',
@@ -23,44 +23,49 @@ const ICONS = {
 };
 const LABEL = { linkedin: 'LinkedIn', instagram: 'Instagram', facebook: 'Facebook' };
 
-export default function About() {
+// the idea behind Nibble (home page "About" teaser and the top of /about)
+export function Story() {
   return (
-    <>
-      <div className="about-story reveal">
-        <p>
-          Nibble is a tiny companion that lives on your desktop. It walks along the tops of your windows, hops between them,
-          naps on the taskbar and reacts to what you’re doing, so your screen feels a little less lonely while you work.
-        </p>
-        <p>
-          The idea grew from one pet into a small social world: friends’ pets can visit each other, deliver messages, cuddle,
-          squabble and make up over ice cream, remind you about deadlines, play games and even listen to music together.
-        </p>
-        <p className="about-sign">Designed and built in Sri Lanka.</p>
-      </div>
-      <div className="about-cards">
-        {PEOPLE.map((p) => (
-          <article key={p.name} className="about-card reveal">
-            <div className="glitch">
-              <img src={p.img} alt={p.name} loading="lazy" />
-              <span className="gl gl-a" style={{ backgroundImage: `url(${p.img})` }} aria-hidden="true" />
-              <span className="gl gl-b" style={{ backgroundImage: `url(${p.img})` }} aria-hidden="true" />
-              <span className="gl-scan" aria-hidden="true" />
-              <span className="about-tag">{p.tag}</span>
+    <div className="about-story">
+      <p>
+        Nibble is a tiny companion that lives on your desktop. It walks along the tops of your windows, hops between them,
+        naps on the taskbar and reacts to what you’re doing, so your screen feels a little less lonely while you work.
+      </p>
+      <p>
+        The idea grew from one pet into a small social world: friends’ pets can visit each other, deliver messages, cuddle,
+        squabble and make up over ice cream, remind you about deadlines, play games and even listen to music together.
+      </p>
+      <p className="about-sign">Designed and built in Sri Lanka.</p>
+    </div>
+  );
+}
+
+// the two people behind Nibble (only on /about)
+export function Team() {
+  return (
+    <div className="about-cards">
+      {PEOPLE.map((p) => (
+        <article key={p.name} className="about-card">
+          <div className="glitch">
+            <img src={p.img} alt={p.name} loading="lazy" />
+            <span className="gl gl-a" style={{ backgroundImage: `url(${p.img})` }} aria-hidden="true" />
+            <span className="gl gl-b" style={{ backgroundImage: `url(${p.img})` }} aria-hidden="true" />
+            <span className="gl-scan" aria-hidden="true" />
+            <span className="about-tag">{p.tag}</span>
+          </div>
+          <div className="about-body">
+            <h3>{p.name}</h3>
+            <span className="about-role">{p.role}</span>
+            <div className="about-social">
+              {Object.keys(p.social).map((k) => (
+                <a key={k} href={p.social[k]} target="_blank" rel="noopener noreferrer" aria-label={`${p.name} on ${LABEL[k]}`} title={LABEL[k]}>
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d={ICONS[k]} /></svg>
+                </a>
+              ))}
             </div>
-            <div className="about-body">
-              <h3>{p.name}</h3>
-              <span className="about-role">{p.role}</span>
-              <div className="about-social">
-                {Object.keys(p.social).map((k) => (
-                  <a key={k} href={p.social[k]} target="_blank" rel="noopener noreferrer" aria-label={`${p.name} on ${LABEL[k]}`} title={LABEL[k]}>
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d={ICONS[k]} /></svg>
-                  </a>
-                ))}
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-    </>
+          </div>
+        </article>
+      ))}
+    </div>
   );
 }
