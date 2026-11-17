@@ -1143,7 +1143,7 @@ function MarketingTab({ social, state, toast }) {
   const set = (k) => (e) => setFields({ ...fields, [k]: e.target.value });
   const pickTpl = (t) => { setTpl(t); setFields(TEMPLATE_DEFAULTS[t]); };
   // preview loads the email art from this site (so it also works before a deploy reaches meetnibble.com)
-  const preview = useMemo(() => fillForPreview(renderEmail(tpl, fields).html, testTo || 'you@example.com').split('https://meetnibble.com/email/').join((typeof location !== 'undefined' ? location.origin : '') + '/email/'), [tpl, fields, testTo]);
+  const preview = useMemo(() => fillForPreview(renderEmail(tpl, fields).html, testTo || 'you@example.com').split('https://meetnibble.com/email/').join((typeof location !== 'undefined' ? location.origin : '') + '/email/').split('https://meetnibble.com/mail-btn').join((typeof location !== 'undefined' ? location.origin : '') + '/mail-btn'), [tpl, fields, testTo]);
   const ok = info && info.ready;
   const lists = (info && info.lists) || {};
   const count = lists[list] ? lists[list].total || 0 : 0;
