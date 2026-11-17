@@ -1200,7 +1200,30 @@ function SeoTab({ social, toast }) {
   );
 }
 
-const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['games', 'Games & points', '🎮'], ['reports', 'Reports', '📬'], ['usage', 'Firebase usage', '📈'], ['email', 'Email', '✉️'], ['marketing', 'Marketing', '📢'], ['seo', 'SEO', '🔎'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
+// Sidebar: grouped pages, each with a one-line purpose and a short guide (shown under the title)
+const NAV = [
+  ['Insights', [
+    ['overview', 'Overview', '📊', 'How Nibble is doing right now: people online, sign-ups, versions and activity.', ['Click any number to jump to the matching list.', 'Numbers are live while this tab is open; it pauses after 3 minutes in the background to save Firebase reads.']],
+    ['users', 'Users', '👥', 'Everyone with an account: look someone up, check their version, reset their look, adjust points or suspend them.', ['Search by username, pet name or UID.', 'Click a person to open their details on the right.', 'Suspending stops them posting anywhere; it doesn’t delete anything.']],
+    ['games', 'Games & points', '🎮', 'The points economy and mini games: switch games on or off and set daily limits.', ['Turning a game off hides it for everyone straight away.', 'Points can’t be bought, only earned, so keep daily limits fair.']],
+    ['usage', 'Firebase usage', '📈', 'Today’s Firestore reads and writes against the free daily limits, and switches that save quota.', ['Turn on Saver mode when reads pass about 70% of the limit.', 'Limits reset at 1:30 PM Sri Lanka time (midnight Pacific).']],
+  ]],
+  ['Inbox', [
+    ['reports', 'Reports', '📬', 'Bug reports, feedback and contact-form messages from the app and the website.', ['Mark a report Seen when you’ve read it and Done when it’s handled.', 'Use ✉️ Reply by email to answer someone; the reply opens in the Email page.']],
+  ]],
+  ['Communicate', [
+    ['announce', 'Announcements', '📣', 'A banner inside the app for everyone signed in (desktop users also get a notification).', ['Keep it short: 200 characters at most.', 'Use “Update” when a new version is out, “Warning” only for real problems.']],
+    ['email', 'Email', '✉️', 'Send a one-off email to one person or a few (up to 20), from no-reply@meetnibble.com.', ['Replies go to hello@meetnibble.com.', 'For news to everyone who subscribed, use Marketing instead.']],
+    ['marketing', 'Marketing', '📢', 'Newsletters and campaigns to people who opted in to Nibble news.', ['Always send yourself a test first.', 'Free plan: 3,000 emails a month, 100 a day. Check the subscriber count before sending.', 'Every campaign gets an unsubscribe link automatically.']],
+  ]],
+  ['Grow', [
+    ['seo', 'SEO', '🔎', 'How Nibble looks on Google and when shared: page titles, descriptions and share images.', ['Titles: 30–60 characters. Descriptions: 120–160.', 'After big changes, ask Google to re-crawl from Search Console → URL inspection.', 'Use Facebook’s Sharing Debugger to refresh old share previews.']],
+  ]],
+  ['System', [
+    ['settings', 'Settings', '⚙️', 'App-wide switches: minimum desktop version, pinned notice, shop and the state of the Firestore rules.', ['Raising the minimum version asks everyone older to update.', 'If something here says “publish the rules”, paste firestore.rules into Firebase and click Publish.']],
+  ]],
+];
+const TABS = NAV.flatMap(([, items]) => items);
 
 function Dashboard({ social, state }) {
   useNibble(); // loads the character palettes used for avatars and charts
@@ -1228,7 +1251,19 @@ function Dashboard({ social, state }) {
   useEffect(() => social.admin.watchHistory(setHistory), [social]);
   useEffect(() => { fetch('/version.json', { cache: 'no-store' }).then((r) => r.json()).then((v) => setLatest(v.version || '')).catch(() => {}); }, []);
 
-  const go = (t, f, uid) => { setTab(t); if (f) setFilter(f); if (uid) setOpenUid(uid); window.scrollTo({ top: 0 }); };
+  const go = (t, f, uid) => {
+    setTab(t); setMenu(false);
+    if (f) setFilter(f);
+    if (uid) setOpenUid(uid);
+    try { window.history.replaceState(null, '', '#' + t); } catch {}
+    window.scrollTo({ top: 0 });
+  };
+  // open the page in the address (#seo, #reports…) so a refresh or a shared link lands there
+  useEffect(() => { const h = (location.hash || '').slice(1); if (TABS.some(([k]) => k === h)) setTab(h); }, []);
+  const [menu, setMenu] = useState(false);
+  const [guide, setGuide] = useState(() => { try { return localStorage.getItem('nibble-admin-tips') !== '0'; } catch { return true; } });
+  const toggleGuide = () => { const v = !guide; setGuide(v); try { localStorage.setItem('nibble-admin-tips', v ? '1' : '0'); } catch {} };
+  const info = TABS.find(([k]) => k === tab) || TABS[0];
   const bannedMap = useMemo(() => new Map((banned || []).map((b) => [b.uid, b])), [banned]);
   const list = users || [];
   const minVersion = (state.config && state.config.minVersion) || '';
@@ -1236,24 +1271,56 @@ function Dashboard({ social, state }) {
   const online = list.filter((u) => u.online).length;
 
   return (
-    <div className="ad-wrap">
-      <header className="ad-top">
-        <a className="ad-brand" href="/"><span className="sa-logo"><img src="/logo.svg" alt="" /></span> Nibble <em>Admin</em></a>
-        <nav className="ad-tabs">
-          {TABS.map(([k, l, i]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => go(k)}><span>{i}</span>{l}</button>)}
-        </nav>
-        <div className="ad-me">
-          <span className="ad-live"><i />{online} online</span>
-          <a className="btn small ghost" href="/app">Open app</a>
-          <button className="btn small ghost" onClick={() => social.signOut()} title={'Signed in as @' + state.profile.username}>Sign out</button>
+    <div className={'ad-wrap' + (menu ? ' menu-open' : '')}>
+      <aside className="ad-side" aria-label="Admin pages">
+        <div className="ad-side-top">
+          <a className="ad-brand" href="/"><span className="sa-logo"><img src="/logo.svg" alt="" /></span> Nibble <em>Admin</em></a>
+          <button className="ad-close" onClick={() => setMenu(false)} aria-label="Close menu">✕</button>
         </div>
-      </header>
+        <nav className="ad-nav">
+          {NAV.map(([group, items]) => (
+            <div key={group} className="ad-nav-group">
+              <div className="ad-nav-k">{group}</div>
+              {items.map(([k, l, i]) => (
+                <button key={k} className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined} onClick={() => go(k)}>
+                  <span className="ad-nav-i">{i}</span><span className="ad-nav-l">{l}</span>
+                  {k === 'users' && users ? <b className="ad-nav-n">{online}</b> : null}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="ad-side-foot">
+          <span className="ad-live"><i />{online} online now</span>
+          <div className="ad-who"><Ava u={{ ...state.profile, uid: state.user.uid }} size={30} /><div><b>@{state.profile.username}</b><small>Admin</small></div></div>
+          <div className="ad-side-btns">
+            <a className="btn small ghost" href="/app">Open app</a>
+            <button className="btn small ghost" onClick={() => social.signOut()}>Sign out</button>
+          </div>
+        </div>
+      </aside>
+      <div className="ad-scrim" onClick={() => setMenu(false)} />
 
+      <div className="ad-body">
+      <header className="ad-mtop">
+        <button className="ad-burger" onClick={() => setMenu(true)} aria-label="Open menu">☰</button>
+        <b>{info[2]} {info[1]}</b>
+        <span className="ad-live"><i />{online}</span>
+      </header>
       <main className="ad-main">
         <div className="ad-head">
-          <h2>{TABS.find(([k]) => k === tab)[2]} {TABS.find(([k]) => k === tab)[1]}</h2>
+          <div className="ad-crumb">{(NAV.find(([, items]) => items.some(([k]) => k === tab)) || [''])[0]}</div>
+          <h2>{info[2]} {info[1]}</h2>
+          <p className="ad-desc">{info[3]}</p>
           <span className="ad-sub">{users ? `${list.length} users · live` : 'Loading…'}{latest && ` · latest release v${latest}`}</span>
+          <button className={'ad-guide-btn' + (guide ? ' on' : '')} onClick={() => toggleGuide()}>{guide ? 'Hide tips' : '💡 Tips'}</button>
         </div>
+        {guide && (
+          <div className="ad-guide">
+            <b>How to use this page</b>
+            <ul>{info[4].map((t) => <li key={t}>{t}</li>)}</ul>
+          </div>
+        )}
         {!users && (users === null ? <div className="sa-card"><p className="sa-empty">Couldn't load users — check the Firestore rules are published.</p></div> : <div className="ad-skel"><i /><i /><i /></div>)}
         {users && tab === 'overview' && <Overview social={social} users={list} banned={banned || []} latest={latest} minVersion={minVersion} go={go} />}
         {users && tab === 'users' && <Users users={list} bannedMap={bannedMap} latest={latest} minVersion={minVersion} filter={filter} setFilter={setFilter} openUid={openUid} setOpenUid={setOpenUid} me={state.user.uid} />}
@@ -1266,6 +1333,7 @@ function Dashboard({ social, state }) {
         {tab === 'announce' && <Announce social={social} state={state} history={history} toast={toast} />}
         {users && tab === 'settings' && <SettingsTab social={social} state={state} users={list} banned={banned} history={history} latest={latest} toast={toast} setOpenUid={setOpenUid} go={go} />}
       </main>
+      </div>
 
       {open && <UserDrawer u={open} ban={bannedMap.get(open.uid)} social={social} me={state.user.uid} toast={toast} onClose={() => setOpenUid('')} minVersion={minVersion} />}
       <Toast note={note} onDone={() => setNote(null)} />
