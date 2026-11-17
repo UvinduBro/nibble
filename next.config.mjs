@@ -4,7 +4,23 @@
 const BUILD = (process.env.VERCEL_GIT_COMMIT_SHA || 'dev').slice(0, 12);
 export default {
   env: { NEXT_PUBLIC_BUILD: BUILD },
+  poweredByHeader: false,
   async headers() {
-    return [{ source: '/nibble/engine/:file*', headers: [{ key: 'cache-control', value: 'public, max-age=300' }] }];
+    // safe defaults on every response: HTTPS only, no MIME sniffing, no framing by other sites
+    // (clickjacking), no plugins / <base> tricks, and no camera / mic / location access
+    const security = [
+      { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+      { key: 'Content-Security-Policy', value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'" },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
+      { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
+    ];
+    return [
+      { source: '/:path*', headers: security },
+      { source: '/nibble/engine/:file*', headers: [{ key: 'cache-control', value: 'public, max-age=300' }] },
+      { source: '/admin', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] },
+    ];
   },
 };

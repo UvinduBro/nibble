@@ -19,6 +19,7 @@ app.setAppUserModelId('lk.uvi.nibble');
 // under "Nibble" with its own icon (and Windows notifications are labelled Nibble, not Electron).
 function brandShortcuts() {
   if (process.platform !== 'win32') return;
+  const fresh = settings.get().brandedFor === app.getVersion();
   const ico = path.join(path.dirname(process.execPath), 'nibble.ico');
   const links = [
     path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Nibble', 'Nibble.lnk'),
@@ -32,12 +33,45 @@ function brandShortcuts() {
       if (!fs.existsSync(l)) continue;
       const cur = shell.readShortcutLink(l);
       if (path.resolve(cur.target || '').toLowerCase() !== path.resolve(process.execPath).toLowerCase() && !/nibble\.lnk$/i.test(l)) continue;
-      if (cur.appUserModelId === 'lk.uvi.nibble' && (!fs.existsSync(ico) || (cur.icon || '').toLowerCase() === ico.toLowerCase())) continue;
+      // rewritten once per version too: that makes Start / Search re-read the entry (they cache "Electron")
+      if (fresh && cur.appUserModelId === 'lk.uvi.nibble' && (!fs.existsSync(ico) || (cur.icon || '').toLowerCase() === ico.toLowerCase())) continue;
       shell.writeShortcutLink(l, 'update', { target: process.execPath, appUserModelId: 'lk.uvi.nibble', ...(fs.existsSync(ico) ? { icon: ico, iconIndex: 0 } : {}), description: 'Nibble - desktop pet' });
     } catch {}
   }
 }
 
+// Windows shows an app's name from several places; Start, Search, notifications and "Open with"
+// read the AppUserModelId registration and the shell's MuiCache, not just the shortcut. Older
+// installs cached "Electron" there (from before Nibble.exe was branded), so write Nibble's name in
+// all of them. Runs once per version; no admin rights needed (HKCU only).
+function registerAppIdentity() {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  if (settings.get().brandedFor === app.getVersion()) return;
+  const exe = process.execPath, dir = path.dirname(exe), ico = path.join(dir, 'nibble.ico');
+  const add = (key, name, value) => new Promise((resolve) => {
+    const args = ['add', key, ...(name ? ['/v', name] : ['/ve']), '/t', 'REG_SZ', '/d', value, '/f'];
+    const p = spawn('reg.exe', args, { windowsHide: true, stdio: 'ignore' });
+    p.on('error', () => resolve(false)); p.on('close', (c) => resolve(c === 0));
+  });
+  const aumid = 'HKCU\\Software\\Classes\\AppUserModelId\\lk.uvi.nibble';
+  const mui = 'HKCU\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\MuiCache';
+  const appPaths = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Nibble.exe';
+  Promise.all([
+    add(aumid, 'DisplayName', 'Nibble'),
+    fs.existsSync(ico) ? add(aumid, 'IconUri', ico) : true,
+    add(mui, exe + '.FriendlyAppName', 'Nibble'),
+    add(mui, exe + '.ApplicationCompany', 'Nibble'),
+    add(appPaths, '', exe),
+    add(appPaths, 'Path', dir),
+  ]).then((ok) => {
+    brandShortcuts(); // still the old version mark here, so the shortcuts are rewritten
+    if (ok.every(Boolean)) settings.set({ brandedFor: app.getVersion() });
+    // nudge Explorer to drop its cached names + icons
+    spawn('ie4uinit.exe', ['-show'], { windowsHide: true, detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
+  });
+}
+
+// still the vercel.app address: Google sign-in (/link) needs the domain in Firebase's authorized list
 const SITE = 'https://nibblex.vercel.app';
 const IS_MAC = process.platform === 'darwin';
 const health = { files: 'checking', name: process.platform === 'win32' ? 'checking' : 'ok' };
@@ -118,6 +152,7 @@ async function selfBrand() {
       "$m='HKCU:\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\MuiCache'; if (Test-Path $m) { foreach ($n in (Get-Item $m).Property) { if ($n -like '*Programs\\Nibble\\*') { Remove-ItemProperty $m -Name $n -ErrorAction SilentlyContinue } } }; ie4uinit.exe -show"],
       { windowsHide: true, detached: true, stdio: 'ignore' }).unref();
     health.name = 'ok';
+    settings.set({ brandedFor: '' }); // the new exe registers its name again on the relaunch
     app.relaunch();
     app.exit(0);
   } catch (e) {
@@ -152,16 +187,51 @@ function pickDisplay() {
   return all.find((d) => d.id === s.displayId) || screen.getPrimaryDisplay();
 }
 
-function worldInfo() {
+// The overlay's rectangle in screen coordinates. Windows: the whole display (1px short, see below).
+// Mac: the display minus the menu bar, so the overlay never sits over the strip where macOS reveals a
+// full-screen window's title bar (close / minimise / zoom) and the menu bar.
+function overlayRect() {
   const b = display.bounds;
+  if (!IS_MAC) return { x: b.x, y: b.y, width: b.width, height: b.height - 1 };
+  const top = Math.max(0, display.workArea.y - b.y);
+  return { x: b.x, y: b.y + top, width: b.width, height: b.height - top };
+}
+
+// Mac: where the Dock is (bottom / left / right / hidden), from the work area
+function dockSide() {
+  const b = display.bounds, wa = display.workArea;
+  if (b.y + b.height - (wa.y + wa.height) > 8) return 'bottom';
+  if (wa.x - b.x > 8) return 'left';
+  if (b.x + b.width - (wa.x + wa.width) > 8) return 'right';
+  return '';
+}
+
+// Mac: the Dock's icon bar (centred in the bottom strip the work area leaves out), sized from the
+// Dock's own settings: icon size + how many icons it shows (the watcher counts them)
+function dockRect(info) {
+  if (!info || dockSide() !== 'bottom') return null;
+  const b = display.bounds, wa = display.workArea;
+  const t = Math.max(16, Math.min(128, Number(info.tile) || 48));
+  const strip = b.y + b.height - (wa.y + wa.height);
+  const w = Math.min(b.width - 16, (Number(info.icons) || 0) * (t + 4) + (Number(info.seps) || 0) * t * 0.35 + t * 0.5);
+  if (w < 60 || strip < 20) return null;
+  return { x: b.x + (b.width - w) / 2, y: wa.y + wa.height + 3, w, h: strip - 6 };
+}
+
+function worldInfo() {
+  const r = overlayRect();
   const wa = display.workArea;
+  // Mac: the Dock floats in the middle of the bottom edge, so pets walk on the real bottom of the
+  // screen and hop onto the Dock (a platform, see handleWindows) instead of hovering in mid-air
+  // along the Dock's full-width strip.
+  const bottom = IS_MAC && dockSide() === 'bottom' ? display.bounds.y + display.bounds.height - 2 : wa.y + wa.height;
   return {
-    w: b.width,
-    h: b.height,
-    left: wa.x - b.x,
-    right: wa.x + wa.width - b.x,
-    top: wa.y - b.y,
-    floor: wa.y + wa.height - b.y,
+    w: r.width,
+    h: r.height,
+    left: wa.x - r.x,
+    right: wa.x + wa.width - r.x,
+    top: Math.max(0, wa.y - r.y),
+    floor: bottom - r.y,
     scale: display.scaleFactor,
   };
 }
@@ -172,18 +242,17 @@ function send(ch, payload) {
 
 function placeWindow() {
   display = pickDisplay();
-  const b = display.bounds;
-  win.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height - 1 });
+  win.setBounds(overlayRect());
   applyIgnore();
   send('world', worldInfo());
 }
 
 function createWindow() {
   display = pickDisplay();
-  const b = display.bounds;
+  const r = overlayRect();
   win = new BrowserWindow({
     // 1px short of full height so Windows never treats the overlay as a fullscreen app
-    x: b.x, y: b.y, width: b.width, height: b.height - 1,
+    x: r.x, y: r.y, width: r.width, height: r.height,
     transparent: true,
     frame: false,
     resizable: false,
@@ -211,7 +280,9 @@ function createWindow() {
     const ico = path.join(path.dirname(process.execPath), 'nibble.ico');
     try { win.setAppDetails({ appId: 'lk.uvi.nibble', appIconPath: ico, appIconIndex: 0, relaunchCommand: '"' + process.execPath + '"', relaunchDisplayName: 'Nibble' }); } catch {}
   }
-  if (IS_MAC) win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // skipTransformProcessType: without it Electron turns the whole app into a "UI element" process,
+  // which strips the Hub of its title bar buttons + menu bar when it's zoomed or full screen
+  if (IS_MAC) win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
   win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
@@ -237,7 +308,8 @@ function createWindow() {
   cursorTimer = setInterval(() => {
     if (!win || win.isDestroyed() || !win.isVisible()) return;
     const p = screen.getCursorScreenPoint();
-    send('cursor', { x: p.x - display.bounds.x, y: p.y - display.bounds.y });
+    const r = overlayRect();
+    send('cursor', { x: p.x - r.x, y: p.y - r.y });
   }, 33);
 
   // System-wide idle seconds (keyboard + mouse) – pets nap when you're away.
@@ -250,19 +322,26 @@ function toDip(r) {
     const d = screen.screenToDipRect(null, { x: r.x, y: r.y, width: r.w, height: r.h });
     return { x: d.x, y: d.y, w: d.width, h: d.height };
   }
+  if (IS_MAC) return { x: r.x, y: r.y, w: r.w, h: r.h }; // the Mac watcher already reports points (DIPs)
   const s = display.scaleFactor || 1;
   return { x: r.x / s, y: r.y / s, w: r.w / s, h: r.h / s };
 }
 
 function handleWindows(data) {
   if (!display) return;
-  const b = display.bounds;
+  const b = overlayRect();
+  const wa = display.workArea;
   const wins = [];
+  // Mac: the Dock is a platform too (above every window, so it goes first in z-order)
+  const dock = IS_MAC ? dockRect(data.dockInfo) : null;
+  if (dock) wins.push({ id: 'dock', x: dock.x - b.x, y: dock.y - b.y, w: dock.w, h: dock.h, max: false });
   for (const raw of data.wins || []) {
     const d = toDip(raw);
     const x = d.x - b.x, y = d.y - b.y;
     if (x + d.w < 0 || x > b.width || y + d.h < 0 || y > b.height) continue;
-    wins.push({ id: String(raw.id), x, y, w: d.w, h: d.h, max: raw.max });
+    // Mac windows have no "maximised" flag: a zoomed window fills the work area
+    const max = IS_MAC ? d.w >= wa.width - 8 && d.h >= wa.height - 8 : raw.max;
+    wins.push({ id: String(raw.id), x, y, w: d.w, h: d.h, max });
   }
   let fg = null;
   if (data.fg) {
@@ -270,7 +349,9 @@ function handleWindows(data) {
     const x = d.x - b.x, y = d.y - b.y;
     const desktop = /^(Progman|WorkerW|Shell_TrayWnd|Shell_SecondaryTrayWnd)$/.test(data.fg.cls);
     const fullscreen = !desktop && data.fg.proc !== 'nibble' &&
-      x <= 1 && y <= 1 && x + d.w >= b.width - 1 && y + d.h >= b.height - 1;
+      x <= 1 && y <= 1 && x + d.w >= b.width - 1 && y + d.h >= b.height - 2 &&
+      // Mac: a zoomed window starts below the menu bar; only a real full-screen one covers it
+      (!IS_MAC || d.y <= display.bounds.y + 1);
     fg = { id: String(data.fg.id), proc: (data.fg.proc || '').toLowerCase(), title: data.fg.title || '', fullscreen, desktop };
   }
   lastWins = { wins, fg };
@@ -583,9 +664,10 @@ ipcMain.on('tray-icon', (_e, dataUrl) => {
 // ---------- lifecycle ----------
 app.whenReady().then(() => {
   if (IS_MAC && app.dock) app.dock.hide(); // a desktop pet lives in the menu bar, not the Dock
-  brandShortcuts();
-  setTimeout(() => { repairFiles().then(selfBrand).catch(() => {}); }, 4000);
   settings.load();
+  brandShortcuts();
+  registerAppIdentity();
+  setTimeout(() => { repairFiles().then(selfBrand).catch(() => {}); }, 4000);
   // give pets stable ids
   const s = settings.get();
   if (s.pets.some((p) => !p.id)) settings.set({ pets: s.pets.map((p) => ({ id: p.id || newId(), ...p })) });

@@ -1,3 +1,4 @@
+import NewsletterForm from '../components/landing/NewsletterForm';
 import Desktop from '../components/Desktop';
 import CharacterSelect from '../components/CharacterSelect';
 import { Quotes, Download } from '../components/Sections';
@@ -380,6 +381,7 @@ export default function Home() {
           <nav aria-label="Product"><b>Product</b><a href="#download">Download</a><a href="/app">Web app</a><a href="#features">Features</a><a href="#crew">Pets</a></nav>
           <nav aria-label="Help"><b>Help</b><a href="#faq">FAQ</a><a href="#feedback">Report a bug</a><a href="#feedback">Suggest a feature</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
           <nav aria-label="Nibble"><b>Nibble</b><a href="#about">About</a><a href="#contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+          <NewsletterForm />
         </div>
         <div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · Version {release.version} · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
       </footer>

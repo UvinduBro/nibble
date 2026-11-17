@@ -417,7 +417,7 @@ function Settings({ social, state, desktop, local, toast, go }) {
           <div className="sa-seg">Size {SIZES.map(([l, v]) => <button key={l} className={s.size === v ? 'on' : ''} onClick={() => set({ size: v })}>{l}</button>)}</div>
           <div className="sa-seg">Chattiness {['silent', 'quiet', 'normal', 'chatty'].map((v) => <button key={v} className={s.chatty === v ? 'on' : ''} onClick={() => set({ chatty: v })}>{v}</button>)}</div>
           <div className="sa-seg">Break reminders {[[0, 'Off'], [30, '30m'], [50, '50m'], [60, '60m'], [90, '90m']].map(([v, l]) => <button key={v} className={s.breakMinutes === v ? 'on' : ''} onClick={() => set({ breakMinutes: v })}>{l}</button>)}</div>
-          {desktop.platform !== 'darwin' && <Toggle label="Walk on windows" on={s.walkOnWindows} onChange={(v) => set({ walkOnWindows: v })} />}
+          <Toggle label="Walk on windows" on={s.walkOnWindows} onChange={(v) => set({ walkOnWindows: v })} />
           <Toggle label="Follow my cursor" on={s.followCursor} onChange={(v) => set({ followCursor: v })} />
           <Toggle label="React to apps I use" on={s.reactToApps} onChange={(v) => set({ reactToApps: v })} />
           <Toggle label="Hide during fullscreen" on={s.hideFullscreen} onChange={(v) => set({ hideFullscreen: v })} />
@@ -432,6 +432,7 @@ function Settings({ social, state, desktop, local, toast, go }) {
         <p className="sa-sub">Report a bug or send an idea. Your version and system are included for you.</p>
         <button className="btn small" onClick={() => go && go('feedback')}>Report a bug or send feedback</button>
       </div>
+      <NewsletterCard social={social} toast={toast} />
       <div className="sa-card">
         <h3>Account</h3>
         <p className="sa-sub">@{state.profile.username} · {state.user.email || 'signed in'} · {state.user.provider === 'google.com' ? 'Google' : 'Email'}</p>
@@ -452,6 +453,29 @@ function Settings({ social, state, desktop, local, toast, go }) {
           <button className="btn small" onClick={() => desktop.update()}>{local.latest ? `Update to ${local.latest}` : 'Reinstall / update'}</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Settings card: opt in to Nibble news by email (Resend list; unsubscribe link in every email)
+function NewsletterCard({ social, toast }) {
+  const [st, setSt] = useState(null); // null = loading, { ready, subscribed, email } or { err }
+  useEffect(() => {
+    let dead = false;
+    social.newsletter.status().then((r) => { if (!dead) setSt(r); }).catch(() => { if (!dead) setSt({ err: true }); });
+    return () => { dead = true; };
+  }, [social]);
+  if (!st || st.err || st.ready === false) return null; // hidden until marketing is set up (and in local test mode)
+  const flip = async (on) => {
+    const prev = st;
+    setSt({ ...st, subscribed: on });
+    try { await social.newsletter.set(on); toast({ text: on ? 'You’ll get Nibble news by email 💌' : 'No more news emails' }); }
+    catch (e) { setSt(prev); toast({ err: true, text: niceError(e) }); }
+  };
+  return (
+    <div className="sa-card">
+      <h3>💌 Nibble news</h3>
+      <Toggle label="Email me news and updates" hint={`New pets, features and releases, a few times a month at most. Sent to ${st.email}.`} on={!!st.subscribed} onChange={flip} />
     </div>
   );
 }

@@ -312,6 +312,17 @@ body:has(.lp[data-theme='light']) { background: #f4f8f6; }
 .lp-foot nav { display: flex; flex-direction: column; gap: 9px; }
 .lp-foot nav b { color: var(--ink); margin-bottom: 4px; }
 .lp-foot nav a:hover { color: var(--accent); }
+/* footer: news sign-up (spans the full row under the links) */
+.lp-news { grid-column: 1 / -1; display: grid; gap: 10px; max-width: 520px; }
+.lp-news b { color: var(--ink); }
+.lp-news-row { display: flex; gap: 10px; }
+.lp-news input[type=email] { flex: 1; min-width: 0; font: 500 15px/1 var(--body); color: var(--ink); background: transparent; border: 1px solid var(--line-2); border-radius: 12px; padding: 13px 14px; outline: none; }
+.lp-news input[type=email]:focus { border-color: var(--accent); }
+.lp-news .lp-btn { padding: 13px 18px; font-size: 15px; }
+.lp-news .lp-btn:disabled { opacity: 0.55; cursor: default; }
+.lp-news small { color: var(--ink-3); font-size: 13px; }
+.lp-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.lp-news-done { grid-column: 1 / -1; color: var(--ink); margin: 0; }
 .lp-foot-base { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-3); }
 
 /* responsive */

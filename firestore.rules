@@ -85,7 +85,7 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/usernames/$(incoming().username)).data.uid == me()
         && shortText(incoming().get('petName', ''), 20)
         && shortText(incoming().get('skin', ''), 20)
-        && (!('acc' in incoming()) || incoming().acc is list)
+        && (!('acc' in incoming()) || (incoming().acc is list && incoming().acc.size() <= 12))
         && shortText(incoming().get('tint', ''), 7)
         && shortText(incoming().get('makeup', ''), 12)
         && (!('style' in incoming()) || validStyle(incoming().style));
@@ -100,6 +100,8 @@ service cloud.firestore {
         allow create: if signedIn() && !isBanned()
           && incoming().keys().hasOnly(['username', 'since'])
           && shortText(incoming().username, 20)
+          // the name saved for a friend is their real username (no one can pose as someone else)
+          && incoming().username == get(/databases/$(database)/documents/users/$(uid == me() ? fid : uid)).data.username
           && (
             // accepting: add the requester to my list…
             (uid == me() && exists(/databases/$(database)/documents/requests/$(fid + '_' + me())))
@@ -138,7 +140,9 @@ service cloud.firestore {
         && incoming().to is string && incoming().to != me()
         && rid == me() + '_' + incoming().to
         && shortText(incoming().fromName, 20) && shortText(incoming().toName, 20)
-        && exists(/databases/$(database)/documents/users/$(incoming().to))
+        // names are the real usernames, so a request can't pretend to come from someone else
+        && incoming().fromName == get(/databases/$(database)/documents/users/$(me())).data.username
+        && incoming().toName == get(/databases/$(database)/documents/users/$(incoming().to)).data.username
         && !exists(/databases/$(database)/documents/users/$(me())/friends/$(incoming().to));
       allow delete: if signedIn() && (resource.data.from == me() || resource.data.to == me());
       allow update: if false;
@@ -157,7 +161,7 @@ service cloud.firestore {
         && shortText(incoming().get('petName', ''), 20)
         && shortText(incoming().get('client', ''), 10)
         && shortText(incoming().get('ver', ''), 12)
-        && (!('acc' in incoming()) || incoming().acc is list)
+        && (!('acc' in incoming()) || (incoming().acc is list && incoming().acc.size() <= 12))
         && (!('style' in incoming()) || validStyle(incoming().style))
         && (!('say' in incoming()) || (incoming().say is map && shortText(incoming().say.text, 80) && shortText(incoming().say.id, 40)));
       allow delete: if (signedIn() && uid == me()) || isAdmin();
@@ -174,7 +178,9 @@ service cloud.firestore {
         && incoming().invited is list && incoming().invited.size() <= 10
         && incoming().get('queue', []) is list && incoming().get('queue', []).size() <= 60
         && shortText(incoming().get('hostName', ''), 20)
-        && incoming().get('names', {}) is map && incoming().get('here', {}) is map;
+        && incoming().get('names', {}) is map && incoming().get('names', {}).size() <= 12
+        && incoming().get('here', {}) is map && incoming().get('here', {}).size() <= 12
+        && incoming().get('inv', {}).size() <= 12;
     }
     match /rooms/{rid} {
       allow get: if signedIn() && (resource == null || resource.data.host == me() || me() in resource.data.invited);
@@ -294,7 +300,7 @@ service cloud.firestore {
       return incoming().keys().hasOnly(['game', 'players', 'names', 'board', 'turn', 'status', 'winner', 'moves', 'last', 'at'])
         && incoming().game in ['ttt', 'c4']
         && incoming().players is list && incoming().players.size() == 2
-        && incoming().names is map
+        && incoming().names is map && incoming().names.size() <= 2
         && incoming().board is string && incoming().board.size() <= 64
         && incoming().status in ['invite', 'live', 'done']
         && shortText(incoming().get('turn', ''), 40) && shortText(incoming().get('winner', ''), 40);

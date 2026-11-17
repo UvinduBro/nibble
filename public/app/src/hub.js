@@ -5,6 +5,8 @@ const http = require('http');
 const crypto = require('crypto');
 const path = require('path');
 
+const IS_MAC = process.platform === 'darwin';
+
 // settings the Hub may change, with simple validators
 // wardrobe look for a local pet: { sp, of, oc, sk } (letters only / a #rrggbb colour)
 const cleanStyle = (st) => {
@@ -55,6 +57,7 @@ function setupHub(ctx) {
       width: 1080, height: 720, minWidth: 760, minHeight: 540,
       show: false, title: 'Nibble Hub', backgroundColor: '#0b0d17', autoHideMenuBar: true,
       icon: iconPath,
+      fullscreenable: true,
       webPreferences: {
         preload: path.join(__dirname, 'hubPreload.js'),
         contextIsolation: true, nodeIntegration: false, sandbox: true,
@@ -67,11 +70,20 @@ function setupHub(ctx) {
     if (process.platform === 'win32' && hub.setAppDetails) {
       try { hub.setAppDetails({ appId: 'lk.uvi.nibble', appIconPath: iconPath, appIconIndex: 0, relaunchCommand: '"' + process.execPath + '"', relaunchDisplayName: 'Nibble' }); } catch {}
     }
-    hub.on('close', (e) => { if (!quitting) { e.preventDefault(); hub.hide(); } });
-    // Mac: Nibble lives in the menu bar; it gets a Dock icon only while the Hub is open
-    if (process.platform === 'darwin' && app.dock) {
-      hub.on('show', () => { Promise.resolve(app.dock.show()).catch(() => {}); });
-      hub.on('hide', () => { app.dock.hide(); });
+    hub.on('close', (e) => { if (!quitting) { e.preventDefault(); hideHub(); } });
+    // Mac: Nibble lives in the menu bar; it gets a Dock icon only while the Hub is open.
+    // Becoming a regular app again is async: wait for it, then activate, or a full-screen / zoomed
+    // Hub has no title bar (close / minimise / resize buttons) and no menu bar to reveal.
+    if (IS_MAC && app.dock) {
+      hub.on('show', () => {
+        Promise.resolve(app.dock.show()).catch(() => {}).then(() => {
+          if (!hub || hub.isDestroyed() || !hub.isVisible()) return;
+          try { app.focus({ steal: true }); } catch {}
+          hub.focus();
+        });
+      });
+      hub.on('hide', () => { if (!hub.isFullScreen()) app.dock.hide(); });
+      hub.on('leave-full-screen', () => { if (!hub.isVisible()) app.dock.hide(); });
     }
     // background throttling is off (so messages keep flowing), which also means the page can't tell
     // it's hidden — tell it, so it can stop drawing its little animated pets while nobody's looking
@@ -92,6 +104,12 @@ function setupHub(ctx) {
       retryTimer = setTimeout(load, 60_000);
     });
     load();
+  }
+  // hiding a full-screen window on a Mac leaves an empty black Space behind: leave full screen first
+  function hideHub() {
+    if (!hub || hub.isDestroyed()) return;
+    if (IS_MAC && hub.isFullScreen()) { hub.once('leave-full-screen', () => hub.hide()); hub.setFullScreen(false); return; }
+    hub.hide();
   }
   function load() {
     clearTimeout(retryTimer);
@@ -188,7 +206,7 @@ function setupHub(ctx) {
     }
   });
   ipcMain.on('hub:update', (e) => { if (fromHub(e)) runUpdate(); });
-  ipcMain.on('hub:hide', (e) => { if (fromHub(e)) hub.hide(); });
+  ipcMain.on('hub:hide', (e) => { if (fromHub(e)) hideHub(); });
   ipcMain.on('hub:notify', (e, d) => {
     if (!fromHub(e) || !d || !Notification.isSupported()) return;
     const n = new Notification({ title: String(d.title || 'Nibble').slice(0, 80), body: String(d.body || '').slice(0, 180), silent: false });

@@ -28,6 +28,9 @@ export default function Privacy() {
       <h2>Bug reports, feedback and contact messages</h2>
       <p>When you send us a bug report, feedback or a message, we store what you write, any screenshot you add, your Nibble version and system, and the email or username you give us so we can reply.</p>
 
+      <h2>Emails</h2>
+      <p>We send emails through Resend, from no-reply@meetnibble.com. You only get news and updates if you sign up (the box on the website, or “Email me news and updates” in the app’s Settings). Every news email has an unsubscribe link, and you can also switch it off in Settings. We may also email you directly to answer a message or bug report you sent us.</p>
+
       <h2>Website analytics</h2>
       <p>If you click OK on the cookie banner, we use Google Analytics to count visits and downloads and see which pages people use. If you choose “No thanks”, it never loads. You can change your mind by clearing this site’s data in your browser.</p>
 
@@ -35,6 +38,7 @@ export default function Privacy() {
       <ul>
         <li><strong>Google Firebase</strong> stores accounts and app data.</li>
         <li><strong>Vercel</strong> hosts this website.</li>
+        <li><strong>Resend</strong> sends our emails, and keeps the news list if you sign up.</li>
         <li><strong>GitHub</strong> hosts the app downloads.</li>
         <li><strong>Google Analytics</strong>, only if you agree to it.</li>
       </ul>

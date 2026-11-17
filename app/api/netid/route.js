@@ -24,7 +24,10 @@ function prefix(ip) {
 export async function GET(req) {
   const p = prefix(clientIp(req));
   if (!p) return Response.json({ net: '' }, { headers: { 'cache-control': 'no-store' } });
-  const salt = process.env.NET_SALT || 'nibble-lan-dev';
+  // the salt must stay secret: with a known salt anyone could hash every IPv4 address and match
+  // netIds back to IPs. So production refuses to hand out ids without one.
+  const salt = process.env.NET_SALT || (process.env.VERCEL_ENV === 'production' ? '' : 'nibble-lan-dev');
+  if (!salt) return Response.json({ net: '' }, { headers: { 'cache-control': 'no-store' } });
   const net = createHmac('sha256', salt).update(p).digest('hex').slice(0, 24);
   return Response.json({ net }, { headers: { 'cache-control': 'no-store' } });
 }

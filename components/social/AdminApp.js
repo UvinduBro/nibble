@@ -709,7 +709,7 @@ function SettingsTab({ social, state, users, banned, history, latest, toast, set
 // ---------- shell ----------
 // ---------- Reports: bug reports + feedback from the Hub and the website ----------
 const REPORT_CAT = { like: '💚 Likes', dislike: '😕 Doesn’t like', feature: '✨ Feature request', idea: '💡 Idea', problem: '🧩 Problem', general: '✉️ Contact', support: '🛟 Contact: help', press: '📰 Contact: press', partner: '🤝 Contact: partnership' };
-function ReportsTab({ social, users, toast, go, setOpenUid }) {
+function ReportsTab({ social, users, toast, go, setOpenUid, reply }) {
   const [list, setList] = useState(null);
   const [err, setErr] = useState('');
   const [show, setShow] = useState('open');
@@ -763,6 +763,7 @@ function ReportsTab({ social, users, toast, go, setOpenUid }) {
                 {r.status !== 'seen' && r.status !== 'done' && <button className="btn small ghost" onClick={() => act(() => social.admin.setReport(r.id, 'seen'))}>Mark seen</button>}
                 {r.status !== 'done' ? <button className="btn small" onClick={() => act(() => social.admin.setReport(r.id, 'done'), 'Marked done')}>Done</button>
                   : <button className="btn small ghost" onClick={() => act(() => social.admin.setReport(r.id, 'new'))}>Reopen</button>}
+                {/@/.test(r.contact || '') && <button className="btn small ghost" onClick={() => reply({ to: r.contact, subject: 'Re: ' + (r.title || (r.kind === 'bug' ? 'your bug report' : 'your message to Nibble')), message: `Hi${r.name ? ' ' + r.name.split(' ')[0] : ''},\n\n\n\n> ${(r.kind === 'bug' ? r.what : r.text).slice(0, 600).replace(/\n/g, '\n> ')}` })}>✉️ Reply by email</button>}
                 <button className="btn small ghost" onClick={() => { if (window.confirm('Delete this report?')) act(() => social.admin.deleteReport(r.id), 'Deleted'); }}>Delete</button>
               </footer>
             </article>
@@ -913,7 +914,171 @@ function UsageTab({ social, state, users, toast }) {
   );
 }
 
-const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['games', 'Games & points', '🎮'], ['reports', 'Reports', '📬'], ['usage', 'Firebase usage', '📈'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
+// ---------- Email (Resend, from hello@meetnibble.com) ----------
+const EMAIL_TEMPLATES = [
+  { label: '👋 Reply to a message', subject: 'Re: your message to Nibble', message: 'Hi there,\n\nThanks for getting in touch!\n\n' },
+  { label: '🐛 Bug fixed', subject: 'We fixed the bug you reported', message: 'Hi,\n\nThanks for reporting that bug. It’s fixed in the latest version of Nibble: open the tray menu → Update Nibble (or reinstall from meetnibble.com) to get it.\n\n' },
+  { label: '🎉 New release', subject: 'Nibble just got an update', message: 'Hi,\n\nA new version of Nibble is out! Here’s what’s new:\n\n• \n\nOpen the tray menu → Update Nibble to get it.\n\n' },
+];
+const EMAIL_STATUS = { delivered: C.mint, sent: C.cyan, opened: C.mint, clicked: C.mint, bounced: C.coral, complained: C.coral, failed: C.coral, delivery_delayed: C.yellow, queued: C.slate, scheduled: C.slate };
+function EmailTab({ social, toast, draft, setDraft }) {
+  const [info, setInfo] = useState(null);
+  const [err, setErr] = useState('');
+  const [to, setTo] = useState('');
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = () => { setErr(''); social.admin.email().then(setInfo).catch((e) => { setInfo({}); setErr(niceError(e)); }); };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!draft) return;
+    setTo(draft.to || ''); setSubject(draft.subject || ''); setMessage(draft.message || '');
+    setDraft(null);
+  }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
+  const n = to.split(/[\s,;]+/).filter(Boolean).length;
+  const send = async (e) => {
+    e.preventDefault();
+    if (n > 1 && !window.confirm(`Send this to ${n} people? Each gets their own copy.`)) return;
+    setBusy(true);
+    try {
+      const r = await social.admin.email({ to, subject, message });
+      toast({ text: r.failed ? `Sent ${r.ok}, ${r.failed} failed` : `Sent ✉️ to ${r.ok} ${r.ok === 1 ? 'person' : 'people'}` });
+      setTo(''); setSubject(''); setMessage('');
+      setTimeout(load, 1500);
+    } catch (x) { toast({ err: true, text: niceError(x) }); }
+    setBusy(false);
+  };
+  const ready = info && (info.resend || info.smtp);
+  return (
+    <>
+      <div className="sa-card">
+        <h3>✉️ Email <small>{info ? (info.resend ? 'Resend · meetnibble.com' : info.smtp ? 'SMTP fallback' : 'not set up') : 'checking…'}</small><button className="btn small ghost" onClick={load}>Refresh</button></h3>
+        {err && <p className="sa-empty">{err}</p>}
+        {info && !err && (ready
+          ? <p className="ad-foot" style={{ marginTop: 0 }}>Emails go out from <b>{info.from}</b>. Replies land in the hello@meetnibble.com inbox. Free plan: 100 emails a day, 3,000 a month.</p>
+          : <p className="sa-empty">Email isn’t set up yet. Add <b>RESEND_API_KEY</b> in Vercel → Settings → Environment Variables, then redeploy.</p>)}
+      </div>
+
+      <div className="sa-card">
+        <h3>New email</h3>
+        <div className="ad-templates">{EMAIL_TEMPLATES.map((t) => <button key={t.label} onClick={() => { setSubject(t.subject); setMessage(t.message); }}>{t.label}</button>)}</div>
+        <form className="sa-form" onSubmit={send}>
+          <label><span>To <small>{n > 1 ? `${n} people · each gets their own copy` : 'one or more addresses, separated by commas'}</small></span><input value={to} maxLength={2400} onChange={(e) => setTo(e.target.value)} placeholder="friend@example.com" inputMode="email" autoComplete="off" /></label>
+          <label><span>Subject <small>{subject.length}/150</small></span><input value={subject} maxLength={150} onChange={(e) => setSubject(e.target.value)} placeholder="Thanks for trying Nibble!" /></label>
+          <label><span>Message <small>{message.length.toLocaleString()}/20,000</small></span><textarea value={message} maxLength={20000} rows={9} onChange={(e) => setMessage(e.target.value)} placeholder="Write it like a normal email. A “The Nibble team” sign-off is added for you." /></label>
+          <button className="btn" disabled={!ready || busy || !to.trim() || !subject.trim() || !message.trim()}>{busy ? 'Sending…' : n > 1 ? `Send to ${n} people` : 'Send email'}</button>
+          <p className="ad-foot">Up to 20 people per email and 60 emails an hour. For a message to everyone in the app, use Announcements.</p>
+        </form>
+      </div>
+
+      <div className="sa-card">
+        <h3>Recently sent <small>{info && info.recent ? info.recent.length : 0}</small></h3>
+        {info && info.resend && !(info.recent || []).length && <p className="sa-empty">Nothing sent yet.</p>}
+        {info && !info.resend && <p className="sa-empty">The list of sent emails shows once Resend is set up.</p>}
+        {(info && info.recent || []).map((m) => (
+          <div key={m.id} className="ad-hist">
+            <span className="ad-hist-ico">✉️</span>
+            <div><b>{m.subject || '(no subject)'}</b><p>to {m.to}</p><small><span style={{ color: EMAIL_STATUS[m.status] || C.slate, fontWeight: 700 }}>{(m.status || 'sent').replace('_', ' ')}</span>{m.at ? ' · ' + ago(Date.parse(String(m.at).replace(' ', 'T').replace(/\+00(:00)?$/, 'Z'))) : ''}</small></div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ---------- Marketing: campaigns to people who opted in to Nibble news (Resend broadcasts) ----------
+const CAMPAIGN_TEMPLATES = [
+  { label: '🎉 New release', subject: 'Nibble just got better', preview: 'New pets, new tricks, and a few fixes.', message: 'Hi {{{FIRST_NAME|there}}},\n\nA new version of Nibble is out! Here’s what’s new:\n\n• \n• \n• \n\nOpen the tray menu → Update Nibble to get it, or download it again from the website.', cta: 'Get the update', ctaUrl: 'https://meetnibble.com/#download' },
+  { label: '🐾 New pet', subject: 'A new pet just moved in 🐾', preview: 'Meet the newest member of the crew.', message: 'Hi {{{FIRST_NAME|there}}},\n\nSay hi to our newest pet: \n\nOpen the Nibble Hub → Style to give it a try.', cta: 'Meet the pets', ctaUrl: 'https://meetnibble.com/#crew' },
+  { label: '👋 Come back', subject: 'Your pet misses you', preview: 'Your desktop has been quiet lately.', message: 'Hi {{{FIRST_NAME|there}}},\n\nYour Nibble has been waiting on your desktop. Friends, music rooms and new mini games are all ready when you are.', cta: 'Open Nibble', ctaUrl: 'https://meetnibble.com/app' },
+];
+const BC_STATUS = { sent: C.mint, queued: C.cyan, scheduled: C.yellow, draft: C.slate, sending: C.cyan, failed: C.coral, canceled: C.slate };
+function MarketingTab({ social, state, toast }) {
+  const [info, setInfo] = useState(null);
+  const [err, setErr] = useState('');
+  const [f, setF] = useState({ subject: '', preview: '', message: '', cta: '', ctaUrl: '', when: '' });
+  const [testTo, setTestTo] = useState(state.user.email || '');
+  const [busy, setBusy] = useState('');
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const load = () => { setErr(''); social.admin.marketing().then(setInfo).catch((e) => { setInfo({}); setErr(niceError(e)); }); };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const body = () => ({ subject: f.subject, preview: f.preview, message: f.message, cta: f.cta, ctaUrl: f.ctaUrl });
+  const test = async () => {
+    setBusy('test');
+    try { await social.admin.marketing({ action: 'test', to: testTo, ...body() }); toast({ text: 'Test sent to ' + testTo }); }
+    catch (x) { toast({ err: true, text: niceError(x) }); }
+    setBusy('');
+  };
+  const send = async (e) => {
+    e.preventDefault();
+    const n = info && info.subscribers;
+    const when = f.when ? new Date(f.when) : null;
+    if (!window.confirm(`${when ? 'Schedule' : 'Send'} “${f.subject}” to ${n ? n + ' subscriber' + (n === 1 ? '' : 's') : 'everyone on the list'}${when ? ' for ' + when.toLocaleString() : ' now'}? This can’t be undone.`)) return;
+    setBusy('send');
+    try {
+      const r = await social.admin.marketing({ action: 'send', ...body(), ...(when ? { scheduledAt: when.toISOString() } : {}) });
+      toast({ text: r.scheduled ? 'Campaign scheduled 📅' : 'Campaign is going out 🚀' });
+      setF({ subject: '', preview: '', message: '', cta: '', ctaUrl: '', when: '' });
+      setTimeout(load, 2000);
+    } catch (x) { toast({ err: true, text: niceError(x) }); }
+    setBusy('');
+  };
+  const ok = info && info.ready;
+  const can = ok && f.subject.trim() && f.message.trim() && !busy;
+  return (
+    <>
+      <div className="ad-kpis">
+        <Kpi n={info && ok ? (info.subscribers || 0).toLocaleString() + (info.capped ? '+' : '') : '–'} label="Subscribers" sub="opted in to Nibble news" color={C.mint} />
+        <Kpi n={info && ok ? (info.broadcasts || []).filter((b) => b.status === 'sent').length : '–'} label="Campaigns sent" sub="last 20" color={C.violet} />
+        <Kpi n={info && ok ? (info.broadcasts || []).filter((b) => b.status === 'scheduled').length : '–'} label="Scheduled" sub="waiting to go out" color={C.yellow} />
+      </div>
+
+      <div className="sa-card">
+        <h3>📢 Marketing <small>{info ? (ok ? 'Resend broadcasts · from ' + info.from : 'not set up') : 'checking…'}</small><button className="btn small ghost" onClick={load}>Refresh</button></h3>
+        {err && <p className="sa-empty">{err}</p>}
+        {info && !err && !ok && <p className="sa-empty">Add <b>RESEND_MARKETING_KEY</b> and <b>RESEND_SEGMENT_ID</b> in Vercel → Environment Variables, then redeploy.</p>}
+        {ok && <p className="ad-foot" style={{ marginTop: 0 }}>Campaigns only go to people who opted in (the “Email me news” switch in the app, or the sign-up box on the website). Every email has an unsubscribe link. Free plan: 3,000 emails a month, so check the subscriber count before sending.</p>}
+      </div>
+
+      <div className="sa-card">
+        <h3>New campaign</h3>
+        <div className="ad-templates">{CAMPAIGN_TEMPLATES.map((t) => <button key={t.label} onClick={() => setF({ ...f, ...t })}>{t.label}</button>)}</div>
+        <form className="sa-form" onSubmit={send}>
+          <label><span>Subject <small>{f.subject.length}/150</small></span><input value={f.subject} maxLength={150} onChange={set('subject')} placeholder="Nibble just got better" /></label>
+          <label><span>Preview text <small>shown next to the subject in the inbox · optional</small></span><input value={f.preview} maxLength={140} onChange={set('preview')} placeholder="New pets, new tricks, and a few fixes." /></label>
+          <label><span>Message <small>{'{{{FIRST_NAME|there}}}'} = their name · {f.message.length.toLocaleString()}/20,000</small></span><textarea value={f.message} maxLength={20000} rows={10} onChange={set('message')} placeholder="Write it like a normal email. The Nibble header, sign-off and unsubscribe link are added for you." /></label>
+          <div className="ad-two">
+            <label><span>Button text <small>optional</small></span><input value={f.cta} maxLength={40} onChange={set('cta')} placeholder="Get the update" /></label>
+            <label><span>Button link <small>https://…</small></span><input value={f.ctaUrl} maxLength={300} onChange={set('ctaUrl')} placeholder="https://meetnibble.com/#download" /></label>
+          </div>
+          <div className="ad-two">
+            <label><span>Send a test to</span><input value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="you@example.com" inputMode="email" /></label>
+            <label><span>Schedule <small>optional · empty = send now</small></span><input type="datetime-local" value={f.when} onChange={set('when')} /></label>
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button type="button" className="btn ghost" disabled={!can || !testTo.trim()} onClick={test}>{busy === 'test' ? 'Sending test…' : 'Send test'}</button>
+            <button className="btn" disabled={!can}>{busy === 'send' ? 'Sending…' : f.when ? 'Schedule campaign' : `Send to ${info && ok ? (info.subscribers || 0).toLocaleString() : ''} subscribers`}</button>
+          </div>
+          <p className="ad-foot">Always send yourself a test first. Sent from {info && info.from ? info.from : 'no-reply@meetnibble.com'} (replies aren’t read).</p>
+        </form>
+      </div>
+
+      <div className="sa-card">
+        <h3>Campaigns <small>{info && info.broadcasts ? info.broadcasts.length : 0}</small></h3>
+        {ok && !(info.broadcasts || []).length && <p className="sa-empty">No campaigns yet.</p>}
+        {(info && info.broadcasts || []).map((b) => (
+          <div key={b.id} className="ad-hist">
+            <span className="ad-hist-ico">📢</span>
+            <div><b>{b.name || '(untitled)'}</b><small><span style={{ color: BC_STATUS[b.status] || C.slate, fontWeight: 700 }}>{b.status || 'draft'}</span>{b.at ? ' · ' + ago(Date.parse(String(b.at).replace(' ', 'T').replace(/\+00(:00)?$/, 'Z'))) : ''}</small></div>
+            <a className="btn small ghost" href={'https://resend.com/broadcasts/' + b.id} target="_blank" rel="noreferrer">Stats</a>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['games', 'Games & points', '🎮'], ['reports', 'Reports', '📬'], ['usage', 'Firebase usage', '📈'], ['email', 'Email', '✉️'], ['marketing', 'Marketing', '📢'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
 
 function Dashboard({ social, state }) {
   useNibble(); // loads the character palettes used for avatars and charts
@@ -925,6 +1090,7 @@ function Dashboard({ social, state }) {
   const [history, setHistory] = useState([]);
   const [latest, setLatest] = useState('');
   const [note, setNote] = useState(null);
+  const [draft, setDraft] = useState(null); // an email to open in the Email tab (e.g. a reply to a report)
   const toast = (n) => setNote(n);
 
   // the live lists read every change from every user; pause them after 3 minutes in the background
@@ -970,7 +1136,9 @@ function Dashboard({ social, state }) {
         {users && tab === 'overview' && <Overview social={social} users={list} banned={banned || []} latest={latest} minVersion={minVersion} go={go} />}
         {users && tab === 'users' && <Users users={list} bannedMap={bannedMap} latest={latest} minVersion={minVersion} filter={filter} setFilter={setFilter} openUid={openUid} setOpenUid={setOpenUid} me={state.user.uid} />}
         {users && tab === 'games' && <GamesTab social={social} state={state} users={list} toast={toast} setOpenUid={setOpenUid} go={go} />}
-        {users && tab === 'reports' && <ReportsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
+        {users && tab === 'reports' && <ReportsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} reply={(d) => { setDraft(d); go('email'); }} />}
+        {tab === 'email' && <EmailTab social={social} toast={toast} draft={draft} setDraft={setDraft} />}
+        {tab === 'marketing' && <MarketingTab social={social} state={state} toast={toast} />}
         {users && tab === 'usage' && <UsageTab social={social} state={state} users={list} toast={toast} />}
         {tab === 'announce' && <Announce social={social} state={state} history={history} toast={toast} />}
         {users && tab === 'settings' && <SettingsTab social={social} state={state} users={list} banned={banned} history={history} latest={latest} toast={toast} setOpenUid={setOpenUid} go={go} />}
