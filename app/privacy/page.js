@@ -1,10 +1,9 @@
 import LegalPage from '../../components/landing/LegalPage';
+import { pageMetadata } from '../../lib/seo';
 
-export const metadata = {
-  title: 'Privacy policy',
-  description: 'What Nibble collects, why, who processes it and how to delete it.',
-  alternates: { canonical: '/privacy' },
-};
+export function generateMetadata() {
+  return pageMetadata('privacy', '/privacy');
+}
 
 export default function Privacy() {
   return (

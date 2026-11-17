@@ -1,11 +1,10 @@
 import LegalPage from '../../components/landing/LegalPage';
 import release from '../../public/version.json';
+import { pageMetadata } from '../../lib/seo';
 
-export const metadata = {
-  title: 'Install help: Windows and Mac',
-  description: 'Step-by-step help when Windows SmartScreen, Microsoft Defender or macOS Gatekeeper stops Nibble from installing or opening.',
-  alternates: { canonical: '/install-help' },
-};
+export function generateMetadata() {
+  return pageMetadata('installHelp', '/install-help');
+}
 
 // Why the warnings happen + exactly what to click. We never ask people to switch protection off for
 // good: each fix allows Nibble once and leaves the rest of the computer protected.

@@ -65,6 +65,19 @@ service cloud.firestore {
         && shortText(incoming().get('noticeLevel', 'info'), 10);
     }
 
+    // SEO settings (Admin → SEO): titles, descriptions, share images, search verification codes.
+    // Public (the website reads it to build every page's tags); only admins write.
+    match /seo/{doc} {
+      allow read: if true;
+      allow write: if isAdmin() && doc == 'site'
+        && incoming().keys().hasOnly(['siteName', 'titleTemplate', 'keywords', 'twitter', 'googleVerify', 'bingVerify', 'noindex', 'pages', 'updatedAt', 'by'])
+        && shortText(incoming().get('siteName', ''), 40) && shortText(incoming().get('titleTemplate', ''), 60)
+        && shortText(incoming().get('keywords', ''), 600) && shortText(incoming().get('twitter', ''), 30)
+        && shortText(incoming().get('googleVerify', ''), 100) && shortText(incoming().get('bingVerify', ''), 100)
+        && incoming().get('noindex', false) is bool
+        && incoming().get('pages', {}) is map && incoming().get('pages', {}).size() <= 10;
+    }
+
     // one doc per claimed username → { uid }
     match /usernames/{name} {
       allow get: if signedIn();

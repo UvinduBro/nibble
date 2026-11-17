@@ -19,6 +19,7 @@ const lookLabel = (u) => {
 };
 import { niceError, verLess, LEVELS, ms } from '../../lib/social/social';
 import { SOURCES, USES, countryName, flag } from '../../lib/signup';
+import { SEO_PAGES, SEO_LIMITS, SITE as SEO_SITE, mergeSeo } from '../../lib/seo';
 
 // ---------- helpers ----------
 const DAY = 86_400_000;
@@ -1078,7 +1079,128 @@ function MarketingTab({ social, state, toast }) {
   );
 }
 
-const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['games', 'Games & points', '🎮'], ['reports', 'Reports', '📬'], ['usage', 'Firebase usage', '📈'], ['email', 'Email', '✉️'], ['marketing', 'Marketing', '📢'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
+// ---------- SEO: titles, descriptions, share images, Search Console ----------
+const OG_THEMES = [['mint', '#7ee8c6'], ['pink', '#ff8fd0'], ['violet', '#a78bfa'], ['sun', '#ffd166']];
+const SEO_LINKS = [
+  ['Google Search Console', 'https://search.google.com/search-console'],
+  ['Rich Results Test', 'https://search.google.com/test/rich-results?url=' + encodeURIComponent(SEO_SITE)],
+  ['PageSpeed Insights', 'https://pagespeed.web.dev/analysis?url=' + encodeURIComponent(SEO_SITE)],
+  ['Facebook Sharing Debugger', 'https://developers.facebook.com/tools/debug/?q=' + encodeURIComponent(SEO_SITE)],
+  ['LinkedIn Post Inspector', 'https://www.linkedin.com/post-inspector/inspect/' + encodeURIComponent(SEO_SITE)],
+  ['Bing Webmaster Tools', 'https://www.bing.com/webmasters'],
+];
+function Len({ n, good, max }) {
+  const c = n === 0 ? C.slate : n > max ? C.coral : n >= good[0] && n <= good[1] ? C.mint : C.yellow;
+  return <small style={{ color: c, fontWeight: 700 }}>{n}/{max}{n && (n < good[0] || n > good[1]) && n <= max ? ` · best ${good[0]}–${good[1]}` : ''}</small>;
+}
+function CopyRow({ label, value, toast }) {
+  return (
+    <div className="ad-copyrow">
+      <span>{label}</span>
+      <code>{value}</code>
+      <button type="button" className="btn small ghost" onClick={() => { try { navigator.clipboard.writeText(value); toast({ text: 'Copied' }); } catch {} }}>Copy</button>
+    </div>
+  );
+}
+function SeoTab({ social, toast }) {
+  const [f, setF] = useState(null);
+  const [page, setPage] = useState('home');
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [theme, setTheme] = useState('mint');
+  useEffect(() => { social.admin.seo.get().then((d) => setF(mergeSeo(d))).catch(() => setF(mergeSeo(null))); }, [social]);
+  if (!f) return <div className="ad-skel"><i /><i /><i /></div>;
+  const setSite = (k, v) => { setF({ ...f, [k]: v }); setDirty(true); };
+  const p = f.pages[page];
+  const setP = (k, v) => { setF({ ...f, pages: { ...f.pages, [page]: { ...p, [k]: v } } }); setDirty(true); };
+  const path = (SEO_PAGES.find(([k]) => k === page) || [])[1] || '/';
+  const fullTitle = page === 'home' ? p.title : f.titleTemplate.replace('%s', p.title);
+  const img = p.ogImage || f.pages.home.ogImage;
+  const imgSrc = img && img.startsWith('/') ? img : img;
+  const gen = () => setP('ogImage', `/og?title=${encodeURIComponent(p.ogTitle || p.title)}&sub=${encodeURIComponent((p.ogDescription || p.description).slice(0, 120))}&theme=${theme}`);
+  const save = async () => {
+    setBusy(true);
+    try {
+      const r = await social.admin.seo.save(f);
+      toast({ text: r && r.ok ? 'SEO saved and live ✓' : 'Saved. The site picks it up within 5 minutes.' });
+      setDirty(false);
+    } catch (x) { toast({ err: true, text: niceError(x).includes('Not allowed') || niceError(x).includes('permission') ? 'Publish the latest Firestore rules first (they add the seo collection).' : niceError(x) }); }
+    setBusy(false);
+  };
+  return (
+    <>
+      <div className="sa-card">
+        <h3>🔎 Page titles, descriptions and share images
+          <button className="btn small" style={{ marginLeft: 'auto' }} disabled={busy || !dirty} onClick={save}>{busy ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}</button>
+        </h3>
+        <div className="ad-seg" style={{ marginBottom: 14 }}>{SEO_PAGES.map(([k, , l]) => <button key={k} className={page === k ? 'on' : ''} onClick={() => setPage(k)}>{l}</button>)}</div>
+        <div className="ad-grid2">
+          <form className="sa-form" onSubmit={(e) => { e.preventDefault(); save(); }}>
+            <label><span>Title <Len n={p.title.length} good={[30, 60]} max={SEO_LIMITS.title} /></span><input value={p.title} maxLength={SEO_LIMITS.title} onChange={(e) => setP('title', e.target.value)} /></label>
+            <label><span>Description <Len n={p.description.length} good={[120, 160]} max={SEO_LIMITS.description} /></span><textarea rows={3} value={p.description} maxLength={SEO_LIMITS.description} onChange={(e) => setP('description', e.target.value)} /></label>
+            <label><span>Share title <small>optional · for Facebook, WhatsApp, X, LinkedIn</small></span><input value={p.ogTitle} maxLength={SEO_LIMITS.ogTitle} placeholder={p.title} onChange={(e) => setP('ogTitle', e.target.value)} /></label>
+            <label><span>Share description <small>optional</small></span><textarea rows={2} value={p.ogDescription} maxLength={SEO_LIMITS.ogDescription} placeholder={p.description} onChange={(e) => setP('ogDescription', e.target.value)} /></label>
+            <label><span>Share image <small>1200 × 630 · a path like /og/home.jpg or an https:// link{page !== 'home' ? ' · empty = the home image' : ''}</small></span><input value={p.ogImage} maxLength={SEO_LIMITS.ogImage} placeholder={page !== 'home' ? f.pages.home.ogImage : '/og/home.jpg'} onChange={(e) => setP('ogImage', e.target.value)} /></label>
+            <div className="ad-ogtools">
+              <span>Generate one:</span>
+              {OG_THEMES.map(([k, c]) => <button type="button" key={k} title={k} className={'ad-swatch' + (theme === k ? ' on' : '')} style={{ background: c }} onClick={() => setTheme(k)} />)}
+              <button type="button" className="btn small ghost" onClick={gen}>✨ Generate image</button>
+            </div>
+            <label><span>Image description <small>alt text, for screen readers</small></span><input value={p.ogAlt} maxLength={SEO_LIMITS.ogAlt} onChange={(e) => setP('ogAlt', e.target.value)} /></label>
+          </form>
+          <div>
+            <div className="ad-prev-k">Google result</div>
+            <div className="ad-serp">
+              <small>meetnibble.com{path === '/' ? '' : ' › ' + path.slice(1)}</small>
+              <b>{fullTitle.length > 62 ? fullTitle.slice(0, 60) + '…' : fullTitle}</b>
+              <p>{p.description.length > 158 ? p.description.slice(0, 156) + '…' : p.description}</p>
+            </div>
+            <div className="ad-prev-k">Share card</div>
+            <div className="ad-card">
+              {imgSrc ? <img src={imgSrc} alt={p.ogAlt || ''} /> : <div className="ad-card-none">No image</div>}
+              <div><small>MEETNIBBLE.COM</small><b>{p.ogTitle || p.title}</b><p>{(p.ogDescription || p.description).slice(0, 110)}</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="ad-grid2">
+        <div className="sa-card">
+          <h3>⚙️ Whole site</h3>
+          <form className="sa-form" onSubmit={(e) => { e.preventDefault(); save(); }}>
+            <div className="ad-two">
+              <label><span>Site name</span><input value={f.siteName} maxLength={40} onChange={(e) => setSite('siteName', e.target.value)} /></label>
+              <label><span>Title pattern <small>%s = page title</small></span><input value={f.titleTemplate} maxLength={60} onChange={(e) => setSite('titleTemplate', e.target.value)} /></label>
+            </div>
+            <label><span>Keywords <small>comma separated</small></span><textarea rows={3} value={f.keywords} maxLength={600} onChange={(e) => setSite('keywords', e.target.value)} /></label>
+            <label><span>X (Twitter) account <small>optional, e.g. @meetnibble</small></span><input value={f.twitter} maxLength={30} onChange={(e) => setSite('twitter', e.target.value)} /></label>
+            <label className="sa-toggle"><span><b>Hide the whole site from search engines</b><small>Only for emergencies: Google drops the site while this is on.</small></span><input type="checkbox" checked={f.noindex} onChange={(e) => { if (!e.target.checked || window.confirm('Hide meetnibble.com from Google and other search engines?')) setSite('noindex', e.target.checked); }} /></label>
+          </form>
+        </div>
+
+        <div className="sa-card">
+          <h3>📈 Google Search Console</h3>
+          <CopyRow label="Sitemap" value={SEO_SITE + '/sitemap.xml'} toast={toast} />
+          <CopyRow label="Robots" value={SEO_SITE + '/robots.txt'} toast={toast} />
+          <CopyRow label="Property" value={SEO_SITE + '/'} toast={toast} />
+          <form className="sa-form" style={{ marginTop: 10 }} onSubmit={(e) => { e.preventDefault(); save(); }}>
+            <label><span>Google verification code <small>the content="…" part of the HTML tag</small></span><input value={f.googleVerify} maxLength={100} placeholder="e.g. AbC123…" onChange={(e) => setSite('googleVerify', e.target.value.replace(/.*content=["']?([^"' >]+).*/, '$1'))} /></label>
+            <label><span>Bing verification code <small>optional · msvalidate.01</small></span><input value={f.bingVerify} maxLength={100} onChange={(e) => setSite('bingVerify', e.target.value.replace(/.*content=["']?([^"' >]+).*/, '$1'))} /></label>
+          </form>
+          <ol className="ad-steps">
+            <li>Search Console → <b>Add property</b> → <b>URL prefix</b> → <code>{SEO_SITE}/</code></li>
+            <li>Pick <b>HTML tag</b>, paste the whole tag above, <b>Save changes</b>, then click <b>Verify</b>.</li>
+            <li><b>Sitemaps</b> → add <code>sitemap.xml</code> → Submit.</li>
+            <li><b>URL inspection</b> → paste the home page → <b>Request indexing</b>.</li>
+          </ol>
+          <div className="ad-links">{SEO_LINKS.map(([l, u]) => <a key={l} className="btn small ghost" href={u} target="_blank" rel="noreferrer">{l} ↗</a>)}</div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+const TABS = [['overview', 'Overview', '📊'], ['users', 'Users', '👥'], ['games', 'Games & points', '🎮'], ['reports', 'Reports', '📬'], ['usage', 'Firebase usage', '📈'], ['email', 'Email', '✉️'], ['marketing', 'Marketing', '📢'], ['seo', 'SEO', '🔎'], ['announce', 'Announcements', '📣'], ['settings', 'Settings', '⚙️']];
 
 function Dashboard({ social, state }) {
   useNibble(); // loads the character palettes used for avatars and charts
@@ -1139,6 +1261,7 @@ function Dashboard({ social, state }) {
         {users && tab === 'reports' && <ReportsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} reply={(d) => { setDraft(d); go('email'); }} />}
         {tab === 'email' && <EmailTab social={social} toast={toast} draft={draft} setDraft={setDraft} />}
         {tab === 'marketing' && <MarketingTab social={social} state={state} toast={toast} />}
+        {tab === 'seo' && <SeoTab social={social} toast={toast} />}
         {users && tab === 'usage' && <UsageTab social={social} state={state} users={list} toast={toast} />}
         {tab === 'announce' && <Announce social={social} state={state} history={history} toast={toast} />}
         {users && tab === 'settings' && <SettingsTab social={social} state={state} users={list} banned={banned} history={history} latest={latest} toast={toast} setOpenUid={setOpenUid} go={go} />}

@@ -1,10 +1,9 @@
 import LegalPage from '../../components/landing/LegalPage';
+import { pageMetadata } from '../../lib/seo';
 
-export const metadata = {
-  title: 'Terms of use',
-  description: 'The simple rules for using Nibble.',
-  alternates: { canonical: '/terms' },
-};
+export function generateMetadata() {
+  return pageMetadata('terms', '/terms');
+}
 
 export default function Terms() {
   return (
