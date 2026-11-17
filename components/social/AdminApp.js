@@ -20,6 +20,7 @@ const lookLabel = (u) => {
 import { niceError, verLess, LEVELS, ms } from '../../lib/social/social';
 import { SOURCES, USES, countryName, flag } from '../../lib/signup';
 import { SEO_PAGES, SEO_LIMITS, SITE as SEO_SITE, mergeSeo } from '../../lib/seo';
+import { TEMPLATES as MAIL_TEMPLATES, TEMPLATE_DEFAULTS, renderEmail, fillForPreview } from '../../lib/emailTemplates';
 
 // ---------- helpers ----------
 const DAY = 86_400_000;
@@ -987,91 +988,255 @@ function EmailTab({ social, toast, draft, setDraft }) {
   );
 }
 
-// ---------- Marketing: campaigns to people who opted in to Nibble news (Resend broadcasts) ----------
-const CAMPAIGN_TEMPLATES = [
-  { label: '🎉 New release', subject: 'Nibble just got better', preview: 'New pets, new tricks, and a few fixes.', message: 'Hi {{{FIRST_NAME|there}}},\n\nA new version of Nibble is out! Here’s what’s new:\n\n• \n• \n• \n\nOpen the tray menu → Update Nibble to get it, or download it again from the website.', cta: 'Get the update', ctaUrl: 'https://meetnibble.com/#download' },
-  { label: '🐾 New pet', subject: 'A new pet just moved in 🐾', preview: 'Meet the newest member of the crew.', message: 'Hi {{{FIRST_NAME|there}}},\n\nSay hi to our newest pet: \n\nOpen the Nibble Hub → Style to give it a try.', cta: 'Meet the pets', ctaUrl: 'https://meetnibble.com/#crew' },
-  { label: '👋 Come back', subject: 'Your pet misses you', preview: 'Your desktop has been quiet lately.', message: 'Hi {{{FIRST_NAME|there}}},\n\nYour Nibble has been waiting on your desktop. Friends, music rooms and new mini games are all ready when you are.', cta: 'Open Nibble', ctaUrl: 'https://meetnibble.com/app' },
-];
+// ---------- Marketing: contacts (import) + campaigns with designed templates (Resend broadcasts) ----------
 const BC_STATUS = { sent: C.mint, queued: C.cyan, scheduled: C.yellow, draft: C.slate, sending: C.cyan, failed: C.coral, canceled: C.slate };
-function MarketingTab({ social, state, toast }) {
-  const [info, setInfo] = useState(null);
-  const [err, setErr] = useState('');
-  const [f, setF] = useState({ subject: '', preview: '', message: '', cta: '', ctaUrl: '', when: '' });
-  const [testTo, setTestTo] = useState(state.user.email || '');
+const MAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+function csvRows(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; continue; }
+    if (c === '"') q = true;
+    else if (c === ',' || c === ';' || c === '\t') { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  const [head, ...body] = rows.filter((r) => r.some((x) => x.trim()));
+  if (!head) return { rows: [], columns: [] };
+  const columns = head.map((k, i) => k.trim() || 'col' + (i + 1));
+  return { columns, rows: body.slice(0, 5000).map((r) => Object.fromEntries(columns.map((k, i) => [k, (r[i] || '').trim()]))) };
+}
+function guessCols(columns, rows) {
+  const share = (k) => rows.slice(0, 200).filter((r) => MAIL_RE.test(r[k] || '')).length / Math.max(1, Math.min(200, rows.length));
+  const email = columns.map((k) => [k, share(k)]).sort((x, y) => y[1] - x[1]).find(([, v]) => v > 0.3);
+  const pick = (re) => columns.find((k) => re.test(k.split('.').pop())) || '';
+  return { email: email ? email[0] : '', first: pick(/^(first[_ -]?name|firstname|given[_ -]?name|fname)$/i), last: pick(/^(last[_ -]?name|lastname|surname|family[_ -]?name|lname)$/i), name: pick(/^(full[_ -]?name|fullname|name|attendee[_ -]?name|display[_ -]?name)$/i) };
+}
+
+function ContactsCard({ social, info, toast, reload }) {
+  const [url, setUrl] = useState('');
+  const [src, setSrc] = useState(null); // { rows, columns, total }
+  const [map, setMap] = useState({ email: '', first: '', last: '', name: '' });
+  const [list, setList] = useState('imported');
+  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState('');
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-  const load = () => { setErr(''); social.admin.marketing().then(setInfo).catch((e) => { setInfo({}); setErr(niceError(e)); }); };
-  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const body = () => ({ subject: f.subject, preview: f.preview, message: f.message, cta: f.cta, ctaUrl: f.ctaUrl });
-  const test = async () => {
-    setBusy('test');
-    try { await social.admin.marketing({ action: 'test', to: testTo, ...body() }); toast({ text: 'Test sent to ' + testTo }); }
+  const [prog, setProg] = useState(null); // { done, total, added, existing, failed }
+  const load = (d) => { setSrc(d); setMap({ email: '', first: '', last: '', name: '', ...d.guess }); setProg(null); setConsent(false); };
+  const readLink = async () => {
+    setBusy('read');
+    try { const d = await social.admin.marketing({ action: 'source', url }); load(d); toast({ text: `Found ${d.rows.length.toLocaleString()} rows` }); }
     catch (x) { toast({ err: true, text: niceError(x) }); }
     setBusy('');
   };
-  const send = async (e) => {
-    e.preventDefault();
-    const n = info && info.subscribers;
-    const when = f.when ? new Date(f.when) : null;
-    if (!window.confirm(`${when ? 'Schedule' : 'Send'} “${f.subject}” to ${n ? n + ' subscriber' + (n === 1 ? '' : 's') : 'everyone on the list'}${when ? ' for ' + when.toLocaleString() : ' now'}? This can’t be undone.`)) return;
+  const readFile = (file) => {
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = () => {
+      const text = String(r.result || '');
+      try {
+        const j = JSON.parse(text);
+        const find = (v, d = 0) => (Array.isArray(v) ? v : v && typeof v === 'object' && d < 3 ? Object.values(v).map((x) => find(x, d + 1)).find((x) => x && x.length) : null);
+        const recs = (find(j) || []).filter((x) => x && typeof x === 'object').slice(0, 5000);
+        const rows = recs.map((o) => Object.fromEntries(Object.entries(o).filter(([, v]) => typeof v === 'string' || typeof v === 'number').map(([k, v]) => [k, String(v).trim()])));
+        const columns = [...new Set(rows.flatMap((x) => Object.keys(x)))];
+        load({ rows, columns, total: recs.length, guess: guessCols(columns, rows) });
+      } catch {
+        const d = csvRows(text);
+        load({ ...d, total: d.rows.length, guess: guessCols(d.columns, d.rows) });
+      }
+    };
+    r.readAsText(file);
+  };
+  // the people to import, cleaned and de-duplicated
+  const people = useMemo(() => {
+    if (!src || !map.email) return { ok: [], bad: 0, dup: 0 };
+    const seen = new Set(); let bad = 0, dup = 0; const ok = [];
+    for (const r of src.rows) {
+      const email = String(r[map.email] || '').trim().toLowerCase();
+      if (!MAIL_RE.test(email)) { bad++; continue; }
+      if (seen.has(email)) { dup++; continue; }
+      seen.add(email);
+      let first = map.first ? r[map.first] : '', last = map.last ? r[map.last] : '';
+      if (!first && map.name && r[map.name]) { const parts = String(r[map.name]).trim().split(/\s+/); first = parts[0]; last = last || parts.slice(1).join(' '); }
+      ok.push({ email, first: String(first || '').slice(0, 40), last: String(last || '').slice(0, 40) });
+    }
+    return { ok, bad, dup };
+  }, [src, map]);
+  const run = async () => {
+    if (!window.confirm(`Import ${people.ok.length.toLocaleString()} contacts into “${list === 'imported' ? 'Imported contacts' : 'Subscribers'}”?`)) return;
+    setBusy('import');
+    const t = { done: 0, total: people.ok.length, added: 0, existing: 0, failed: 0 };
+    setProg({ ...t });
+    for (let i = 0; i < people.ok.length; i += 25) {
+      const chunk = people.ok.slice(i, i + 25);
+      try {
+        const r = await social.admin.marketing({ action: 'import', list, consent: true, contacts: chunk });
+        t.added += r.added || 0; t.existing += r.existing || 0; t.failed += r.failed || 0;
+      } catch (x) { t.failed += chunk.length; toast({ err: true, text: niceError(x) }); if (/Admins|Sign in|set up/.test(niceError(x))) break; }
+      t.done = Math.min(people.ok.length, i + 25);
+      setProg({ ...t });
+    }
+    setBusy('');
+    toast({ text: `Imported: ${t.added} new, ${t.existing} already there${t.failed ? `, ${t.failed} failed` : ''}` });
+    reload();
+  };
+  const cols = (src && src.columns) || [];
+  const Sel = ({ k, label, optional }) => (
+    <label><span>{label}{optional && <small> optional</small>}</span>
+      <select value={map[k]} onChange={(e) => setMap({ ...map, [k]: e.target.value })}><option value="">{optional ? '— none —' : 'Pick a column'}</option>{cols.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+    </label>
+  );
+  return (
+    <div className="sa-card">
+      <h3>👥 Contacts <small>{info && info.lists ? `${(info.lists.subscribers.total || 0).toLocaleString()} subscribers · ${(info.lists.imported.total || 0).toLocaleString()} imported` : ''}</small></h3>
+      <p className="ad-foot" style={{ marginTop: 0 }}>Bring in a list you already have: paste a link to a JSON or CSV file (for example your events database), or upload a .csv / .json file. Nothing is saved until you press Import.</p>
+      <div className="ad-import-src">
+        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://… link to a JSON or CSV list" inputMode="url" />
+        <button className="btn small" disabled={!/^https:\/\//.test(url.trim()) || !!busy} onClick={readLink}>{busy === 'read' ? 'Reading…' : 'Read link'}</button>
+        <label className="btn small ghost ad-file">Upload file<input type="file" accept=".csv,.json,text/csv,application/json" onChange={(e) => readFile(e.target.files && e.target.files[0])} /></label>
+      </div>
+      {src && (
+        <>
+          <div className="ad-two" style={{ marginTop: 14 }}>
+            <Sel k="email" label="Email column" />
+            <Sel k="name" label="Full name column" optional />
+          </div>
+          <div className="ad-two">
+            <Sel k="first" label="First name column" optional />
+            <Sel k="last" label="Last name column" optional />
+          </div>
+          <div className="ad-import-stats">
+            <span><b>{people.ok.length.toLocaleString()}</b> ready</span>
+            <span><b>{people.dup.toLocaleString()}</b> duplicates skipped</span>
+            <span><b>{people.bad.toLocaleString()}</b> without a valid email</span>
+            <span>of {src.total.toLocaleString()} rows</span>
+          </div>
+          {people.ok.length > 0 && (
+            <table className="ad-mini"><thead><tr><th>Email</th><th>First name</th><th>Last name</th></tr></thead>
+              <tbody>{people.ok.slice(0, 5).map((p) => <tr key={p.email}><td>{p.email}</td><td>{p.first || '—'}</td><td>{p.last || '—'}</td></tr>)}</tbody></table>
+          )}
+          <div className="ad-two" style={{ marginTop: 12 }}>
+            <label><span>Add them to</span><select value={list} onChange={(e) => setList(e.target.value)}><option value="imported">Imported contacts (recommended)</option><option value="subscribers">Subscribers (only if they asked for Nibble news)</option></select></label>
+          </div>
+          <label className="sa-toggle ad-consent"><span><b>These people agreed to get email from us</b><small>For example they signed up at our event or on a form that said they’d hear from Nibble. Don’t import bought or scraped lists: it breaks anti-spam laws and Resend can suspend the account. Everyone can unsubscribe from every email, and anyone who already unsubscribed stays unsubscribed.</small></span><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /></label>
+          {prog && <div className="ad-prog"><i style={{ width: `${(prog.done / Math.max(1, prog.total)) * 100}%` }} /><span>{prog.done.toLocaleString()} / {prog.total.toLocaleString()} · {prog.added} new · {prog.existing} already there{prog.failed ? ` · ${prog.failed} failed` : ''}</span></div>}
+          <button className="btn" disabled={!consent || !people.ok.length || !!busy} onClick={run}>{busy === 'import' ? 'Importing… keep this tab open' : `Import ${people.ok.length.toLocaleString()} contacts`}</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MarketingTab({ social, state, toast }) {
+  const [info, setInfo] = useState(null);
+  const [err, setErr] = useState('');
+  const [tpl, setTpl] = useState('launch');
+  const [fields, setFields] = useState(TEMPLATE_DEFAULTS.launch);
+  const [list, setList] = useState('subscribers');
+  const [when, setWhen] = useState('');
+  const [testTo, setTestTo] = useState(state.user.email || '');
+  const [busy, setBusy] = useState('');
+  const [device, setDevice] = useState('desk');
+  const load = () => { setErr(''); social.admin.marketing().then(setInfo).catch((e) => { setInfo({}); setErr(niceError(e)); }); };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const set = (k) => (e) => setFields({ ...fields, [k]: e.target.value });
+  const pickTpl = (t) => { setTpl(t); setFields(TEMPLATE_DEFAULTS[t]); };
+  // preview loads the email art from this site (so it also works before a deploy reaches meetnibble.com)
+  const preview = useMemo(() => fillForPreview(renderEmail(tpl, fields).html, testTo || 'you@example.com').split('https://meetnibble.com/email/').join((typeof location !== 'undefined' ? location.origin : '') + '/email/'), [tpl, fields, testTo]);
+  const ok = info && info.ready;
+  const lists = (info && info.lists) || {};
+  const count = lists[list] ? lists[list].total || 0 : 0;
+  const test = async () => {
+    setBusy('test');
+    try { await social.admin.marketing({ action: 'test', to: testTo, template: tpl, fields }); toast({ text: 'Test sent to ' + testTo }); }
+    catch (x) { toast({ err: true, text: niceError(x) }); }
+    setBusy('');
+  };
+  const send = async () => {
+    const at = when ? new Date(when) : null;
+    if (!window.confirm(`${at ? 'Schedule' : 'Send'} “${fields.subject}” to ${count.toLocaleString()} ${lists[list] ? lists[list].label.toLowerCase() : 'people'}${at ? ' for ' + at.toLocaleString() : ' now'}? This can’t be undone.`)) return;
     setBusy('send');
     try {
-      const r = await social.admin.marketing({ action: 'send', ...body(), ...(when ? { scheduledAt: when.toISOString() } : {}) });
+      const r = await social.admin.marketing({ action: 'send', list, template: tpl, fields, ...(at ? { scheduledAt: at.toISOString() } : {}) });
       toast({ text: r.scheduled ? 'Campaign scheduled 📅' : 'Campaign is going out 🚀' });
-      setF({ subject: '', preview: '', message: '', cta: '', ctaUrl: '', when: '' });
+      setWhen('');
       setTimeout(load, 2000);
     } catch (x) { toast({ err: true, text: niceError(x) }); }
     setBusy('');
   };
-  const ok = info && info.ready;
-  const can = ok && f.subject.trim() && f.message.trim() && !busy;
+  const can = ok && fields.subject.trim() && !busy;
+  const show = (k) => ({ launch: ['headline', 'sub', 'message'], release: ['version', 'headline', 'message', 'bullets'], letter: ['headline', 'message'], flyer: ['message'] }[tpl] || []).includes(k);
   return (
     <>
       <div className="ad-kpis">
-        <Kpi n={info && ok ? (info.subscribers || 0).toLocaleString() + (info.capped ? '+' : '') : '–'} label="Subscribers" sub="opted in to Nibble news" color={C.mint} />
-        <Kpi n={info && ok ? (info.broadcasts || []).filter((b) => b.status === 'sent').length : '–'} label="Campaigns sent" sub="last 20" color={C.violet} />
-        <Kpi n={info && ok ? (info.broadcasts || []).filter((b) => b.status === 'scheduled').length : '–'} label="Scheduled" sub="waiting to go out" color={C.yellow} />
+        <Kpi n={ok ? (lists.subscribers ? lists.subscribers.total : 0).toLocaleString() : '–'} label="Subscribers" sub="opted in to Nibble news" color={C.mint} />
+        <Kpi n={ok ? (lists.imported ? lists.imported.total : 0).toLocaleString() : '–'} label="Imported" sub="contacts you brought in" color={C.cyan} />
+        <Kpi n={ok ? (info.broadcasts || []).filter((x) => x.status === 'sent').length : '–'} label="Campaigns sent" sub="last 20" color={C.violet} />
+        <Kpi n={ok ? (info.broadcasts || []).filter((x) => x.status === 'scheduled').length : '–'} label="Scheduled" sub="waiting to go out" color={C.yellow} />
       </div>
+      {err && <div className="sa-card"><p className="sa-empty">{err}</p></div>}
+      {info && !err && !ok && <div className="sa-card"><p className="sa-empty">Add <b>RESEND_MARKETING_KEY</b> and <b>RESEND_SEGMENT_ID</b> in Vercel → Environment Variables, then redeploy.</p></div>}
+
+      {ok && <ContactsCard social={social} info={info} toast={toast} reload={load} />}
 
       <div className="sa-card">
-        <h3>📢 Marketing <small>{info ? (ok ? 'Resend broadcasts · from ' + info.from : 'not set up') : 'checking…'}</small><button className="btn small ghost" onClick={load}>Refresh</button></h3>
-        {err && <p className="sa-empty">{err}</p>}
-        {info && !err && !ok && <p className="sa-empty">Add <b>RESEND_MARKETING_KEY</b> and <b>RESEND_SEGMENT_ID</b> in Vercel → Environment Variables, then redeploy.</p>}
-        {ok && <p className="ad-foot" style={{ marginTop: 0 }}>Campaigns only go to people who opted in (the “Email me news” switch in the app, or the sign-up box on the website). Every email has an unsubscribe link. Free plan: 3,000 emails a month, so check the subscriber count before sending.</p>}
-      </div>
-
-      <div className="sa-card">
-        <h3>New campaign</h3>
-        <div className="ad-templates">{CAMPAIGN_TEMPLATES.map((t) => <button key={t.label} onClick={() => setF({ ...f, ...t })}>{t.label}</button>)}</div>
-        <form className="sa-form" onSubmit={send}>
-          <label><span>Subject <small>{f.subject.length}/150</small></span><input value={f.subject} maxLength={150} onChange={set('subject')} placeholder="Nibble just got better" /></label>
-          <label><span>Preview text <small>shown next to the subject in the inbox · optional</small></span><input value={f.preview} maxLength={140} onChange={set('preview')} placeholder="New pets, new tricks, and a few fixes." /></label>
-          <label><span>Message <small>{'{{{FIRST_NAME|there}}}'} = their name · {f.message.length.toLocaleString()}/20,000</small></span><textarea value={f.message} maxLength={20000} rows={10} onChange={set('message')} placeholder="Write it like a normal email. The Nibble header, sign-off and unsubscribe link are added for you." /></label>
-          <div className="ad-two">
-            <label><span>Button text <small>optional</small></span><input value={f.cta} maxLength={40} onChange={set('cta')} placeholder="Get the update" /></label>
-            <label><span>Button link <small>https://…</small></span><input value={f.ctaUrl} maxLength={300} onChange={set('ctaUrl')} placeholder="https://meetnibble.com/#download" /></label>
+        <h3>✉️ New campaign <small>from {info && info.from ? info.from : 'no-reply@meetnibble.com'}</small></h3>
+        <div className="ad-tpls">
+          {MAIL_TEMPLATES.map((t) => (
+            <button key={t.id} className={tpl === t.id ? 'on' : ''} onClick={() => pickTpl(t.id)}>
+              <b>{t.name}</b><small>{t.note}</small>
+            </button>
+          ))}
+        </div>
+        <div className="ad-grid2 ad-compose">
+          <form className="sa-form" onSubmit={(e) => { e.preventDefault(); }}>
+            <label><span>Send to</span>
+              <select value={list} onChange={(e) => setList(e.target.value)}>
+                {Object.entries(lists).map(([k, l]) => <option key={k} value={k} disabled={!l.ready}>{l.label} · {(l.total || 0).toLocaleString()}{l.capped ? '+' : ''} people</option>)}
+              </select>
+            </label>
+            <label><span>Subject <small>{fields.subject.length}/150</small></span><input value={fields.subject} maxLength={150} onChange={set('subject')} /></label>
+            <label><span>Preview text <small>shown after the subject in the inbox</small></span><input value={fields.preview} maxLength={140} onChange={set('preview')} /></label>
+            {show('version') && <label><span>Version</span><input value={fields.version} maxLength={16} onChange={set('version')} placeholder="2.0.22" /></label>}
+            {show('headline') && <label><span>Headline</span><input value={fields.headline} maxLength={120} onChange={set('headline')} /></label>}
+            {show('sub') && <label><span>Subheading</span><input value={fields.sub} maxLength={200} onChange={set('sub')} /></label>}
+            {show('message') && <label><span>Message <small>{'{{{FIRST_NAME|there}}}'} = their first name · blank line = new paragraph</small></span><textarea rows={7} value={fields.message} maxLength={8000} onChange={set('message')} /></label>}
+            {show('bullets') && <label><span>What’s new <small>one per line</small></span><textarea rows={4} value={fields.bullets} maxLength={2000} onChange={set('bullets')} /></label>}
+            <div className="ad-two">
+              <label><span>Button text <small>{tpl === 'letter' ? 'optional' : ''}</small></span><input value={fields.cta} maxLength={40} onChange={set('cta')} /></label>
+              <label><span>Button link</span><input value={fields.ctaUrl} maxLength={300} onChange={set('ctaUrl')} placeholder="https://meetnibble.com/#download" /></label>
+            </div>
+            <div className="ad-two">
+              <label><span>Send a test to</span><input value={testTo} onChange={(e) => setTestTo(e.target.value)} inputMode="email" /></label>
+              <label><span>Schedule <small>empty = send now</small></span><input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} /></label>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button type="button" className="btn ghost" disabled={!can || !MAIL_RE.test(testTo.trim())} onClick={test}>{busy === 'test' ? 'Sending test…' : 'Send test'}</button>
+              <button type="button" className="btn" disabled={!can || !count} onClick={send}>{busy === 'send' ? 'Sending…' : when ? 'Schedule campaign' : `Send to ${count.toLocaleString()} people`}</button>
+            </div>
+            <p className="ad-foot">Free plan: 3,000 emails a month and 100 a day, so a bigger list needs a paid Resend plan. Every email has an unsubscribe link, and people who unsubscribe are skipped automatically.</p>
+          </form>
+          <div>
+            <div className="ad-prev-k" style={{ display: 'flex', alignItems: 'center' }}>Live preview
+              <span className="ad-seg" style={{ marginLeft: 'auto' }}><button className={device === 'desk' ? 'on' : ''} onClick={() => setDevice('desk')}>Desktop</button><button className={device === 'mob' ? 'on' : ''} onClick={() => setDevice('mob')}>Phone</button></span>
+            </div>
+            <div className={'ad-mailprev ' + device}>
+              <div className="ad-mailhead"><b>Nibble</b> &lt;no-reply@meetnibble.com&gt;<br /><span>{fillForPreview(fields.subject)}</span><small>{fields.preview}</small></div>
+              <iframe title="Email preview" srcDoc={preview} sandbox="" />
+            </div>
           </div>
-          <div className="ad-two">
-            <label><span>Send a test to</span><input value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="you@example.com" inputMode="email" /></label>
-            <label><span>Schedule <small>optional · empty = send now</small></span><input type="datetime-local" value={f.when} onChange={set('when')} /></label>
-          </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button type="button" className="btn ghost" disabled={!can || !testTo.trim()} onClick={test}>{busy === 'test' ? 'Sending test…' : 'Send test'}</button>
-            <button className="btn" disabled={!can}>{busy === 'send' ? 'Sending…' : f.when ? 'Schedule campaign' : `Send to ${info && ok ? (info.subscribers || 0).toLocaleString() : ''} subscribers`}</button>
-          </div>
-          <p className="ad-foot">Always send yourself a test first. Sent from {info && info.from ? info.from : 'no-reply@meetnibble.com'} (replies aren’t read).</p>
-        </form>
+        </div>
       </div>
 
       <div className="sa-card">
         <h3>Campaigns <small>{info && info.broadcasts ? info.broadcasts.length : 0}</small></h3>
         {ok && !(info.broadcasts || []).length && <p className="sa-empty">No campaigns yet.</p>}
-        {(info && info.broadcasts || []).map((b) => (
-          <div key={b.id} className="ad-hist">
+        {(info && info.broadcasts || []).map((x) => (
+          <div key={x.id} className="ad-hist">
             <span className="ad-hist-ico">📢</span>
-            <div><b>{b.name || '(untitled)'}</b><small><span style={{ color: BC_STATUS[b.status] || C.slate, fontWeight: 700 }}>{b.status || 'draft'}</span>{b.at ? ' · ' + ago(Date.parse(String(b.at).replace(' ', 'T').replace(/\+00(:00)?$/, 'Z'))) : ''}</small></div>
-            <a className="btn small ghost" href={'https://resend.com/broadcasts/' + b.id} target="_blank" rel="noreferrer">Stats</a>
+            <div><b>{x.name || '(untitled)'}</b><small><span style={{ color: BC_STATUS[x.status] || C.slate, fontWeight: 700 }}>{x.status || 'draft'}</span>{x.at ? ' · ' + ago(Date.parse(String(x.at).replace(' ', 'T').replace(/\+00(:00)?$/, 'Z'))) : ''}</small></div>
+            <a className="btn small ghost" href={'https://resend.com/broadcasts/' + x.id} target="_blank" rel="noreferrer">Stats</a>
           </div>
         ))}
       </div>
@@ -1214,7 +1379,7 @@ const NAV = [
   ['Communicate', [
     ['announce', 'Announcements', '📣', 'A banner inside the app for everyone signed in (desktop users also get a notification).', ['Keep it short: 200 characters at most.', 'Use “Update” when a new version is out, “Warning” only for real problems.']],
     ['email', 'Email', '✉️', 'Send a one-off email to one person or a few (up to 20), from no-reply@meetnibble.com.', ['Replies go to hello@meetnibble.com.', 'For news to everyone who subscribed, use Marketing instead.']],
-    ['marketing', 'Marketing', '📢', 'Newsletters and campaigns to people who opted in to Nibble news.', ['Always send yourself a test first.', 'Free plan: 3,000 emails a month, 100 a day. Check the subscriber count before sending.', 'Every campaign gets an unsubscribe link automatically.']],
+    ['marketing', 'Marketing', '📢', 'Bulk email: import contacts, pick a designed template, preview it, test it and send it to a list.', ['Import only people who agreed to hear from you; keep them in “Imported contacts”.', 'Always send yourself a test first, and check the phone preview.', 'Free plan: 3,000 emails a month, 100 a day. Bigger lists need a paid Resend plan.', 'Every email gets an unsubscribe link automatically.']],
   ]],
   ['Grow', [
     ['seo', 'SEO', '🔎', 'How Nibble looks on Google and when shared: page titles, descriptions and share images.', ['Titles: 30–60 characters. Descriptions: 120–160.', 'After big changes, ask Google to re-crawl from Search Console → URL inspection.', 'Use Facebook’s Sharing Debugger to refresh old share previews.']],
