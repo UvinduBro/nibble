@@ -1544,6 +1544,70 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
   );
 }
 
+// ---------- Reviews: approve before they go public ----------
+const RV_FILTERS = [['pending', 'Waiting'], ['approved', 'Live'], ['hidden', 'Hidden'], ['all', 'All']];
+function ReviewsTab({ social, users, toast, go, setOpenUid }) {
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState('');
+  const [show, setShow] = useState('pending');
+  const [replying, setReplying] = useState('');
+  const [reply, setReply] = useState('');
+  const load = () => { setErr(''); social.admin.reviews().then(setList).catch((e) => { setList([]); setErr(niceError(e)); }); };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const act = async (id, patch, ok) => { try { await social.admin.setReview(id, patch); if (ok) toast({ text: ok }); load(); } catch (x) { toast({ err: true, text: niceError(x) }); } };
+  const all = list || [];
+  const live = all.filter((r) => r.status === 'approved' && r.show);
+  const avg = live.length ? (live.reduce((t, r) => t + r.rating, 0) / live.length).toFixed(1) : '–';
+  const shown = all.filter((r) => show === 'all' || r.status === show).sort((a, b) => ((b.status === 'pending') - (a.status === 'pending')) || ((b.updatedAt || b.at) - (a.updatedAt || a.at)));
+  return (
+    <>
+      <div className="ad-kpis">
+        <Kpi n={all.filter((r) => r.status === 'pending').length} label="Waiting" sub="need a quick check" color={C.yellow} onClick={() => setShow('pending')} />
+        <Kpi n={live.length} label="Live" sub="shown on meetnibble.com" color={C.mint} onClick={() => setShow('approved')} />
+        <Kpi n={avg} label="Average" sub="stars, live reviews" color={C.violet} />
+        <Kpi n={live.filter((r) => r.featured).length} label="Featured" sub="shown first" color={C.pink} />
+      </div>
+      <div className="sa-card">
+        <h3>⭐ Reviews <small>{shown.length}</small>
+          <span className="rp-filter">{RV_FILTERS.map(([k, l]) => <button key={k} className={show === k ? 'on' : ''} onClick={() => setShow(k)}>{l}</button>)}</span>
+          <button className="btn small ghost" onClick={load}>Refresh</button>
+        </h3>
+        {list === null && <p className="sa-empty">Loading…</p>}
+        {err && <p className="sa-empty">{err.includes('ermission') || err.includes('Not allowed') ? 'Publish the latest Firestore rules to see reviews.' : err}</p>}
+        {list && !err && !shown.length && <p className="sa-empty">{show === 'pending' ? 'No reviews waiting. 🎉' : 'Nothing here yet.'}</p>}
+        {shown.map((r) => {
+          const u = users.find((x) => x.uid === r.uid);
+          return (
+            <article key={r.id} className={'rp rp-' + (r.status === 'approved' ? 'done' : r.status === 'hidden' ? 'seen' : 'new')}>
+              <header>
+                <span className="rp-kind" style={{ color: '#ffd166', letterSpacing: 1 }}>{'★'.repeat(r.rating)}<span style={{ opacity: 0.25 }}>{'★'.repeat(5 - r.rating)}</span></span>
+                <b>{u ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(u.uid); }}>@{r.username}</button> : '@' + r.username}</b>
+                <span className={'rp-status rp-s-' + (r.status === 'approved' ? 'done' : r.status === 'hidden' ? 'seen' : 'new')}>{r.status === 'approved' ? 'live' : r.status}{r.featured ? ' · featured' : ''}</span>
+              </header>
+              <p className="rp-text">“{r.text}”</p>
+              <p className="rp-who">{r.client || 'app'} · {ago(r.updatedAt || r.at)}{!r.show ? ' · asked NOT to be shown publicly' : ''}</p>
+              {r.reply && <p className="rp-who">↳ Your reply: {r.reply}</p>}
+              {replying === r.id && (
+                <form className="sa-form" onSubmit={(e) => { e.preventDefault(); act(r.id, { reply }, 'Reply saved'); setReplying(''); }}>
+                  <textarea rows={2} maxLength={300} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Thanks so much! …" />
+                  <div style={{ display: 'flex', gap: 8 }}><button className="btn small">Save reply</button><button type="button" className="btn small ghost" onClick={() => setReplying('')}>Cancel</button></div>
+                </form>
+              )}
+              <footer>
+                {r.status !== 'approved' && <button className="btn small" disabled={!r.show} title={!r.show ? 'They asked not to be shown publicly' : ''} onClick={() => act(r.id, { status: 'approved' }, 'Approved: it’s live')}>Approve</button>}
+                {r.status === 'approved' && <button className="btn small ghost" onClick={() => act(r.id, { featured: !r.featured }, r.featured ? 'Unfeatured' : 'Featured')}>{r.featured ? 'Unfeature' : '⭐ Feature'}</button>}
+                {r.status !== 'hidden' && <button className="btn small ghost" onClick={() => act(r.id, { status: 'hidden', featured: false }, 'Hidden')}>Hide</button>}
+                <button className="btn small ghost" onClick={() => { setReplying(r.id); setReply(r.reply || ''); }}>{r.reply ? 'Edit reply' : 'Reply'}</button>
+                <button className="btn small ghost" onClick={() => { if (window.confirm('Delete this review for good?')) social.admin.deleteReview(r.id).then(() => { toast({ text: 'Deleted' }); load(); }, (x) => toast({ err: true, text: niceError(x) })); }}>Delete</button>
+              </footer>
+            </article>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 const NAV = [
   ['Insights', [
     ['overview', 'Overview', '📊', 'How Nibble is doing right now: people online, sign-ups, versions and activity.', ['Click any number to jump to the matching list.', 'Numbers are live while this tab is open; it pauses after 3 minutes in the background to save Firebase reads.']],
@@ -1552,6 +1616,7 @@ const NAV = [
     ['usage', 'Firebase usage', '📈', 'Today’s Firestore reads and writes against the free daily limits, and switches that save quota.', ['Turn on Saver mode when reads pass about 70% of the limit.', 'Limits reset at 1:30 PM Sri Lanka time (midnight Pacific).']],
   ]],
   ['Inbox', [
+    ['reviews', 'Reviews', '⭐', 'Reviews people write in the app. Nothing shows on the website until you approve it.', ['Approve honest reviews, good or bad: a mix of ratings looks more trustworthy than only 5 stars.', 'Hide spam or anything rude; you can’t change someone’s words or stars.', 'Feature a few great ones to show them first. Replies show under the review.']],
     ['reports', 'Reports', '📬', 'Bug reports, feedback and contact-form messages from the app and the website.', ['Mark a report Seen when you’ve read it and Done when it’s handled.', 'Use ✉️ Reply by email to answer someone; the reply opens in the Email page.']],
   ]],
   ['Communicate', [
@@ -1671,6 +1736,7 @@ function Dashboard({ social, state }) {
         {users && tab === 'overview' && <Overview social={social} users={list} banned={banned || []} latest={latest} minVersion={minVersion} go={go} />}
         {users && tab === 'users' && <Users users={list} bannedMap={bannedMap} latest={latest} minVersion={minVersion} filter={filter} setFilter={setFilter} openUid={openUid} setOpenUid={setOpenUid} me={state.user.uid} />}
         {users && tab === 'games' && <GamesTab social={social} state={state} users={list} toast={toast} setOpenUid={setOpenUid} go={go} />}
+        {users && tab === 'reviews' && <ReviewsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'reports' && <ReportsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} reply={(d) => { setDraft(d); go('email'); }} />}
         {tab === 'email' && <EmailTab social={social} toast={toast} draft={draft} setDraft={setDraft} />}
         {tab === 'marketing' && <MarketingTab social={social} state={state} toast={toast} />}

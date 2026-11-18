@@ -3,6 +3,7 @@ import Desktop from '../components/Desktop';
 import CharacterSelect from '../components/CharacterSelect';
 import { Quotes, Download } from '../components/Sections';
 import { Story } from '../components/About';
+import { approvedReviews, summarize } from '../lib/reviews';
 import PetFigure from '../components/PetFigure';
 import Globe, { PLACES } from '../components/landing/Globe';
 import { Reveal, ThemeToggle } from '../components/landing/LandingFx';
@@ -125,14 +126,44 @@ function HubMock() {
 }
 
 // structured data for search engines and AI assistants (facts live in lib/facts.js)
-function jsonLd() {
-  return [orgLd(), siteLd(), appLd(), howToLd(), faqLd(FAQ)];
+function jsonLd(reviews) {
+  return [orgLd(), siteLd(), appLd(reviews), howToLd(), faqLd(FAQ)];
 }
 
-export default function Home() {
+// "What people say": real reviews from Nibble users, approved by the team (lib/reviews.js)
+function Reviews({ list }) {
+  const sum = summarize(list);
+  const top = list.slice(0, 6);
+  const star = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
+  return (
+    <section className="lp-sec" id="reviews">
+      <div className="lp-wrap">
+        <Head kicker="Reviews" title="What people say about Nibble." sub="Real reviews from people who use Nibble, written in the app. We read every one." center />
+        <div className="lp-rv-sum" data-reveal>
+          <div className="lp-rv-avg"><b>{sum.avg.toFixed(1)}</b><span className="lp-rv-stars" aria-label={`${sum.avg} out of 5`}>{star(Math.round(sum.avg))}</span><small>{sum.count} review{sum.count === 1 ? '' : 's'}</small></div>
+          <div className="lp-rv-bars">{sum.counts.map(([k, n]) => <div key={k}><span>{k}★</span><i><u style={{ width: `${sum.count ? (n / sum.count) * 100 : 0}%` }} /></i><em>{n}</em></div>)}</div>
+        </div>
+        <div className="lp-rv-grid">
+          {top.map((r, i) => (
+            <figure key={r.id} className={'lp-rv' + (r.featured ? ' feat' : '')} data-reveal style={{ '--d': `${(i % 3) * 0.06}s` }}>
+              <span className="lp-rv-stars" aria-label={`${r.rating} out of 5 stars`}>{star(r.rating)}</span>
+              <blockquote>“{r.text}”</blockquote>
+              <figcaption><span className="lp-rv-ava" aria-hidden><PetFigure skin={r.skin} mood="happy" w={40} h={38} size={0.42} /></span><span><b>@{r.username}</b><small>{r.client === 'desktop' ? 'Nibble desktop' : 'Nibble'} user{r.at ? ' · ' + new Date(r.at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : ''}</small></span></figcaption>
+              {r.reply && <p className="lp-rv-reply"><b>Nibble team:</b> {r.reply}</p>}
+            </figure>
+          ))}
+        </div>
+        <p className="lp-rv-cta">Using Nibble? <a href="/app?tab=feedback">Leave a review</a> in the app.</p>
+      </div>
+    </section>
+  );
+}
+
+export default async function Home() {
+  const reviews = await approvedReviews();
   return (
     <div className="lp" data-theme="dark">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd()) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd(reviews)) }} />
       <Reveal />
       <header className="lp-nav">
         <a href="#" className="lp-brand"><img src="/logo.svg" alt="" width={34} height={34} />nibble</a>
@@ -294,6 +325,8 @@ export default function Home() {
             <div className="lp-panel lp-dl" data-reveal><Download /></div>
           </div>
         </section>
+
+        {reviews.length > 0 && <Reviews list={reviews} />}
 
         <section className="lp-sec" id="faq">
           <div className="lp-wrap lp-faq-wrap">

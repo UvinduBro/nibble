@@ -94,6 +94,32 @@ service cloud.firestore {
     match /billing/{doc} { allow read, write: if false; }
     match /billingCustomers/{uid} { allow read, write: if false; }
 
+    // ---------- reviews ----------
+    // One review per account (id = your uid). You write rating + text; every change goes back to
+    // "pending" until an admin approves it. Anyone (even signed out) can read approved, public ones;
+    // admins can only change status / featured / reply, never your words or stars.
+    match /reviews/{uid} {
+      allow get: if (resource.data.status == 'approved' && resource.data.show == true) || (signedIn() && (uid == me() || isAdmin()));
+      allow list: if (resource.data.status == 'approved' && resource.data.show == true) || isAdmin();
+      allow create, update: if signedIn() && uid == me() && !isBanned()
+        && incoming().keys().hasOnly(['uid', 'username', 'skin', 'rating', 'text', 'show', 'client', 'status', 'featured', 'reply', 'at', 'updatedAt'])
+        && incoming().uid == me()
+        && incoming().username == get(/databases/$(database)/documents/users/$(me())).data.username
+        && incoming().rating is int && incoming().rating >= 1 && incoming().rating <= 5
+        && incoming().text is string && incoming().text.size() >= 10 && incoming().text.size() <= 400
+        && incoming().show is bool && shortText(incoming().get('skin', ''), 20) && shortText(incoming().get('client', ''), 16)
+        && incoming().status == 'pending' && incoming().get('featured', false) == false
+        && incoming().get('reply', '') == (resource == null ? '' : resource.data.get('reply', ''))
+        && incoming().updatedAt == request.time
+        && (resource == null ? incoming().at == request.time : incoming().at == resource.data.at);
+      allow update: if isAdmin()
+        && incoming().diff(resource.data).affectedKeys().hasOnly(['status', 'featured', 'reply'])
+        && incoming().status in ['pending', 'approved', 'hidden']
+        && incoming().get('featured', false) is bool
+        && shortText(incoming().get('reply', ''), 300);
+      allow delete: if signedIn() && (uid == me() || isAdmin());
+    }
+
     // SEO settings (Admin → SEO): titles, descriptions, share images, search verification codes.
     // Public (the website reads it to build every page's tags); only admins write.
     match /seo/{doc} {

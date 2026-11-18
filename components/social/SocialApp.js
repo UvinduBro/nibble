@@ -11,6 +11,7 @@ import { byKey, CHARACTERS } from '../../lib/characters';
 import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess, cleanStyleMap } from '../../lib/social/social';
 import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
 import { priceLabel, BUILTIN as PREMIUM_PERKS } from '../../lib/premium';
+import { MIN_REVIEW, MAX_REVIEW } from '../../lib/reviews';
 import Wardrobe from './Wardrobe';
 import Arcade from './Arcade';
 import Leaderboard from './Leaderboard';
@@ -642,7 +643,92 @@ function SharedReminders({ social, state, toast }) {
 }
 
 // ---------- Feedback: report a bug or tell us what you think (reports/{id}) ----------
-function FeedbackPage({ social, state, desktop, local }) {
+// Home: after a couple of days with Nibble, ask once (dismissible) for a review
+function AskReview({ state, go }) {
+  const [gone, setGone] = useState(true);
+  useEffect(() => { try { setGone(localStorage.getItem('nibble-ask-review') === '1'); } catch { setGone(false); } }, []);
+  const since = state.profile && state.profile.createdAt ? (typeof state.profile.createdAt === 'number' ? state.profile.createdAt : state.profile.createdAt.toMillis ? state.profile.createdAt.toMillis() : 0) : 0;
+  if (gone || state.myReview !== null || !since || Date.now() - since < 2 * 86400_000) return null;
+  const close = () => { try { localStorage.setItem('nibble-ask-review', '1'); } catch {} setGone(true); };
+  return (
+    <div className="sa-card sa-tip">
+      <span className="sa-tip-ico">⭐</span>
+      <div><b>Enjoying Nibble?</b><p className="sa-sub">A quick review helps other people find and trust Nibble.</p></div>
+      <button className="btn small" onClick={() => { close(); go('feedback'); }}>Rate Nibble</button>
+      <button className="btn small ghost" onClick={close} aria-label="Not now">Not now</button>
+    </div>
+  );
+}
+
+// ---------- Rate Nibble: one review per account, public after an admin approves it ----------
+function Stars({ value, onChange, size = 26 }) {
+  const [hover, setHover] = useState(0);
+  return (
+    <span className="sa-stars" role={onChange ? 'radiogroup' : 'img'} aria-label={`${value} out of 5 stars`} onMouseLeave={() => setHover(0)}>
+      {[1, 2, 3, 4, 5].map((n) => onChange ? (
+        <button key={n} type="button" role="radio" aria-checked={value === n} aria-label={`${n} star${n > 1 ? 's' : ''}`} className={(hover || value) >= n ? 'on' : ''} style={{ fontSize: size }} onMouseEnter={() => setHover(n)} onClick={() => onChange(n)}>★</button>
+      ) : <i key={n} className={value >= n ? 'on' : ''} style={{ fontSize: size }}>★</i>)}
+    </span>
+  );
+}
+const REVIEW_STATUS = { pending: ['⏳ Waiting for a quick check by the team', 'pending'], approved: ['✓ Live on meetnibble.com', 'ok'], hidden: ['Not shown on the website', 'off'] };
+function ReviewCard({ social, state, toast, desktop }) {
+  const mine = state.myReview;
+  const [edit, setEdit] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [text, setText] = useState('');
+  const [show, setShow] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const open = () => { setRating(mine ? mine.rating : 0); setText(mine ? mine.text : ''); setShow(mine ? mine.show : true); setEdit(true); };
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try { await social.reviews.save({ rating, text, show }, desktop ? 'desktop' : 'web'); setEdit(false); toast({ text: 'Thank you! 💖 Your review shows up once the team has had a quick look.' }); }
+    catch (x) { toast({ err: true, text: niceError(x) }); }
+    setBusy(false);
+  };
+  if (mine === undefined) return null;
+  if (mine && !edit) {
+    const [label, cls] = REVIEW_STATUS[mine.status] || REVIEW_STATUS.pending;
+    return (
+      <div className="sa-card sa-review">
+        <h3>⭐ Your review <small className={'sa-rv-st ' + cls}>{label}</small></h3>
+        <Stars value={mine.rating} size={22} />
+        <p className="sa-rv-text">“{mine.text}”</p>
+        {mine.reply && <p className="sa-rv-reply"><b>Nibble team:</b> {mine.reply}</p>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn small" onClick={open}>Edit</button>
+          <button className="btn small ghost" onClick={async () => { if (window.confirm('Delete your review?')) { try { await social.reviews.remove(); toast({ text: 'Review deleted' }); } catch (x) { toast({ err: true, text: niceError(x) }); } } }}>Delete</button>
+        </div>
+      </div>
+    );
+  }
+  if (!edit) {
+    return (
+      <div className="sa-card sa-review">
+        <h3>⭐ Enjoying Nibble?</h3>
+        <p className="sa-sub">A short review helps other people decide to try Nibble. It takes 30 seconds.</p>
+        <button className="btn small" onClick={open}>Write a review</button>
+      </div>
+    );
+  }
+  return (
+    <form className="sa-card sa-review sa-form" onSubmit={save}>
+      <h3>⭐ {mine ? 'Edit your review' : 'Rate Nibble'}</h3>
+      <Stars value={rating} onChange={setRating} size={32} />
+      <label><span>What do you like (or not)? <small>{text.length}/{MAX_REVIEW}</small></span>
+        <textarea rows={4} value={text} maxLength={MAX_REVIEW} onChange={(e) => setText(e.target.value)} placeholder="My pet naps on my code editor and it makes long days better…" /></label>
+      <label className="sa-check"><input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} /> Show it on meetnibble.com with my username @{state.profile.username}</label>
+      <p className="ad-foot">The team checks reviews before they go public (no changes to your words). Editing sends it for a quick check again.</p>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn" disabled={busy || !rating || text.trim().length < MIN_REVIEW}>{busy ? 'Sending…' : mine ? 'Save' : 'Post review'}</button>
+        <button type="button" className="btn ghost" onClick={() => setEdit(false)}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function FeedbackPage({ social, state, desktop, local, toast }) {
   const meta = {
     ver: (local && local.version) || '',
     os: systemName(desktop && desktop.platform),
@@ -651,6 +737,7 @@ function FeedbackPage({ social, state, desktop, local }) {
   return (
     <div className="sa-page">
       <h2>Feedback</h2>
+      <ReviewCard social={social} state={state} toast={toast} desktop={desktop} />
       <p className="sa-sub">Found a bug, or have an idea? It goes straight to the Nibble team. Your Nibble version, system and the time are added for you.</p>
       <div className="sa-card"><FeedbackForm meta={meta} send={(r) => social.report(r)} signedInAs={state.profile.username} /></div>
     </div>
@@ -892,6 +979,7 @@ function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith 
     <div className="sa-page">
       <h2>Hey {(state.about && state.about.nick) || '@' + state.profile.username} 👋</h2>
       <AskSignup social={social} state={state} toast={toast} />
+      <AskReview state={state} go={go} />
       {!state.about && (
         <div className="sa-card sa-tip">
           <span className="sa-tip-ico">💭</span>

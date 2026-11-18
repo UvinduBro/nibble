@@ -3,6 +3,7 @@
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { adminUid, bearer } from '../../../../lib/adminAuth';
 import { SEO_TAG } from '../../../../lib/seo';
+import { REVIEWS_TAG } from '../../../../lib/reviews';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,7 +14,7 @@ export async function POST(req) {
   if (!token) return Response.json({ error: 'Sign in as an admin.' }, { status: 401, headers: h });
   try { if (!(await adminUid(token))) return Response.json({ error: 'Admins only.' }, { status: 403, headers: h }); }
   catch { return Response.json({ error: 'Couldn’t check your admin access. Try again.' }, { status: 502, headers: h }); }
-  try { revalidateTag(SEO_TAG, 'max'); } catch { try { revalidateTag(SEO_TAG); } catch {} }
+  for (const tag of [SEO_TAG, REVIEWS_TAG]) { try { revalidateTag(tag, 'max'); } catch { try { revalidateTag(tag); } catch {} } }
   revalidatePath('/', 'layout');
   return Response.json({ ok: true }, { headers: h });
 }
