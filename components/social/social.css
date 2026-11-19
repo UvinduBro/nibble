@@ -1182,3 +1182,24 @@
 .sa-rv-st.ok { color: var(--mint) !important; background: rgba(126,232,198,.1); }
 .sa-rv-st.pending { color: var(--yellow) !important; background: rgba(255,209,102,.1); }
 .sa-check { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; font-size: 14px; }
+
+/* Admin → Premium packages */
+.ad-pkgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.ad-pkg { padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,.02); display: flex; flex-direction: column; gap: 6px; }
+.ad-pkg.def { border-color: rgba(126,232,198,.45); }
+.ad-pkg.off { opacity: .55; }
+.ad-pkg small { color: var(--muted); }
+.ad-pkg-price { font-size: 22px; font-weight: 800; color: var(--mint); }
+.ad-pkg-price small { font-size: 13px; font-weight: 600; }
+.ad-pkg-btns, .ad-sub-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.ad-pill { margin-left: 6px; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: rgba(255,209,102,.15); color: var(--yellow); }
+.ad-pill.dim { background: rgba(126,232,198,.12); color: var(--mint); }
+.ad-pkg-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+.sa-pkgs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 6px 0 14px; }
+.sa-pkg { all: unset; box-sizing: border-box; cursor: pointer; position: relative; display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,.03); }
+.sa-pkg.on { border-color: var(--mint); background: rgba(126,232,198,.08); }
+.sa-pkg:focus-visible { outline: 2px solid var(--mint); }
+.sa-pkg em { position: absolute; top: -9px; right: 10px; font-style: normal; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: #ffd166; color: #1a1300; }
+.sa-pkg span { font-size: 20px; font-weight: 800; color: var(--mint); }
+.sa-pkg span small, .sa-pkg > small { font-size: 12.5px; font-weight: 600; color: var(--muted); }

@@ -3,7 +3,7 @@
 import { bearer } from '../../../../lib/adminAuth';
 import { accountOf, getPlan, stripe, findCustomer, syncSubscription, SITE } from '../../../../lib/billing';
 import { fsGet, fsSet } from '../../../../lib/gcp';
-import { premiumActive } from '../../../../lib/premium';
+import { premiumActive, buyable } from '../../../../lib/premium';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -24,7 +24,12 @@ export async function POST(req) {
   if (!me) return bad('Sign in first.', 401);
   if (limited(me.uid)) return bad('Too many tries. Wait a few minutes.', 429);
   const plan = await getPlan();
-  if (!plan.enabled || !plan.priceId) return bad('Premium isn’t available right now.', 503);
+  const options = buyable(plan);
+  if (!plan.enabled || !options.length) return bad('Premium isn’t available right now.', 503);
+  let body = {};
+  try { body = await req.json(); } catch {}
+  // the package comes from the saved plan; the browser only says which one (default if unknown)
+  const pkg = options.find((k) => k.id === String(body.packageId || '')) || options[0];
   const cur = await fsGet('premium/' + me.uid).catch(() => null);
   if (premiumActive(cur)) return bad('You already have Premium. Use “Manage subscription” to change it.', 409);
   try {
@@ -42,14 +47,16 @@ export async function POST(req) {
         return bad('You already have Premium. Use “Manage subscription” to change it.', 409);
       }
     }
+    // free trial only for people who've never had Premium (no trial hopping)
+    const trial = pkg.trialDays > 0 && !cur ? pkg.trialDays : 0;
     const s = await stripe('POST', '/checkout/sessions', {
       mode: 'subscription',
       customer,
       client_reference_id: me.uid,
-      line_items: [{ price: plan.priceId, quantity: 1 }],
-      metadata: { uid: me.uid },
-      subscription_data: { metadata: { uid: me.uid } },
-      allow_promotion_codes: 'true',
+      line_items: [{ price: pkg.priceId, quantity: 1 }],
+      metadata: { uid: me.uid, package: pkg.id },
+      subscription_data: { metadata: { uid: me.uid, package: pkg.id }, ...(trial ? { trial_period_days: trial } : {}) },
+      ...(plan.promoCodes ? { allow_promotion_codes: 'true' } : {}),
       success_url: `${SITE}/app?premium=success`,
       cancel_url: `${SITE}/app?premium=cancel`,
     });

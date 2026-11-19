@@ -20,7 +20,7 @@ const lookLabel = (u) => {
 import { niceError, verLess, LEVELS, ms } from '../../lib/social/social';
 import { SOURCES, USES, countryName, flag } from '../../lib/signup';
 import { SEO_PAGES, SEO_LIMITS, SITE as SEO_SITE, mergeSeo } from '../../lib/seo';
-import { BUILTIN as PREMIUM_BUILTIN, DEFAULT_PLAN, CURRENCIES, INTERVALS, priceLabel, cleanFeature } from '../../lib/premium';
+import { BUILTIN as PREMIUM_BUILTIN, DEFAULT_PLAN, CURRENCIES, INTERVALS, cleanFeature, money } from '../../lib/premium';
 import { TEMPLATES as MAIL_TEMPLATES, TEMPLATE_DEFAULTS, renderEmail, fillForPreview } from '../../lib/emailTemplates';
 
 // ---------- helpers ----------
@@ -1372,105 +1372,133 @@ function SeoTab({ social, toast }) {
 }
 
 // Sidebar: grouped pages, each with a one-line purpose and a short guide (shown under the title)
-// ---------- Premium: Stripe subscriptions ----------
-const money = (cents, cur) => { try { return new Intl.NumberFormat('en', { style: 'currency', currency: String(cur || 'usd').toUpperCase() }).format((cents || 0) / 100); } catch { return ((cents || 0) / 100).toFixed(2) + ' ' + cur; } };
+// ---------- Premium: Stripe subscriptions (keys live in Vercel env, never here) ----------
 const SUB_COLOR = { active: C.mint, trialing: C.cyan, past_due: C.yellow, canceled: C.slate, unpaid: C.coral, incomplete: C.slate, incomplete_expired: C.slate };
+const blankPkg = () => ({ id: '', name: '', amount: '', currency: 'usd', interval: 'year', trialDays: 0, highlight: '', active: true });
+function Check({ ok, warn, children }) { return <li className={ok ? 'ok' : warn ? 'bad' : ''}>{ok ? '✓ ' : warn ? '⚠️ ' : '○ '}{children}</li>; }
 function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
   const [info, setInfo] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
-  const [key, setKey] = useState('');
-  const plan = state.premiumPlan || DEFAULT_PLAN;
-  const [price, setPrice] = useState({ amount: (plan.amount / 100).toFixed(2), currency: plan.currency, interval: plan.interval, name: plan.name });
+  const plan = state.premiumPlan || cleanPlanUI();
   const [feats, setFeats] = useState(plan.features);
   const [featsDirty, setFeatsDirty] = useState(false);
+  const [edit, setEdit] = useState(null); // package being edited
+  const [promo, setPromo] = useState({ code: '', kind: 'percent', percentOff: 20, amountOff: '', currency: 'usd', duration: 'once', months: 3, maxRedemptions: '', expiresAt: '' });
   const [gift, setGift] = useState({ who: '', days: 365 });
-  useEffect(() => { if (!featsDirty) setFeats(plan.features); }, [state.premiumPlan]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setPrice({ amount: (plan.amount / 100).toFixed(2), currency: plan.currency, interval: plan.interval, name: plan.name }); }, [plan.amount, plan.currency, plan.interval, plan.name]);
+  const [name, setName] = useState(plan.name);
+  useEffect(() => { if (!featsDirty) setFeats(plan.features); setName(plan.name); }, [state.premiumPlan]); // eslint-disable-line react-hooks/exhaustive-deps
   const load = () => { setErr(''); social.admin.premium().then(setInfo).catch((e) => { setInfo({}); setErr(niceError(e)); }); };
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const act = async (name, body, ok) => {
-    setBusy(name);
-    try { const r = await social.admin.premium(body); if (ok) toast({ text: ok }); load(); return r; }
-    catch (x) { toast({ err: true, text: niceError(x) }); }
+  const act = async (key, body, ok) => {
+    setBusy(key);
+    try { const r = await social.admin.premium(body); if (ok) toast({ text: ok }); load(); return r || true; }
+    catch (x) { toast({ err: true, text: niceError(x) }); return null; }
     finally { setBusy(''); }
   };
-  const st = (info && info.stripe) || {};
-  const ck = (info && info.checks) || {};
-  const sa = ck.serviceAccount;
-  const ready = st.connected && st.webhook && plan.priceId && ck.encryption !== false && sa && sa.canWrite;
-  const toggle = async (on) => {
-    if (on && !plan.priceId) { toast({ err: true, text: 'Connect Stripe first: that creates the price people pay.' }); return; }
-    if (on && !window.confirm(`Switch Premium on? Everyone will see it in the app for ${priceLabel(plan)}${st.mode === 'test' ? ' (Stripe is in TEST mode: no real money)' : ''}.`)) return;
-    try { await social.admin.savePremiumPlan({ enabled: on }); toast({ text: on ? 'Premium is on' : 'Premium is off' }); } catch (x) { toast({ err: true, text: niceError(x) }); }
+  const savePlan = async (patch, ok) => { try { await social.admin.savePremiumPlan(patch); toast({ text: ok }); } catch (x) { toast({ err: true, text: niceError(x) }); } };
+  const hl = (info && info.health) || {};
+  const live = (plan.packages || []).filter((k) => k.active && k.priceId);
+  const ready = hl.key && hl.key.ok && hl.webhookSecret && hl.webhookSecret.ok && hl.webhook && hl.webhook.found && hl.serviceAccount && hl.serviceAccount.ok && live.length > 0;
+  const toggle = (on) => {
+    if (on && !live.length) { toast({ err: true, text: 'Add a package first: that’s what people buy.' }); return; }
+    if (on && !window.confirm(`Switch Premium on for everyone?${hl.key && hl.key.mode === 'test' ? ' Stripe is in TEST mode: no real money.' : ''}`)) return;
+    savePlan({ enabled: on }, on ? 'Premium is on' : 'Premium is off');
   };
-  const saveFeats = async () => {
-    try { await social.admin.savePremiumPlan({ features: feats.map(cleanFeature) }); setFeatsDirty(false); toast({ text: 'Features saved' }); } catch (x) { toast({ err: true, text: niceError(x) }); }
+  const savePkg = async (e) => {
+    e.preventDefault();
+    const amount = Math.round(Number(edit.amount) * 100);
+    const old = plan.packages.find((k) => k.id === edit.id);
+    if (old && old.amount !== amount && !window.confirm(`Change the price to ${money(amount, edit.currency)}? New subscribers pay this; current ones keep their price.`)) return;
+    const r = await act('pkg', { action: 'package', pkg: { ...edit, amount, trialDays: Math.round(Number(edit.trialDays) || 0) } }, 'Package saved in Stripe');
+    if (r) setEdit(null);
   };
   const setF = (i, patch) => { setFeats(feats.map((f, j) => (j === i ? { ...f, ...patch } : f))); setFeatsDirty(true); };
-  const savePrice = () => {
-    const amount = Math.round(Number(price.amount) * 100);
-    if (!window.confirm(`Set the price to ${money(amount, price.currency)} per ${price.interval}? New subscribers pay this; current ones keep their price.`)) return;
-    act('price', { action: 'price', amount, currency: price.currency, interval: price.interval, name: price.name }, 'Price saved in Stripe');
-  };
   const giftUser = users.find((u) => u.username === gift.who.replace(/^@/, '').trim().toLowerCase() || u.uid === gift.who.trim());
   const stats = info && info.stats;
   const subs = (info && info.subscribers) || [];
   const nameOf = (uid) => (users.find((u) => u.uid === uid) || {}).username;
+  const dash = `https://dashboard.stripe.com/${hl.key && hl.key.mode === 'test' ? 'test/' : ''}`;
   return (
     <>
       <div className="ad-kpis">
-        <Kpi n={stats ? stats.active : '–'} label="Premium members" sub="paying now" color={C.mint} />
-        <Kpi n={stats ? money(stats.yearly, stats.currency) : '–'} label="Yearly revenue" sub="from active subscriptions" color={C.violet} />
+        <Kpi n={stats ? stats.active : '–'} label="Premium members" sub={stats && stats.trialing ? `${stats.trialing} on a free trial` : 'paying or on trial'} color={C.mint} />
+        <Kpi n={stats ? money(stats.yearly, stats.currency) : '–'} label="Yearly revenue" sub="from paying members" color={C.violet} />
         <Kpi n={stats ? stats.cancelling : '–'} label="Cancelling" sub="end at the period end" color={C.yellow} />
         <Kpi n={stats ? stats.pastDue : '–'} label="Payment problems" sub="card failed, retrying" color={C.coral} />
       </div>
-      {err && <div className="sa-card"><p className="sa-empty">{err}</p></div>}
+      {(err || (info && info.error)) && <div className="sa-card"><p className="sa-empty">{err || 'Stripe said: ' + info.error}</p></div>}
 
       <div className="ad-grid2">
         <div className="sa-card">
-          <h3>💎 Premium <small>{plan.enabled ? 'on for everyone' : 'off'}</small></h3>
-          <label className="sa-toggle"><span><b>Offer Premium in the app</b><small>{ready ? 'Everything is set up.' : 'Finish the Stripe set-up on the right first.'}{st.mode === 'test' ? ' Stripe is in TEST mode: payments aren’t real.' : ''}</small></span><input type="checkbox" checked={!!plan.enabled} onChange={(e) => toggle(e.target.checked)} /></label>
-          <form className="sa-form" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); savePrice(); }}>
-            <label><span>Plan name</span><input value={price.name} maxLength={40} onChange={(e) => setPrice({ ...price, name: e.target.value })} /></label>
-            <div className="ad-two">
-              <label><span>Price</span><input type="number" min="0.5" step="0.01" value={price.amount} onChange={(e) => setPrice({ ...price, amount: e.target.value })} /></label>
-              <label><span>Currency</span><select value={price.currency} onChange={(e) => setPrice({ ...price, currency: e.target.value })}>{CURRENCIES.map((c) => <option key={c} value={c}>{c.toUpperCase()}</option>)}</select></label>
-            </div>
-            <label><span>Billed every</span><select value={price.interval} onChange={(e) => setPrice({ ...price, interval: e.target.value })}>{INTERVALS.map((i) => <option key={i} value={i}>{i}</option>)}</select></label>
-            <button className="btn" disabled={!st.connected || !!busy}>{busy === 'price' ? 'Saving…' : 'Save price'}</button>
-            <p className="ad-foot">Now: <b>{priceLabel(plan)}</b>{plan.priceId ? ` · Stripe price ${plan.priceId}` : ' · not in Stripe yet'}. A new price is created in Stripe; the old one is archived, and people already subscribed keep paying the old price.</p>
+          <h3>💎 Premium mode <small>{plan.enabled ? 'on for everyone' : 'off'}</small></h3>
+          <label className="sa-toggle"><span><b>Offer Premium in the app</b><small>{ready ? 'Everything is set up.' : 'Finish the Stripe checklist and add a package first.'}{hl.key && hl.key.mode === 'test' ? ' Stripe is in TEST mode: payments aren’t real.' : ''}</small></span><input type="checkbox" checked={!!plan.enabled} onChange={(e) => toggle(e.target.checked)} /></label>
+          <label className="sa-toggle"><span><b>Allow promotion codes</b><small>Shows “Add promotion code” on the payment page.</small></span><input type="checkbox" checked={plan.promoCodes !== false} onChange={(e) => savePlan({ promoCodes: e.target.checked }, e.target.checked ? 'Promo codes allowed' : 'Promo codes hidden')} /></label>
+          <form className="sa-form" style={{ marginTop: 10 }} onSubmit={(e) => { e.preventDefault(); savePlan({ name }, 'Name saved'); }}>
+            <label><span>Name people see</span><div style={{ display: 'flex', gap: 8 }}><input value={name} maxLength={40} onChange={(e) => setName(e.target.value)} /><button className="btn small" disabled={name === plan.name}>Save</button></div></label>
           </form>
         </div>
 
         <div className="sa-card">
-          <h3>💳 Stripe <small>{st.connected ? (st.mode === 'live' ? 'LIVE' : 'TEST mode') : 'not connected'}</small><button className="btn small ghost" onClick={load}>Refresh</button></h3>
-          {st.connected && <p className="ad-foot" style={{ marginTop: 0 }}>Connected to <b>{st.account || 'your Stripe account'}</b> with {st.key}{st.fromEnv ? ' (from Vercel env)' : ''}.</p>}
-          <ul className="ad-checklist">
-            <li className={st.connected ? 'ok' : ''}>Secret key saved {st.connected ? '✓' : ''}</li>
-            <li className={st.webhook ? 'ok' : ''}>Webhook created {st.webhook ? '✓' : '(made for you when you connect)'}</li>
-            <li className={plan.priceId ? 'ok' : ''}>Price in Stripe {plan.priceId ? '✓' : ''}</li>
-            {info && info.checks ? (
-              <>
-                <li className={ck.encryption ? 'ok' : 'bad'}>Encryption key (BILLING_KEY) {ck.encryption ? '✓' : 'missing in Vercel'}</li>
-                <li className={sa && sa.canWrite ? 'ok' : 'bad'}>Server can update Firestore {sa && sa.canWrite ? '✓' : sa ? <>: give <code>{sa.email}</code> the <b>Cloud Datastore User</b> role in Google Cloud → IAM, then Refresh</> : ': add a service account key (FIREBASE_ADMIN_KEY)'}</li>
-              </>
-            ) : <li>Checking the server set-up…</li>}
-            <li>Turn on the customer portal once: Stripe → Settings → Billing → Customer portal (lets people cancel or change card)</li>
-          </ul>
-          <form className="sa-form" onSubmit={(e) => { e.preventDefault(); act('connect', { action: 'connect', secretKey: key }, 'Stripe connected ✓').then((r) => { if (r) setKey(''); }); }}>
-            <label><span>{st.connected ? 'Replace secret key' : 'Stripe secret key'} <small>Stripe → Developers → API keys. Saved encrypted; never shown again.</small></span><input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value.trim())} placeholder="sk_test_… or sk_live_…" /></label>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn" disabled={!key || !!busy}>{busy === 'connect' ? 'Connecting…' : st.connected ? 'Replace key' : 'Connect Stripe'}</button>
-              {st.connected && !st.fromEnv && <button type="button" className="btn ghost" disabled={!!busy} onClick={() => { if (window.confirm('Disconnect Stripe? Premium switches off and the webhook is removed. Existing subscriptions keep running in Stripe.')) act('disconnect', { action: 'disconnect' }, 'Stripe disconnected'); }}>Disconnect</button>}
-            </div>
-          </form>
-          {st.error && <p className="sa-empty">Stripe said: {st.error}</p>}
+          <h3>💳 Stripe set-up <small>{hl.key && hl.key.ok ? (hl.key.mode === 'live' ? 'LIVE' : 'TEST mode') : 'not connected'}</small><button className="btn small ghost" onClick={load}>Re-check</button></h3>
+          {!info ? <p className="sa-empty">Checking…</p> : (
+            <ul className="ad-checklist">
+              <Check ok={hl.key && hl.key.ok} warn={hl.key && (hl.key.bad || hl.key.err)}>Secret key in Vercel (<code>STRIPE_SECRET_KEY</code>){hl.key && hl.key.ok ? ` · ${hl.key.masked}${hl.account ? ' · ' + hl.account : ''}` : hl.key && hl.key.bad ? ': that doesn’t look like a Stripe key' : hl.key && hl.key.err ? ': Stripe refused it' : ''}</Check>
+              <Check ok={hl.webhookSecret && hl.webhookSecret.ok} warn={hl.webhookSecret && hl.webhookSecret.bad}>Webhook signing secret in Vercel (<code>STRIPE_WEBHOOK_SECRET</code>)</Check>
+              <Check ok={hl.webhook && hl.webhook.found && hl.webhook.enabled && !hl.webhook.missing.length} warn={hl.webhook && hl.webhook.found && (!hl.webhook.enabled || hl.webhook.missing.length)}>Webhook endpoint in Stripe for <code>{info.webhookUrl || 'https://meetnibble.com/api/stripe/webhook'}</code>{hl.webhook && hl.webhook.found && hl.webhook.missing.length ? `: add events ${hl.webhook.missing.join(', ')}` : hl.webhook && hl.webhook.found && !hl.webhook.enabled ? ': it’s disabled' : ''}</Check>
+              <Check ok={hl.portal && hl.portal.ok}>Customer portal turned on (Stripe → Settings → Billing → Customer portal)</Check>
+              <Check ok={hl.serviceAccount && hl.serviceAccount.ok} warn={hl.serviceAccount && !hl.serviceAccount.ok}>Server can update Firestore{hl.serviceAccount && !hl.serviceAccount.ok ? <>: give <code>{hl.serviceAccount.email}</code> the <b>Cloud Datastore User</b> role</> : ''}</Check>
+              <Check ok={live.length > 0}>At least one package below</Check>
+            </ul>
+          )}
+          <p className="ad-foot">Keys are added in Vercel → Settings → Environment Variables, then redeploy. They’re never shown or stored here. <a className="sa-link" href="https://github.com/UvinduBro/nibble/blob/main/docs/STRIPE_SETUP.md" target="_blank" rel="noreferrer">Set-up guide</a>{hl.key && hl.key.ok ? <> · <a className="sa-link" href={dash} target="_blank" rel="noreferrer">Open Stripe ↗</a></> : null}</p>
         </div>
       </div>
 
       <div className="sa-card">
-        <h3>✨ Features <small>what people get</small><button className="btn small" style={{ marginLeft: 'auto' }} disabled={!featsDirty} onClick={saveFeats}>{featsDirty ? 'Save features' : 'Saved'}</button></h3>
+        <h3>📦 Packages <small>what people can buy</small><button className="btn small" style={{ marginLeft: 'auto' }} disabled={!!edit || (plan.packages || []).length >= 6} onClick={() => setEdit(blankPkg())}>＋ New package</button></h3>
+        {!(plan.packages || []).length && !edit && <p className="sa-empty">No packages yet.</p>}
+        <div className="ad-pkgs">
+          {(plan.packages || []).map((k) => (
+            <div key={k.id} className={'ad-pkg' + (k.active ? '' : ' off') + (plan.defaultPackage === k.id ? ' def' : '')}>
+              <div><b>{k.name}</b>{k.highlight && <span className="ad-pill">{k.highlight}</span>}{plan.defaultPackage === k.id && <span className="ad-pill dim">default</span>}</div>
+              <div className="ad-pkg-price">{money(k.amount, k.currency)} <small>/ {k.interval}</small></div>
+              <small>{k.trialDays ? `${k.trialDays}-day free trial · ` : ''}{k.priceId ? (k.active ? 'on sale' : 'hidden') : 'not in Stripe yet'} · id {k.id}</small>
+              <div className="ad-pkg-btns">
+                <button className="btn small ghost" disabled={!!busy} onClick={() => setEdit({ ...k, amount: (k.amount / 100).toFixed(2) })}>Edit</button>
+                {plan.defaultPackage !== k.id && <button className="btn small ghost" onClick={() => savePlan({ defaultPackage: k.id }, 'Default package set')}>Make default</button>}
+                <button className="btn small ghost" disabled={!!busy} onClick={() => act('pkg', { action: 'package', pkg: { ...k, active: !k.active } }, k.active ? 'Hidden from the app' : 'On sale again')}>{k.active ? 'Hide' : 'Show'}</button>
+                <button className="btn small ghost" disabled={!!busy} onClick={() => { if (window.confirm(`Remove “${k.name}”? People already subscribed keep it.`)) act('pkg', { action: 'archivePackage', id: k.id }, 'Package removed'); }}>Remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {edit && (
+          <form className="sa-form ad-pkg-form" onSubmit={savePkg}>
+            <div className="ad-two">
+              <label><span>Name</span><input value={edit.name} maxLength={30} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Yearly" required /></label>
+              <label><span>ID <small>short, can’t change later</small></span><input value={edit.id} maxLength={24} disabled={(plan.packages || []).some((k) => k.id === edit.id && edit.priceId)} onChange={(e) => setEdit({ ...edit, id: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} placeholder="yearly" required /></label>
+            </div>
+            <div className="ad-two">
+              <label><span>Price</span><input type="number" min="0.5" step="0.01" value={edit.amount} onChange={(e) => setEdit({ ...edit, amount: e.target.value })} placeholder="5.00" required /></label>
+              <label><span>Currency</span><select value={edit.currency} onChange={(e) => setEdit({ ...edit, currency: e.target.value })}>{CURRENCIES.map((c) => <option key={c} value={c}>{c.toUpperCase()}</option>)}</select></label>
+            </div>
+            <div className="ad-two">
+              <label><span>Billed every</span><select value={edit.interval} onChange={(e) => setEdit({ ...edit, interval: e.target.value })}>{INTERVALS.map((i) => <option key={i} value={i}>{i}</option>)}</select></label>
+              <label><span>Free trial <small>days, 0 = none</small></span><input type="number" min="0" max="90" value={edit.trialDays} onChange={(e) => setEdit({ ...edit, trialDays: e.target.value })} /></label>
+            </div>
+            <label><span>Label <small>optional, e.g. “Best value”</small></span><input value={edit.highlight} maxLength={20} onChange={(e) => setEdit({ ...edit, highlight: e.target.value })} /></label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" disabled={busy === 'pkg'}>{busy === 'pkg' ? 'Saving in Stripe…' : 'Save package'}</button>
+              <button type="button" className="btn ghost" onClick={() => setEdit(null)}>Cancel</button>
+            </div>
+            <p className="ad-foot">Saving creates the price in Stripe. Changing the price later makes a new one; people already subscribed keep theirs. Trials are only for people who’ve never had Premium.</p>
+          </form>
+        )}
+      </div>
+
+      <div className="sa-card">
+        <h3>✨ Features <small>what people get</small><button className="btn small" style={{ marginLeft: 'auto' }} disabled={!featsDirty} onClick={async () => { await savePlan({ features: feats.map(cleanFeature) }, 'Features saved'); setFeatsDirty(false); }}>{featsDirty ? 'Save features' : 'Saved'}</button></h3>
         <div className="ad-feats">
           {feats.map((f, i) => (
             <div key={f.id + i} className={'ad-feat' + (f.on === false ? ' off' : '')}>
@@ -1480,7 +1508,7 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
                 <input value={f.desc} maxLength={140} onChange={(e) => setF(i, { desc: e.target.value })} placeholder="Short description" aria-label="Description" />
               </div>
               <select value={f.key} onChange={(e) => setF(i, { key: e.target.value })} aria-label="What it does">
-                {Object.entries(PREMIUM_BUILTIN).map(([k, b]) => <option key={k} value={k}>Built-in: {b.title}</option>)}
+                {Object.entries(PREMIUM_BUILTIN).map(([k, x]) => <option key={k} value={k}>Built-in: {x.title}</option>)}
                 <option value="custom">Custom (listed only)</option>
               </select>
               <label className="ad-feat-on"><input type="checkbox" checked={f.on !== false} onChange={(e) => setF(i, { on: e.target.checked })} /> on</label>
@@ -1496,8 +1524,39 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
 
       <div className="ad-grid2">
         <div className="sa-card">
+          <h3>🏷️ Promotion codes</h3>
+          <form className="sa-form" onSubmit={(e) => { e.preventDefault(); act('promo', { action: 'promo', code: promo.code, ...(promo.kind === 'percent' ? { percentOff: Number(promo.percentOff) } : { amountOff: Math.round(Number(promo.amountOff) * 100), currency: promo.currency }), duration: promo.duration, months: promo.months, maxRedemptions: promo.maxRedemptions, expiresAt: promo.expiresAt }, `Code ${promo.code.toUpperCase()} created`).then((r) => { if (r) setPromo({ ...promo, code: '' }); }); }}>
+            <div className="ad-two">
+              <label><span>Code</span><input value={promo.code} maxLength={20} onChange={(e) => setPromo({ ...promo, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} placeholder="LAUNCH50" required /></label>
+              <label><span>Discount</span><select value={promo.kind} onChange={(e) => setPromo({ ...promo, kind: e.target.value })}><option value="percent">Percent off</option><option value="amount">Amount off</option></select></label>
+            </div>
+            {promo.kind === 'percent'
+              ? <label><span>Percent off</span><input type="number" min="1" max="100" value={promo.percentOff} onChange={(e) => setPromo({ ...promo, percentOff: e.target.value })} /></label>
+              : <div className="ad-two"><label><span>Amount off</span><input type="number" min="0.01" step="0.01" value={promo.amountOff} onChange={(e) => setPromo({ ...promo, amountOff: e.target.value })} /></label><label><span>Currency</span><select value={promo.currency} onChange={(e) => setPromo({ ...promo, currency: e.target.value })}>{CURRENCIES.map((c) => <option key={c} value={c}>{c.toUpperCase()}</option>)}</select></label></div>}
+            <div className="ad-two">
+              <label><span>Applies to</span><select value={promo.duration} onChange={(e) => setPromo({ ...promo, duration: e.target.value })}><option value="once">First payment</option><option value="repeating">Several months</option><option value="forever">Every payment</option></select></label>
+              {promo.duration === 'repeating' ? <label><span>Months</span><input type="number" min="1" max="36" value={promo.months} onChange={(e) => setPromo({ ...promo, months: e.target.value })} /></label> : <label><span>Max uses <small>optional</small></span><input type="number" min="1" value={promo.maxRedemptions} onChange={(e) => setPromo({ ...promo, maxRedemptions: e.target.value })} /></label>}
+            </div>
+            <label><span>Expires <small>optional</small></span><input type="date" value={promo.expiresAt} onChange={(e) => setPromo({ ...promo, expiresAt: e.target.value })} /></label>
+            <button className="btn" disabled={!promo.code || busy === 'promo' || !(hl.key && hl.key.ok)}>{busy === 'promo' ? 'Creating…' : 'Create code'}</button>
+          </form>
+          {((info && info.promos) || []).length > 0 && (
+            <table className="ad-mini" style={{ marginTop: 12 }}>
+              <thead><tr><th>Code</th><th>Discount</th><th>Used</th><th /></tr></thead>
+              <tbody>{info.promos.map((p) => (
+                <tr key={p.id} style={{ opacity: p.active ? 1 : 0.5 }}>
+                  <td><b>{p.code}</b>{p.expires ? <><br /><small>until {new Date(p.expires).toLocaleDateString()}</small></> : null}</td>
+                  <td>{p.off}<br /><small>{p.duration}</small></td>
+                  <td>{p.used}{p.max ? ` / ${p.max}` : ''}</td>
+                  <td><button className="btn small ghost" disabled={!!busy} onClick={() => act('promo', { action: 'promoActive', id: p.id, active: !p.active }, p.active ? 'Code turned off' : 'Code turned on')}>{p.active ? 'Turn off' : 'Turn on'}</button></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
+        </div>
+        <div className="sa-card">
           <h3>🎁 Gift Premium</h3>
-          <form className="sa-form" onSubmit={(e) => { e.preventDefault(); if (giftUser) act('grant', { action: 'grant', uid: giftUser.uid, days: Number(gift.days) }, `Premium gifted to @${giftUser.username}`); }}>
+          <form className="sa-form" onSubmit={(e) => { e.preventDefault(); if (giftUser) act('gift', { action: 'grant', uid: giftUser.uid, days: Number(gift.days) }, `Premium gifted to @${giftUser.username}`); }}>
             <div className="ad-two">
               <label><span>Username</span><input value={gift.who} onChange={(e) => setGift({ ...gift, who: e.target.value })} placeholder="@username" list="ad-users" /></label>
               <label><span>For</span><select value={gift.days} onChange={(e) => setGift({ ...gift, days: e.target.value })}>{[[30, '1 month'], [90, '3 months'], [365, '1 year'], [3650, '10 years']].map(([d, l]) => <option key={d} value={d}>{l}</option>)}</select></label>
@@ -1505,36 +1564,33 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
             <datalist id="ad-users">{users.slice(0, 500).map((u) => <option key={u.uid} value={'@' + u.username} />)}</datalist>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="btn" disabled={!giftUser || !!busy}>Gift Premium</button>
-              <button type="button" className="btn ghost" disabled={!giftUser || !!busy} onClick={() => { if (window.confirm(`Remove Premium from @${giftUser.username}? (A paid Stripe subscription would switch it back on at its next renewal.)`)) act('revoke', { action: 'revoke', uid: giftUser.uid }, 'Premium removed'); }}>Remove Premium</button>
+              <button type="button" className="btn ghost" disabled={!giftUser || !!busy} onClick={() => { if (window.confirm(`Remove Premium from @${giftUser.username}?`)) act('gift', { action: 'revoke', uid: giftUser.uid }, 'Premium removed'); }}>Remove Premium</button>
             </div>
-            <p className="ad-foot">{giftUser ? `@${giftUser.username} · ${giftUser.uid}` : 'Type a username from the list.'} Gifts add to any time they already have and never charge anyone.</p>
+            <p className="ad-foot">{giftUser ? `@${giftUser.username}` : 'Type a username from the list.'} Gifts never charge anyone and add to any time they already have.</p>
           </form>
-        </div>
-        <div className="sa-card">
-          <h3>🧪 Test it</h3>
-          <ol className="ad-steps">
-            <li>Connect with your <b>test</b> key (sk_test_…) and switch Premium on.</li>
-            <li>In the app → <b>Premium</b> → Get Premium. Pay with card <code>4242 4242 4242 4242</code>, any future date, any CVC.</li>
-            <li>You land back in the app and Premium switches on within a few seconds. It shows below too.</li>
-            <li>Then connect your <b>live</b> key (sk_live_…). Test subscribers don’t carry over.</li>
-          </ol>
-          <p className="ad-foot">Webhook address: <code>{info && info.webhookUrl}</code> (created for you).</p>
         </div>
       </div>
 
       <div className="sa-card">
         <h3>👥 Subscribers <small>{subs.length}{stats && stats.more ? '+' : ''}</small></h3>
-        {!subs.length && <p className="sa-empty">{st.connected ? 'No subscribers yet.' : 'Connect Stripe to see subscribers.'}</p>}
+        {!subs.length && <p className="sa-empty">{hl.key && hl.key.ok ? 'No subscribers yet.' : 'Add the Stripe keys to see subscribers.'}</p>}
         {subs.length > 0 && (
           <table className="ad-mini">
             <thead><tr><th>Who</th><th>Status</th><th>Renews / ends</th><th>Price</th><th /></tr></thead>
             <tbody>{subs.map((x) => (
               <tr key={x.id}>
-                <td>{nameOf(x.uid) ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(x.uid); }}>@{nameOf(x.uid)}</button> : x.uid}<br /><small style={{ color: 'var(--muted)' }}>{x.email}</small></td>
+                <td>{nameOf(x.uid) ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(x.uid); }}>@{nameOf(x.uid)}</button> : x.uid}<br /><small style={{ color: 'var(--muted)' }}>{x.email}{x.pkg ? ' · ' + x.pkg : ''}</small></td>
                 <td><b style={{ color: SUB_COLOR[x.status] || C.slate }}>{x.status.replace('_', ' ')}</b>{x.cancelAtEnd ? <small> · cancelling</small> : null}</td>
                 <td>{x.until ? new Date(x.until).toLocaleDateString() : '—'}</td>
                 <td>{money(x.amount, x.currency)}/{x.interval}</td>
-                <td><button className="btn small ghost" disabled={!!busy} onClick={() => act('resync', { action: 'resync', uid: x.uid }, 'Synced')}>Sync</button> <a className="btn small ghost" href={`https://dashboard.stripe.com/${st.mode === 'test' ? 'test/' : ''}subscriptions/${x.id}`} target="_blank" rel="noreferrer">Stripe ↗</a></td>
+                <td className="ad-sub-btns">
+                  {['active', 'trialing', 'past_due'].includes(x.status) && (x.cancelAtEnd
+                    ? <button className="btn small ghost" disabled={!!busy} onClick={() => act('sub', { action: 'resume', subId: x.id }, 'Subscription resumed')}>Resume</button>
+                    : <button className="btn small ghost" disabled={!!busy} onClick={() => { if (window.confirm('Cancel at the end of the period they paid for? They keep Premium until then.')) act('sub', { action: 'cancel', subId: x.id }, 'Will cancel at period end'); }}>Cancel</button>)}
+                  {['active', 'trialing', 'past_due'].includes(x.status) && <button className="btn small ghost" disabled={!!busy} onClick={() => { if (window.confirm('Cancel NOW? Premium ends immediately. (Refunds are done in Stripe.)')) act('sub', { action: 'cancel', subId: x.id, now: true }, 'Cancelled now'); }}>End now</button>}
+                  <button className="btn small ghost" disabled={!!busy} onClick={() => act('sub', { action: 'resync', uid: x.uid }, 'Synced')}>Sync</button>
+                  <a className="btn small ghost" href={`${dash}subscriptions/${x.id}`} target="_blank" rel="noreferrer">Stripe ↗</a>
+                </td>
               </tr>
             ))}</tbody>
           </table>
@@ -1543,6 +1599,8 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
     </>
   );
 }
+// the plan before config/premium loads
+function cleanPlanUI() { return { ...DEFAULT_PLAN, packages: DEFAULT_PLAN.packages, features: DEFAULT_PLAN.features }; }
 
 // ---------- Reviews: approve before they go public ----------
 const RV_FILTERS = [['pending', 'Waiting'], ['approved', 'Live'], ['hidden', 'Hidden'], ['all', 'All']];
@@ -1625,7 +1683,7 @@ const NAV = [
     ['marketing', 'Marketing', '📢', 'Bulk email: import contacts, pick a designed template, preview it, test it and send it to a list.', ['Import only people who agreed to hear from you; keep them in “Imported contacts”.', 'Always send yourself a test first, and check the phone preview.', 'Free plan: 3,000 emails a month, 100 a day. Bigger lists need a paid Resend plan.', 'Every email gets an unsubscribe link automatically.']],
   ]],
   ['Money', [
-    ['premium', 'Premium', '💎', 'Nibble Premium: switch it on or off, set the price and the features, connect Stripe and see who’s subscribed.', ['Start with a Stripe test key (sk_test_…) and buy Premium yourself with card 4242 4242 4242 4242, then switch to your live key.', 'A new price only applies to new subscribers; people already subscribed keep theirs.', 'Built-in features change the app (badge, double bonus, bigger rooms); custom ones are just listed.']],
+    ['premium', 'Premium', '💎', 'Nibble Premium: switch it on or off, manage packages, prices, free trials, promo codes and features, check the Stripe set-up and manage subscribers.', ['Stripe keys go in Vercel environment variables (see the set-up guide); this page never shows them.', 'Test with a sk_test_ key and card 4242 4242 4242 4242 before switching to live keys.', 'A new price only applies to new subscribers; people already subscribed keep theirs.', 'Built-in features change the app (badge, double bonus, bigger rooms); custom ones are just listed.']],
   ]],
   ['Grow', [
     ['seo', 'SEO', '🔎', 'How Nibble looks on Google and when shared: page titles, descriptions and share images.', ['Titles: 30–60 characters. Descriptions: 120–160.', 'After big changes, ask Google to re-crawl from Search Console → URL inspection.', 'Use Facebook’s Sharing Debugger to refresh old share previews.']],

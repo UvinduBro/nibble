@@ -10,7 +10,7 @@ import PetFigure, { useNibble } from '../PetFigure';
 import { byKey, CHARACTERS } from '../../lib/characters';
 import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess, cleanStyleMap } from '../../lib/social/social';
 import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
-import { priceLabel, BUILTIN as PREMIUM_PERKS } from '../../lib/premium';
+import { priceLabel, buyable, money as fmtMoney, BUILTIN as PREMIUM_PERKS } from '../../lib/premium';
 import { MIN_REVIEW, MAX_REVIEW } from '../../lib/reviews';
 import Wardrobe from './Wardrobe';
 import Arcade from './Arcade';
@@ -466,6 +466,9 @@ function PremiumPage({ social, state, toast, desktop }) {
   const active = social.premium.active();
   const [busy, setBusy] = useState('');
   const [waiting, setWaiting] = useState(false);
+  const options = plan ? buyable(plan) : [];
+  const [pick, setPick] = useState('');
+  const chosen = options.find((k) => k.id === pick) || options[0];
   // after paying, Stripe tells our server in a few seconds; check a few times so Premium shows up
   const check = async (quiet) => {
     try { await social.premium.refresh(); } catch (e) { if (!quiet) toast({ err: true, text: niceError(e) }); }
@@ -492,7 +495,7 @@ function PremiumPage({ social, state, toast, desktop }) {
   const go = async (kind) => {
     setBusy(kind);
     try {
-      const url = kind === 'buy' ? await social.premium.checkout() : await social.premium.portal();
+      const url = kind === 'buy' ? await social.premium.checkout(chosen && chosen.id) : await social.premium.portal();
       if (!/^https:\/\/(checkout|billing)\.stripe\.com\//.test(url)) throw new Error('Unexpected payment link.');
       if (desktop) { window.open(url, '_blank'); toast({ text: 'Finish in your browser, then come back here.' }); }
       else location.href = url;
@@ -522,11 +525,23 @@ function PremiumPage({ social, state, toast, desktop }) {
             <p className="sa-sub">{prem.source === 'admin' ? `Gifted by the Nibble team until ${until}.` : prem.cancelAtEnd ? `Ends on ${until}. You won’t be charged again.` : `Renews on ${until}.`}{prem.status === 'past_due' ? ' Your last payment didn’t go through: update your card to keep Premium.' : ''}</p>
             {prem.source !== 'admin' && <button className="btn small" disabled={!!busy} onClick={() => go('manage')}>{busy === 'manage' ? 'Opening…' : 'Manage subscription'}</button>}
           </>
-        ) : plan && plan.enabled ? (
+        ) : plan && plan.enabled && chosen ? (
           <>
             <h3>Get Premium</h3>
+            {options.length > 1 && (
+              <div className="sa-pkgs" role="radiogroup" aria-label="Choose a plan">
+                {options.map((k) => (
+                  <button key={k.id} type="button" role="radio" aria-checked={chosen.id === k.id} className={'sa-pkg' + (chosen.id === k.id ? ' on' : '')} onClick={() => setPick(k.id)}>
+                    {k.highlight && <em>{k.highlight}</em>}
+                    <b>{k.name}</b>
+                    <span>{fmtMoney(k.amount, k.currency)} <small>/ {k.interval}</small></span>
+                    {k.trialDays > 0 && <small>{k.trialDays}-day free trial</small>}
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="sa-sub">Secure payment by Stripe. Card, Apple Pay and Google Pay where available. You can cancel any time from here.</p>
-            <button className="btn" disabled={!!busy || waiting} onClick={() => go('buy')}>{waiting ? 'Confirming your payment…' : busy === 'buy' ? 'Opening Stripe…' : `Get Premium · ${priceLabel(plan)}`}</button>
+            <button className="btn" disabled={!!busy || waiting} onClick={() => go('buy')}>{waiting ? 'Confirming your payment…' : busy === 'buy' ? 'Opening Stripe…' : chosen.trialDays > 0 && !prem ? `Start ${chosen.trialDays}-day free trial` : `Get Premium · ${fmtMoney(chosen.amount, chosen.currency)} / ${chosen.interval}`}</button>
             {(desktop || waiting) && <button className="btn small ghost" style={{ marginLeft: 8 }} onClick={() => check(false)}>I’ve paid: check again</button>}
           </>
         ) : <p className="sa-empty">Premium isn’t available right now. Check back soon!</p>}

@@ -72,11 +72,14 @@ service cloud.firestore {
 
     // ---------- Nibble Premium ----------
     // the public plan (price, features, on/off). Anyone can read it (the website shows the price);
-    // admins edit it. The Stripe price id is set by the server when an admin changes the price.
+    // admins edit it. Packages (with their Stripe price ids) are written by the server when an admin saves one.
     match /config/premium {
       allow read: if true;
       allow write: if isAdmin()
-        && incoming().keys().hasOnly(['enabled', 'name', 'amount', 'currency', 'interval', 'priceId', 'productId', 'features', 'updatedAt', 'by'])
+        && incoming().keys().hasOnly(['enabled', 'name', 'amount', 'currency', 'interval', 'priceId', 'productId', 'features', 'packages', 'promoCodes', 'defaultPackage', 'updatedAt', 'by'])
+        && (!('packages' in incoming()) || (incoming().packages is list && incoming().packages.size() <= 6))
+        && incoming().get('promoCodes', true) is bool
+        && shortText(incoming().get('defaultPackage', ''), 24)
         && incoming().get('enabled', false) is bool
         && shortText(incoming().get('name', ''), 40)
         && shortText(incoming().get('currency', 'usd'), 3)

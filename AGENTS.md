@@ -96,7 +96,7 @@ database. No custom backend server besides Next.js route handlers.
 `presence`, `inbox/{uid}/items`, `rooms`, `wallets`, `gifts`, `matches` (friend games, switched off),
 `lan/{net}/members`, `signup`, `reports`, `reminders`, `admins` (console-only), `banned`,
 `broadcast`/`broadcasts`, `config/app`, `config/premium` (public), `premium/{uid}` (server/admin
-only), `billing/*` + `billingCustomers/*` (server only, never readable from a browser),
+only), `billingCustomers/*` (server only, never readable from a browser; `billing/health` is a write test),
 `reviews/{uid}`, `seo/site` (public).
 
 ## 4. Website, admin and business features
@@ -113,11 +113,18 @@ only), `billing/*` + `billingCustomers/*` (server only, never readable from a br
   or file, consent checkbox required). Templates in `lib/emailTemplates.js` in the flyer look;
   Gmail dark-mode safe (gradient backgrounds, blend-mode text, button is an image from `/mail-btn`).
 - **Premium** (`lib/billing.js`, `lib/premium.js`, `app/api/billing/*`, `app/api/stripe/webhook`,
-  `app/api/admin/premium`): Stripe Checkout + customer portal, no SDK. Stripe secret key is saved
-  from Admin → Premium, **AES-256-GCM encrypted with `BILLING_KEY`**, stored in `billing/secrets`
-  via the service account; connecting auto-creates the webhook + price. Webhook verifies the
-  signature (5-min tolerance) and re-fetches the subscription before writing `premium/{uid}`.
-  Perks: badge, double daily bonus, music rooms for 20 (rules enforce bonus + room size).
+  `app/api/admin/premium`): Stripe Checkout + customer portal, no SDK. **Stripe keys live only in
+  Vercel env** (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`); the admin page never shows or stores
+  them. Set-up steps for the payment person: `docs/STRIPE_SETUP.md`. The webhook endpoint is created
+  by hand in the Stripe dashboard (6 events, see `WEBHOOK_EVENTS`). Webhook verifies the signature
+  (5-min tolerance) and re-fetches the subscription before writing `premium/{uid}`.
+  Plan (`config/premium`): on/off, name, promo-codes toggle, default package, features, and up to 6
+  **packages** (id, name, amount, currency, year/month/week, trial days, label, active, Stripe
+  priceId). Packages are saved through the server (it creates the Stripe price; a new amount = new
+  price, old one archived). Admin → Premium also: Stripe health checklist, promotion codes
+  (coupon + code), subscribers with cancel at period end / end now / resume / sync, gifts.
+  Trials only for accounts that never had Premium. Perks: badge, double daily bonus, music rooms
+  for 20 (rules enforce bonus + room size).
 - **Reviews** (`lib/reviews.js`): one per account from the app (Feedback page + Home prompt),
   pending until an admin approves; public section on the home page; AggregateRating JSON-LD only
   with ≥ 3 real approved reviews. **Never invent reviews or testimonials.**
@@ -132,10 +139,10 @@ only), `billing/*` + `billingCustomers/*` (server only, never readable from a br
 Names only; never commit or print values.
 `RESEND_API_KEY` (send-only), `RESEND_MARKETING_KEY` (contacts + broadcasts), `RESEND_SEGMENT_ID`,
 `RESEND_IMPORT_SEGMENT_ID`, `MAIL_FROM`, `CONTACT_TO`, `SMTP_USER`, `SMTP_PASS`, `NET_SALT`
-(secret salt for `/api/netid`), `BILLING_KEY` (64 hex, encrypts saved Stripe keys),
+(secret salt for `/api/netid`), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
 `GCP_USAGE_KEY` (service-account JSON; also used for server Firestore writes unless
-`FIREBASE_ADMIN_KEY` is set), optional `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` (override the
-saved ones), `NEXT_PUBLIC_GSC_VERIFY` (optional). Firebase web config in `lib/social/config.js` is public.
+`FIREBASE_ADMIN_KEY` is set), `NEXT_PUBLIC_GSC_VERIFY` (optional). (`BILLING_KEY` is no longer
+used and can be deleted.) Firebase web config in `lib/social/config.js` is public.
 
 ## 6. API routes (all in `app/api/`)
 
@@ -168,7 +175,7 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 
 - Publish the latest `firestore.rules` (Premium, Reviews, SEO sections).
 - Give the service account (shown in Admin → Premium) the **Cloud Datastore User** role.
-- Stripe: connect test key, enable the customer portal, test with 4242 4242 4242 4242, then live key; consider Stripe Tax.
+- Stripe: follow `docs/STRIPE_SETUP.md` (keys in Vercel env, webhook, portal, test with 4242…, then live); consider Stripe Tax.
 - Google Search Console + Bing Webmaster Tools: verify, submit `sitemap.xml`, request indexing.
 - Add `meetnibble.com` to Firebase authorized domains, then switch desktop `SITE` to it.
 - Firebase App Check (stops direct-to-Firestore spam on `reports`).
@@ -178,6 +185,11 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 ## 9. Changelog
 
 Newest first. Add an entry for every piece of work.
+
+- **2026-11-19** Premium: Stripe keys moved to Vercel env only (removed the admin key box and the
+  encrypted key storage); multiple packages with trials and labels, package picker in the app;
+  admin Stripe health checklist, promotion codes, cancel / resume / end-now subscriptions;
+  `docs/STRIPE_SETUP.md` for the payment set-up. Rules: `config/premium` allows packages fields.
 
 - **2026-11-19** Pre-launch fixes (version stays 2.0.22): admin page waits for account/admin check
   (no false "finish set-up" / "not an admin"), clear non-team message; "Waking up…" never hangs
