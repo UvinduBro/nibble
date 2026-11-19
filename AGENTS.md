@@ -186,6 +186,10 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 
 Newest first. Add an entry for every piece of work.
 
+- **2026-11-19** Fix: accepting a friend request failed ("Not allowed") because the friends rule
+  compared the second write (adding you to the requester's list) with the wrong user's name; it
+  now always checks the username of the friend being added (`fid`).
+
 - **2026-11-19** Premium: Stripe keys moved to Vercel env only (removed the admin key box and the
   encrypted key storage); multiple packages with trials and labels, package picker in the app;
   admin Stripe health checklist, promotion codes, cancel / resume / end-now subscriptions;

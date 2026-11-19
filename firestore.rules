@@ -171,8 +171,8 @@ service cloud.firestore {
         allow create: if signedIn() && !isBanned()
           && incoming().keys().hasOnly(['username', 'since'])
           && shortText(incoming().username, 20)
-          // the name saved for a friend is their real username (no one can pose as someone else)
-          && incoming().username == get(/databases/$(database)/documents/users/$(uid == me() ? fid : uid)).data.username
+          // the name saved for a friend (fid) is fid's real username, on either side (no one can pose as someone else)
+          && incoming().username == get(/databases/$(database)/documents/users/$(fid)).data.username
           && (
             // accepting: add the requester to my list…
             (uid == me() && exists(/databases/$(database)/documents/requests/$(fid + '_' + me())))
