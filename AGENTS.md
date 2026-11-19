@@ -50,10 +50,10 @@ database. No custom backend server besides Next.js route handlers.
 | `app/llms.txt`, `app/llms-full.txt` | Facts for AI assistants (AEO) |
 | `app/robots.js`, `sitemap.js`, `manifest.js`, `layout.js` | SEO plumbing; metadata comes from `lib/seo.js` |
 | `app/Get-Nibble.exe`, `Nibble.dmg`, `install.*`, `install-files.txt` | Installers / downloads |
-| `components/social/` | The app UI: `SocialApp.js` (all app pages), `AdminApp.js` (all admin pages), `Auth.js`, `Music.js`, `Arcade.js`, `Wardrobe.js`, `Leaderboard.js`, `LiveDesk.js`, `Feedback.js`, `useSocial.js`, `social.css` |
+| `components/social/` | The app UI: `SocialApp.js` (all app pages), `AdminApp.js` (all admin pages), `Auth.js`, `Music.js`, `Arcade.js`, `Wardrobe.js`, `Leaderboard.js`, `LiveDesk.js`, `Feedback.js`, `Groups.js`, `TeaRoom.js`, `useSocial.js`, `social.css` |
 | `components/landing/`, `About.js`, `Sections.js`, `Desktop.js`, `PetFigure.js` | Website UI |
-| `lib/social/` | Client logic: `social.js` (core), `firebaseAdapter.js`, `fakeAdapter.js` (local test mode), `music.js`, `wallet.js`, `games.js`, `lan.js`, `config.js` |
-| `lib/` (server/shared) | `billing.js` (Stripe), `premium.js` (plan shape), `gcp.js` (service account + Firestore REST), `adminAuth.js`, `mail.js` (Resend/SMTP), `marketing.js`, `emailTemplates.js`, `reviews.js`, `seo.js`, `facts.js` (one source of truth for SEO/AEO), `installer.js`, `usage.js`, `reports.js`, `signup.js`, `shop.js`, `characters.js`, `stage.js` |
+| `lib/social/` | Client logic: `social.js` (core), `firebaseAdapter.js`, `fakeAdapter.js` (local test mode), `music.js`, `wallet.js`, `games.js`, `lan.js`, `groups.js`, `tea.js`, `config.js` |
+| `lib/` (server/shared) | `billing.js` (Stripe), `premium.js` (plan shape), `gcp.js` (service account + Firestore REST), `adminAuth.js`, `mail.js` (Resend/SMTP), `marketing.js`, `emailTemplates.js`, `reviews.js`, `seo.js`, `facts.js` (one source of truth for SEO/AEO), `installer.js`, `usage.js`, `reports.js`, `signup.js`, `shop.js`, `characters.js`, `stage.js`, `tea.js` (Tea Room constants/filters/masks), `teaCore.js` (Tea Room actions, shared by server + test mode), `teaServer.js` |
 | `public/nibble/engine/` | The pet engine (plain JS, no build): `pet.js`, `draw.js`, `lines.js`, `skins.js`, `wardrobe.js`, `social-draw.js`. Used by the website **and** copied into the desktop app |
 | `public/app/` | **Desktop app source** (Electron): `src/main.js`, `hub.js`, `preload.js`, `hubPreload.js`, `windowWatcher.js` (+ `helper/WinWatch.cs`), `nowPlaying.js`, `settings.js`, `renderer/` |
 | `public/email/` | Email art cut from the flyer (logo, icons, peeking Nibble, flyer.jpg) |
@@ -97,7 +97,27 @@ database. No custom backend server besides Next.js route handlers.
 `lan/{net}/members`, `signup`, `reports`, `reminders`, `admins` (console-only), `banned`,
 `broadcast`/`broadcasts`, `config/app`, `config/premium` (public), `premium/{uid}` (server/admin
 only), `billingCustomers/*` (server only, never readable from a browser; `billing/health` is a write test),
-`reviews/{uid}`, `seo/site` (public).
+`reviews/{uid}`, `seo/site` (public), `groups/{gid}` (+ `msgs`), `teaRooms/{feed}/posts/{pid}` (+ `comments`;
+server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports`, `teaHidden`, `teaFlags`.
+
+### Groups and Tea Room
+- **Groups** (`lib/social/groups.js`, `components/social/Groups.js`): up to 20 people, max 10 groups each. Only
+  friends can be invited (rules check, one invite per write). Group chat in `groups/{gid}/msgs` (members
+  only, `exp` = 24 h; expired ones are deleted by whoever opens the chat). Each message also bumps
+  `chatAt`/`chatBy` on the group doc, which every member already watches → unread badge + desktop
+  notification without extra listeners. Group actions: pack walk (`bring` every friend member's pet, then a
+  dance), wave at all, Listen Together with the group, group points (one-off wallet reads).
+- **Tea Room** (`lib/tea.js`, `lib/teaCore.js`, `lib/social/tea.js`, `components/social/TeaRoom.js`):
+  feeds = `all` (Everyone) + one per group. **All writes go through `/api/tea`** (service account) so a
+  masked post never stores its author; the author is in `teaAuthors` (server only). Mask = HMAC(secret,
+  uid:thread) → animal + colour, stable within a thread (secret: `TEA_SALT` → `NET_SALT` → derived from
+  the service key). Posts last 48 h (expired ones swept when someone posts), reactions (🍵😱🤫🧢✅),
+  comments, daily prompt, report → hidden at 3 reports (text moved to `teaHidden`). Daily limits per
+  person in `LIMITS`. Masked posts can't @mention, link, or share emails/phones. Admin switches in
+  `config/app.tea` (`on`, `everyone`, `anon` (groups), `anonAll` (Everyone, off by default)) + `teaWords`.
+  Admin → Inbox → Tea Room shows flags with the real author, latest Everyone posts, hide / restore /
+  delete / suspend. Reading is one page of 20 per open (no live listener); the "new tea" dot is one
+  1-doc read every 30 min. Test mode runs `teaCore` in the browser against the fake DB.
 
 ## 4. Website, admin and business features
 
@@ -141,14 +161,14 @@ Names only; never commit or print values.
 `RESEND_IMPORT_SEGMENT_ID`, `MAIL_FROM`, `CONTACT_TO`, `SMTP_USER`, `SMTP_PASS`, `NET_SALT`
 (secret salt for `/api/netid`), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
 `GCP_USAGE_KEY` (service-account JSON; also used for server Firestore writes unless
-`FIREBASE_ADMIN_KEY` is set), `NEXT_PUBLIC_GSC_VERIFY` (optional). (`BILLING_KEY` is no longer
+`FIREBASE_ADMIN_KEY` is set), `TEA_SALT` (optional; secret for Tea Room masks, falls back to `NET_SALT`), `NEXT_PUBLIC_GSC_VERIFY` (optional). (`BILLING_KEY` is no longer
 used and can be deleted.) Firebase web config in `lib/social/config.js` is public.
 
 ## 6. API routes (all in `app/api/`)
 
-`build` (deployed commit), `feedback` (website reports/contact → Firestore REST + email), `netid`,
+`build` (deployed commit), `tea` (Tea Room actions), `feedback` (website reports/contact → Firestore REST + email), `netid`,
 `oembed`, `mac-release`, `subscribe` (newsletter opt-in), `billing/{checkout,portal,status}`,
-`stripe/webhook`, `admin/{usage,email,marketing,premium,seo,indexnow}`. Admin routes check the
+`stripe/webhook`, `admin/{usage,email,marketing,premium,seo,indexnow,tea}`. Admin routes check the
 caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with that token).
 
 ## 7. Rules and conventions
@@ -173,8 +193,9 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 
 ## 8. Owner to-do / open items (as of 2026-11-19)
 
-- Publish the latest `firestore.rules` (Premium, Reviews, SEO sections).
-- Give the service account (shown in Admin → Premium) the **Cloud Datastore User** role.
+- Publish the latest `firestore.rules` (Premium, Reviews, SEO, Groups, Tea Room sections).
+- Give the service account (shown in Admin → Premium) the **Cloud Datastore User** role (Premium **and the
+  Tea Room** need it: every Tea Room post is written by the server).
 - Stripe: follow `docs/STRIPE_SETUP.md` (keys in Vercel env, webhook, portal, test with 4242…, then live); consider Stripe Tax.
 - Google Search Console + Bing Webmaster Tools: verify, submit `sitemap.xml`, request indexing.
 - Add `meetnibble.com` to Firebase authorized domains, then switch desktop `SITE` to it.
@@ -185,6 +206,16 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 ## 9. Changelog
 
 Newest first. Add an entry for every piece of work.
+
+- **2026-11-19** Groups + Tea Room. Groups: create (name + icon), invite friends, accept / decline /
+  leave, owner rename / remove / delete, 24 h group chat with unread badges and desktop notifications,
+  pack walk, wave at all, listen together, group points. Tea Room: Everyone feed + a feed per group,
+  posts as yourself or masked (server-written, author hidden), reactions, comments, daily question,
+  reports with auto-hide at 3, 48 h expiry, daily limits, blocked words. Admin → Tea Room (switches,
+  blocked words, flags with real author, hide / restore / delete / suspend). New rules sections
+  (groups, msgs, teaRooms, config/app `tea` + `teaWords`). Adapters gained `list()` / `watchQuery()`;
+  `lib/gcp.js` gained `fsQuery()` / `fsIncrement()`. Hub notifications may open `groups` / `tea`
+  (ships with the next desktop build).
 
 - **2026-11-19** Fix: accepting a friend request failed ("Not allowed") because the friends rule
   compared the second write (adding you to the requester's list) with the wrong user's name; it

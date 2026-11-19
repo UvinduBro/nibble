@@ -1203,3 +1203,96 @@
 .sa-pkg em { position: absolute; top: -9px; right: 10px; font-style: normal; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: #ffd166; color: #1a1300; }
 .sa-pkg span { font-size: 20px; font-weight: 800; color: var(--mint); }
 .sa-pkg span small, .sa-pkg > small { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+
+/* ---------- Groups ---------- */
+.gr .btn.danger, .tea .btn.danger { border-color: rgba(255, 122, 122, 0.45); color: #ff9a9a; }
+.gr-emo { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); font-size: 19px; flex: none; }
+.gr-emo.big { width: 46px; height: 46px; font-size: 24px; border-radius: 14px; }
+.gr-new-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--pink); margin-left: 6px; flex: none; box-shadow: 0 0 0 3px rgba(255, 143, 208, 0.18); }
+.gr-inv { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-color: rgba(255, 143, 208, 0.35); }
+.gr-inv > span:nth-child(2) { flex: 1; min-width: 160px; }
+.gr-inv b { display: block; }
+.gr-inv small, .gr-top small { color: var(--muted); font-size: 12.5px; display: block; }
+.gr-empty { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.gr-empty h3 { margin: 0; }
+.gr-new label { color: var(--muted); }
+.gr-emojis { display: flex; flex-wrap: wrap; gap: 6px; }
+.gr-emojis button { all: unset; cursor: pointer; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; border: 1px solid var(--line); font-size: 19px; }
+.gr-emojis button.on { border-color: var(--mint); background: rgba(126, 232, 198, 0.12); }
+.gr-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.gr-pick button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border-radius: 999px; border: 1px solid var(--line); font-size: 13.5px; font-weight: 600; }
+.gr-pick button.on { border-color: var(--mint); background: rgba(126, 232, 198, 0.12); color: var(--mint); }
+.gr-pick button:disabled { opacity: 0.4; cursor: default; }
+.gr-pick button i { font-style: normal; }
+.gr-wrap .sa-threads button > span:nth-child(2) { flex: 1; min-width: 0; }
+.gr-wrap .sa-threads button > .gr-emo { flex: none; }
+.gr-panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.gr-top { display: flex; align-items: center; gap: 12px; }
+.gr-top b { font-size: 18px; }
+.gr-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.gr-acts button { all: unset; cursor: pointer; display: inline-flex; align-items: center; padding: 7px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); font-weight: 700; font-size: 13px; }
+.gr-acts button:hover { border-color: rgba(126, 232, 198, 0.5); }
+.gr-tabs { width: fit-content; max-width: 100%; overflow-x: auto; }
+.gr-tabs button { white-space: nowrap; display: inline-flex; align-items: center; }
+.gr-chat .sa-msgs { min-height: 200px; max-height: 50vh; padding: 4px 2px; }
+.gr-chat .sa-saybar { margin: 10px 0 0; }
+.gr-mini { all: unset; cursor: pointer; margin-left: 6px; opacity: 0.45; font-size: 11px; }
+.gr-mini:hover { opacity: 1; }
+.gr-members { display: flex; flex-direction: column; gap: 8px; }
+.gr-mem { display: flex; align-items: center; gap: 10px; }
+.gr-mem-name { flex: 1; min-width: 0; }
+.gr-mem-name b { display: block; font-size: 14px; }
+.gr-mem-name small { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 5px; }
+.gr-invite { display: flex; flex-direction: column; gap: 10px; padding-top: 6px; }
+.gr-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gr-points li { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); }
+.gr-points li.me { outline: 1px solid rgba(126, 232, 198, 0.5); }
+.gr-points span { width: 26px; text-align: center; font-weight: 800; }
+.gr-points b { flex: 1; }
+.gr-points em { font-style: normal; font-weight: 800; color: var(--yellow); }
+.gr-settings { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+
+/* ---------- Tea Room ---------- */
+.tea-feeds { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; }
+.tea-feeds button { all: unset; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); font-weight: 700; font-size: 13.5px; color: var(--muted); }
+.tea-feeds button.on { background: var(--mint); color: #0b1a16; border-color: var(--mint); }
+.tea-prompt { all: unset; cursor: pointer; box-sizing: border-box; width: 100%; display: flex; flex-direction: column; gap: 3px; padding: 14px 18px; margin-bottom: 12px; border-radius: var(--r); background: linear-gradient(120deg, rgba(255, 209, 102, 0.16), rgba(255, 143, 208, 0.12)); border: 1px solid rgba(255, 209, 102, 0.3); }
+.tea-prompt span { font-size: 12px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; color: var(--yellow); }
+.tea-prompt b { font-size: 17px; }
+.tea-prompt small { color: var(--muted); font-size: 12.5px; }
+.tea-prompt.on { border-color: var(--yellow); }
+.tea-compose textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 78px; font: inherit; }
+.tea-compose-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.tea-compose-row em { margin-left: auto; font-style: normal; color: var(--muted); font-size: 12px; font-weight: 700; }
+.tea-rules { display: block; color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.5; }
+.tea-anon { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; font-weight: 700; user-select: none; white-space: nowrap; }
+.tea-anon input { display: none; }
+.tea-anon.on { background: #2b2f55; border-color: rgba(155, 93, 229, 0.7); color: #d9c6ff; }
+.tea-anon-off { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.tea-mask { position: relative; display: inline-grid; place-items: center; border-radius: 30%; flex: none; }
+.tea-mask i { position: absolute; bottom: -4px; right: -6px; font-style: normal; font-size: 13px; }
+.tea-chip { font-style: normal; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 999px; background: rgba(155, 93, 229, 0.22); color: #d9c6ff; margin-left: 6px; }
+.tea-post header { display: flex; align-items: center; gap: 10px; }
+.tea-post header > .tea-who { flex: 1; min-width: 0; }
+.tea-post header small { display: block; color: var(--muted); font-size: 12px; }
+.tea-post.masked { border-color: rgba(155, 93, 229, 0.3); }
+.tea-prompt-tag { margin: 12px 0 0; font-size: 12.5px; color: var(--yellow); font-weight: 700; }
+.tea-text { margin: 10px 0 12px; font-size: 15.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tea-post footer { display: flex; flex-wrap: wrap; gap: 6px; }
+.tea-post footer button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); border: 1px solid transparent; font-size: 15px; }
+.tea-post footer button b { font-size: 12.5px; }
+.tea-post footer button.on { border-color: var(--mint); background: rgba(126, 232, 198, 0.12); }
+.tea-post footer .tea-ccount { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--muted); }
+.tea-thread { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.tea-c { display: flex; gap: 10px; align-items: flex-start; }
+.tea-c > div { min-width: 0; flex: 1; }
+.tea-c small { color: var(--muted); font-size: 12px; }
+.tea-c small b { color: var(--text); }
+.tea-c p { margin: 3px 0 0; overflow-wrap: anywhere; }
+.tea-reply { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tea-reply input { flex: 1; min-width: 160px; }
+.tea-more { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
+@media (max-width: 640px) {
+  .gr-panel { padding: 12px; }
+  .tea-post footer .tea-ccount { margin-left: 0; }
+}

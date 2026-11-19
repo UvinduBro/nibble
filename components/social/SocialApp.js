@@ -15,6 +15,9 @@ import { MIN_REVIEW, MAX_REVIEW } from '../../lib/reviews';
 import Wardrobe from './Wardrobe';
 import Arcade from './Arcade';
 import Leaderboard from './Leaderboard';
+import Groups from './Groups';
+import TeaRoom from './TeaRoom';
+import { teaConfig } from '../../lib/tea';
 import FeedbackForm, { systemName } from './Feedback';
 import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
 import { GAMES } from '../../lib/social/games';
@@ -44,7 +47,7 @@ const ago = (t) => {
 };
 const EMOTE_TITLE = { wave: 'Wave', hug: 'Cuddle', kiss: 'Kiss', poke: 'Poke', annoy: 'Tease', icecream: 'Share ice cream', heart: 'Send a heart', highfive: 'High five', tickle: 'Tickle', cheer: 'Cheer them on', snack: 'Share a snack', dance: 'Dance together', boop: 'Boop', flower: 'Give a flower', cake: 'Birthday cake', fistbump: 'Fist bump', pillow: 'Pillow fight', serenade: 'Serenade', gift: 'Gift box', bubbles: 'Bubbles' };
 const NAV = [
-  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['board', 'Leaderboard', '🏆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['music', 'Music', '♫'], ['deadlines', 'Reminders', '⏰'], ['profile', 'Profile', '☻'], ['feedback', 'Feedback', '🐛'], ['premium', 'Premium', '✦'], ['settings', 'Settings', '⚙'],
+  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['board', 'Leaderboard', '🏆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['groups', 'Groups', '👥'], ['tea', 'Tea Room', '🍵'], ['music', 'Music', '♫'], ['deadlines', 'Reminders', '⏰'], ['profile', 'Profile', '☻'], ['feedback', 'Feedback', '🐛'], ['premium', 'Premium', '✦'], ['settings', 'Settings', '⚙'],
 ];
 
 // `who` = a profile or friend: their accessories, colour, makeup and wardrobe look show on the avatar
@@ -1068,6 +1071,8 @@ function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith 
 
 // ---------- desktop bridge (only inside the Nibble app's Hub window) ----------
 // friend games waiting on you: invites to accept + your turn
+// group invites + groups with unread chat
+const groupBadge = (state) => (state.groupInvites || []).length + (state.groups || []).filter((g) => g.unreadChat).length;
 const myTurns = (state) => (state.matches || []).filter((m) => (m.status === 'invite' && m.players[1] === state.user.uid) || (m.status === 'live' && m.turn === state.user.uid)).length;
 
 function useDesktopBridge(desktop, social, state) {
@@ -1204,6 +1209,8 @@ export default function SocialApp({ mode = 'web' }) {
   useEffect(() => { if (!waking) { setSlow(false); return undefined; } const t = setTimeout(() => setSlow(true), 12_000); return () => clearTimeout(t); }, [waking]);
   const [presetAdd, setPresetAdd] = useState('');
   const [chatWith, setChatWith] = useState('');
+  const [teaFeed, setTeaFeed] = useState('');
+  const openTea = (feed) => { setTeaFeed(feed); setTab('tea'); };
   useEffect(() => {
     if (window.nibbleDesktop) setDesktop(window.nibbleDesktop);
     const q = new URLSearchParams(location.search);
@@ -1257,6 +1264,17 @@ export default function SocialApp({ mode = 'web' }) {
       }
     });
   }, [social, desktop]);
+
+  // desktop: a notification when someone writes in one of your groups (only while you're not looking at Groups)
+  const groupNotified = useRef({});
+  useEffect(() => {
+    for (const g of state.groups || []) {
+      const was = groupNotified.current[g.id];
+      groupNotified.current[g.id] = g.chatAt;
+      if (was === undefined || !g.unreadChat || g.chatAt <= was) continue;
+      if (desktop && desktop.notify && tab !== 'groups') desktop.notify({ title: `${g.emoji} ${g.name}`, body: `@${g.chatBy} wrote in the group chat`, tab: 'groups' });
+    }
+  }, [state.groups, desktop, tab]);
 
   // tell admins which app this is (desktop + version, or web)
   useEffect(() => {
@@ -1313,7 +1331,7 @@ export default function SocialApp({ mode = 'web' }) {
   }
   else if (!state.profile) body = <Onboard social={social} state={state} initialSkin={local?.settings?.pets?.[0]?.skin} />;
   else {
-    const props = { social, state, desktop, local, toast, go: setTab, chatWith, setChatWith };
+    const props = { social, state, desktop, local, toast, go: setTab, chatWith, setChatWith, teaFeed, setTeaFeed, openTea };
     body = (
       <>
         {tab === 'home' && <Home {...props} />}
@@ -1321,6 +1339,8 @@ export default function SocialApp({ mode = 'web' }) {
         {tab === 'deadlines' && <Deadlines {...props} />}
         {tab === 'friends' && <Friends {...props} presetAdd={presetAdd} />}
         {tab === 'messages' && <Messages {...props} />}
+        {tab === 'groups' && <Groups {...props} />}
+        {tab === 'tea' && <TeaRoom {...props} />}
         {tab === 'music' && <Music {...props} player={player} />}
         {tab === 'style' && <Wardrobe {...props} />}
         {tab === 'games' && <Arcade {...props} />}
@@ -1352,11 +1372,13 @@ export default function SocialApp({ mode = 'web' }) {
             {state.wallet && state.wallet.canDaily && <em>🎁 bonus</em>}
           </button>
           <nav>
-            {NAV.filter(([k]) => k !== 'premium' || (state.premiumPlan && state.premiumPlan.enabled) || social.premium.active()).map(([k, l, i]) => (
+            {NAV.filter(([k]) => (k !== 'premium' || (state.premiumPlan && state.premiumPlan.enabled) || social.premium.active()) && (k !== 'tea' || teaConfig(state.config).on)).map(([k, l, i]) => (
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)} title={mini ? l : undefined}>
                 <span>{i}</span><b className="sa-nl">{l}</b>
                 {k === 'friends' && state.incoming.length > 0 && <em className="sa-badge">{state.incoming.length}</em>}
                 {k === 'games' && myTurns(state) > 0 && <em className="sa-badge">{myTurns(state)}</em>}
+                {k === 'groups' && groupBadge(state) > 0 && <em className="sa-badge">{groupBadge(state)}</em>}
+                {k === 'tea' && (state.teaNew || (state.groups || []).some((g) => g.newTea)) && <em className="sa-badge" title="New tea">●</em>}
                 {k === 'music' && state.music && state.music.invites.length > 0 && <em className="sa-badge">{state.music.invites.length}</em>}
                 {k === 'music' && state.music && state.music.room && state.music.room.playing && <em className="sa-eq" aria-hidden><i /><i /><i /></em>}
               </button>
@@ -1384,6 +1406,11 @@ export default function SocialApp({ mode = 'web' }) {
         {signedIn && tab !== 'games' && (state.matches || []).filter((m) => m.status === 'invite' && m.players[1] === state.user.uid).slice(0, 1).map((m) => (
           <Banner key={m.id} level="party" title={`@${m.names[m.players[0]] || 'A friend'} challenged you to ${GAMES[m.game].label} ${GAMES[m.game].emoji}`} text="Play live, turn by turn. Winner gets 40 ⭐." onClose={() => social.games.decline(m.id)}>
             <button className="btn small" onClick={() => social.games.accept(m.id).then(() => setTab('games')).catch((e) => toast({ err: true, text: niceError(e) }))}>Play</button>
+          </Banner>
+        ))}
+        {signedIn && tab !== 'groups' && (state.groupInvites || []).slice(0, 1).map((i) => (
+          <Banner key={i.id} level="party" title={`@${i.names[i.owner] || 'A friend'} invited you to the group ${i.emoji} ${i.name}`} text="Join to chat together, share tea and walk your pets as a pack." onClose={() => social.groups.decline(i.id).catch(() => {})}>
+            <button className="btn small" onClick={() => social.groups.accept(i.id).then(() => setTab('groups'), (e) => toast({ err: true, text: niceError(e) }))}>Join</button>
           </Banner>
         ))}
         {signedIn && showNotice && <Banner level={cfg.noticeLevel} text={cfg.notice} onClose={dismissNotice} />}

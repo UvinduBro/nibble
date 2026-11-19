@@ -60,7 +60,9 @@ service cloud.firestore {
     match /config/{doc} {
       allow read: if signedIn();
       allow write: if isAdmin()
-        && incoming().keys().hasOnly(['minVersion', 'updateMsg', 'notice', 'noticeLevel', 'updatedAt', 'by', 'games', 'gamesOff', 'shop', 'saver', 'limits'])
+        && incoming().keys().hasOnly(['minVersion', 'updateMsg', 'notice', 'noticeLevel', 'updatedAt', 'by', 'games', 'gamesOff', 'shop', 'saver', 'limits', 'tea', 'teaWords'])
+        && (!('tea' in incoming()) || (incoming().tea is map && incoming().tea.keys().hasOnly(['on', 'everyone', 'anon', 'anonAll'])))
+        && (!('teaWords' in incoming()) || (incoming().teaWords is list && incoming().teaWords.size() <= 100))
         && (!('saver' in incoming()) || incoming().saver is bool)
         && (!('limits' in incoming()) || (incoming().limits is map && incoming().limits.keys().hasOnly(['matches', 'solo', 'music'])))
         && (!('gamesOff' in incoming()) || (incoming().gamesOff is list && incoming().gamesOff.size() <= 30))
@@ -199,6 +201,103 @@ service cloud.firestore {
             && incoming().items is list && incoming().items.size() <= 40)
         );
         allow delete: if isAdmin();
+      }
+    }
+
+    // ---------- groups ----------
+    // groups/{gid}: a few friends together (≤ 20). You can only invite your own friends, one at a time.
+    // Invited people accept or decline; anyone can leave; the owner can rename, remove people or delete it.
+    // chatAt/chatBy change with every group chat message; teaAt is set by the server (Tea Room).
+    function myName() { return get(/databases/$(database)/documents/users/$(me())).data.username; }
+    function changed() { return incoming().diff(resource.data).affectedKeys(); }
+    function groupBase() {
+      return incoming().keys().hasOnly(['owner', 'name', 'emoji', 'members', 'invited', 'names', 'at', 'updatedAt', 'chatAt', 'chatBy', 'teaAt'])
+        && incoming().name is string && incoming().name.size() >= 1 && incoming().name.size() <= 30
+        && shortText(incoming().emoji, 8)
+        && incoming().members is list && incoming().members.size() >= 1 && incoming().members.size() <= 20
+        && incoming().invited is list && incoming().invited.size() <= 20
+        && incoming().names is map && incoming().names.size() <= 60
+        && incoming().owner in incoming().members
+        && incoming().updatedAt == request.time;
+    }
+    // inviting adds exactly one person, at the end of the list: one of my friends, not already in
+    function inviteOk() {
+      // size first, so the new entry is only read when there is one
+      return incoming().invited.size() == resource.data.invited.size() + 1
+        && newInvite(incoming().invited[resource.data.invited.size()]);
+    }
+    function newInvite(x) {
+      return incoming().invited == resource.data.invited.concat([x])
+        && !(x in resource.data.members)
+        && exists(/databases/$(database)/documents/users/$(me())/friends/$(x))
+        && incoming().names.diff(resource.data.names).affectedKeys().hasOnly([x])
+        && incoming().names[x] == get(/databases/$(database)/documents/users/$(x)).data.username
+        && incoming().members.size() + incoming().invited.size() <= 20;
+    }
+    match /groups/{gid} {
+      allow get: if signedIn() && (resource == null || me() in resource.data.members || me() in resource.data.invited || isAdmin());
+      allow list: if signedIn() && (me() in resource.data.members || me() in resource.data.invited);
+      allow create: if signedIn() && !isBanned() && groupBase()
+        && incoming().owner == me() && incoming().members == [me()] && incoming().invited.size() == 0
+        && incoming().names.keys().hasOnly([me()]) && incoming().names[me()] == myName()
+        && incoming().at == request.time
+        && !('chatAt' in incoming()) && !('teaAt' in incoming());
+      allow update: if signedIn() && !isBanned() && groupBase()
+        && incoming().owner == resource.data.owner && incoming().at == resource.data.at && (
+          // a member invites one of their friends
+          (me() in resource.data.members && changed().hasOnly(['invited', 'names', 'updatedAt']) && inviteOk())
+          // accept my invite
+          || (me() in resource.data.invited && !(me() in resource.data.members)
+            && changed().hasOnly(['members', 'invited', 'names', 'updatedAt'])
+            && incoming().members == resource.data.members.concat([me()])
+            && incoming().invited == resource.data.invited.removeAll([me()])
+            && incoming().names.diff(resource.data.names).affectedKeys().hasOnly([me()])
+            && incoming().names[me()] == myName())
+          // decline my invite
+          || (me() in resource.data.invited && changed().hasOnly(['invited', 'updatedAt'])
+            && incoming().invited == resource.data.invited.removeAll([me()]))
+          // leave (the owner deletes the group instead)
+          || (me() in resource.data.members && me() != resource.data.owner && changed().hasOnly(['members', 'updatedAt'])
+            && incoming().members == resource.data.members.removeAll([me()]))
+          // a new group chat message (the badge for everyone else)
+          || (me() in resource.data.members && changed().hasOnly(['chatAt', 'chatBy', 'updatedAt'])
+            && incoming().chatAt == request.time && incoming().chatBy == myName())
+          // owner: rename, take people out, cancel invites (lists only shrink)
+          || (me() == resource.data.owner && changed().hasOnly(['name', 'emoji', 'members', 'invited', 'updatedAt'])
+            && resource.data.members.hasAll(incoming().members) && resource.data.invited.hasAll(incoming().invited))
+        );
+      allow delete: if signedIn() && (resource.data.owner == me() || isAdmin());
+
+      // group chat: members only, text only, gone after 24 hours (exp is checked by the app; any member
+      // may delete expired messages, the owner may delete any)
+      match /msgs/{mid} {
+        function grp() { return get(/databases/$(database)/documents/groups/$(gid)).data; }
+        allow read: if signedIn() && me() in grp().members;
+        allow create: if signedIn() && !isBanned() && me() in grp().members
+          && incoming().keys().hasOnly(['from', 'fromName', 'text', 'at', 'exp'])
+          && incoming().from == me() && incoming().fromName == myName()
+          && incoming().text is string && incoming().text.size() >= 1 && incoming().text.size() <= 200
+          && incoming().at == request.time
+          && incoming().exp is int && incoming().exp > request.time.toMillis() && incoming().exp <= request.time.toMillis() + 90000000;
+        allow delete: if signedIn() && (resource.data.from == me() || grp().owner == me()
+          || (me() in grp().members && resource.data.exp < request.time.toMillis()));
+        allow update: if false;
+      }
+    }
+
+    // ---------- Tea Room ----------
+    // teaRooms/{feed}/posts/{pid} (+ /comments/{cid}): feed is 'all' (everyone) or a group id (members only).
+    // Only the server writes here (app/api/tea), so anonymous posts never contain who wrote them.
+    // teaAuthors, teaLimits, teaReacts, teaReports, teaHidden, teaFlags are server-only (no browser access).
+    function teaCanRead(feed) {
+      return signedIn() && (feed == 'all' || me() in get(/databases/$(database)/documents/groups/$(feed)).data.members);
+    }
+    match /teaRooms/{feed}/posts/{pid} {
+      allow read: if teaCanRead(feed);
+      allow write: if false;
+      match /comments/{cid} {
+        allow read: if teaCanRead(feed);
+        allow write: if false;
       }
     }
 

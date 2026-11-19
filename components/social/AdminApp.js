@@ -18,6 +18,7 @@ const lookLabel = (u) => {
   return parts.join(' · ');
 };
 import { niceError, verLess, LEVELS, ms } from '../../lib/social/social';
+import { teaConfig } from '../../lib/tea';
 import { SOURCES, USES, countryName, flag } from '../../lib/signup';
 import { SEO_PAGES, SEO_LIMITS, SITE as SEO_SITE, mergeSeo } from '../../lib/seo';
 import { BUILTIN as PREMIUM_BUILTIN, DEFAULT_PLAN, CURRENCIES, INTERVALS, cleanFeature, money } from '../../lib/premium';
@@ -1666,6 +1667,103 @@ function ReviewsTab({ social, users, toast, go, setOpenUid }) {
   );
 }
 
+
+// ---------- Tea Room moderation ----------
+const TeaSw = ({ on, onChange }) => <button className={'ad-switch' + (on ? ' on' : '')} onClick={onChange} aria-pressed={on}><i /></button>;
+function TeaTab({ social, state, users, toast, go, setOpenUid }) {
+  const Sw = TeaSw;
+  const cfg = teaConfig(state.config);
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState('');
+  const [words, setWords] = useState(((state.config && state.config.teaWords) || []).join(', '));
+  const load = () => { setErr(''); social.tea.admin.list().then(setData, (e) => { setData({ flags: [], recent: [] }); setErr(niceError(e)); }); };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const save = (patch, ok) => social.admin.setConfig(patch).then(() => toast({ text: ok || 'Saved' }), (e) => toast({ err: true, text: niceError(e) }));
+  const sw = (k, v) => save({ tea: { ...cfg, [k]: v } });
+  const act = (x, action, ok) => social.tea.admin.act({ action, feed: x.feed, pid: x.pid || x.id, cid: x.cid || '' }).then(() => { toast({ text: ok }); load(); }, (e) => toast({ err: true, text: niceError(e) }));
+  const feedName = (f) => (f === 'all' ? '🌍 Everyone' : '👥 a group');
+  const who = (x) => {
+    const u = x.authorUid && users.find((y) => y.uid === x.authorUid);
+    const name = x.authorName || (u && u.username) || '';
+    return (
+      <>
+        {x.anon && x.mask ? <>🕶 {x.mask.name} · really </> : ''}
+        {u ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(u.uid); }}>@{name}</button> : name ? '@' + name : 'unknown'}
+      </>
+    );
+  };
+  const suspend = (x) => {
+    if (!x.authorUid) return;
+    const r = window.prompt(`Suspend @${x.authorName || 'this person'}? They won’t be able to post anywhere.\n\nReason (optional, they won’t see it):`, 'Tea Room');
+    if (r !== null) social.admin.ban(x.authorUid, x.authorName, r).then(() => toast({ text: 'Suspended' }), (e) => toast({ err: true, text: niceError(e) }));
+  };
+  const flags = (data && data.flags) || [];
+  const recent = (data && data.recent) || [];
+  return (
+    <>
+      <div className="ad-kpis">
+        <Kpi n={data ? flags.filter((f) => f.hidden).length : '…'} label="Hidden" sub="by reports or by you" color={C.coral} />
+        <Kpi n={data ? flags.filter((f) => !f.hidden).length : '…'} label="Reported" sub="still visible" color={C.yellow} />
+        <Kpi n={data ? recent.length : '…'} label="Everyone feed" sub="posts in the last 48 h (max 30 shown)" color={C.mint} />
+        <Kpi n={data ? recent.filter((p) => p.anon).length : '…'} label="Masked" sub="in the Everyone feed" color={C.violet} />
+      </div>
+      <div className="sa-card">
+        <h3>🍵 Switches</h3>
+        <div className="ad-switches">
+          <label><Sw on={cfg.on} onChange={() => sw('on', !cfg.on)} /><span><b>Tea Room open</b><small>Off hides the Tea Room page for everyone</small></span></label>
+          <label><Sw on={cfg.everyone} onChange={() => sw('everyone', !cfg.everyone)} /><span><b>Everyone feed</b><small>One feed for all Nibble users (group feeds always work)</small></span></label>
+          <label><Sw on={cfg.anon} onChange={() => sw('anon', !cfg.anon)} /><span><b>Masked posts in groups</b><small>People can post anonymously inside their groups</small></span></label>
+          <label><Sw on={cfg.anonAll} onChange={() => sw('anonAll', !cfg.anonAll)} /><span><b>Masked posts in Everyone</b><small>Riskier: anonymous posts to all users. Keep an eye on reports</small></span></label>
+        </div>
+        <form className="sa-form" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); save({ teaWords: words.split(/[,\n]/).map((w) => w.trim()).filter(Boolean) }, 'Blocked words saved'); }}>
+          <label>Blocked words and phrases <small>(comma separated, up to 100; whole words; on top of the built-in list)</small>
+            <textarea rows={2} value={words} onChange={(e) => setWords(e.target.value)} placeholder="e.g. a slur, a classmate’s full name, a rival school…" />
+          </label>
+          <div><button className="btn small">Save words</button></div>
+        </form>
+      </div>
+      <div className="sa-card">
+        <h3>⚑ Reported and hidden <small>{flags.length}</small><button className="btn small ghost" style={{ marginLeft: 'auto' }} onClick={load}>Refresh</button></h3>
+        {data === null && <p className="sa-empty">Loading…</p>}
+        {err && <p className="sa-empty">{err}</p>}
+        {data && !err && !flags.length && <p className="sa-empty">Nothing reported. 🎉</p>}
+        {flags.map((f) => (
+          <article key={f.id} className={'rp rp-' + (f.hidden ? 'new' : 'seen')}>
+            <header>
+              <span className="rp-kind">{f.cid ? '💬 comment' : '🍵 post'}</span>
+              <b>{who(f)}</b>
+              <span className={'rp-status rp-s-' + (f.hidden ? 'new' : 'seen')}>{f.hidden ? 'hidden' : 'visible'} · {f.reports} report{f.reports === 1 ? '' : 's'}</span>
+            </header>
+            <p className="rp-text">“{f.text || '(no text)'}”</p>
+            <p className="rp-who">{feedName(f.feed)} · posted {ago(f.postedAt)} · last report {ago(f.lastAt)}{f.reasons && f.reasons.length ? ' · “' + f.reasons.join('”, “') + '”' : ''}</p>
+            <footer>
+              {f.hidden ? <button className="btn small" onClick={() => act(f, 'restore', 'Restored: it’s visible again')}>Restore</button> : <button className="btn small" onClick={() => act(f, 'hide', 'Hidden')}>Hide</button>}
+              {!f.hidden && <button className="btn small ghost" onClick={() => act(f, 'dismiss', 'Kept: reports cleared')}>Keep (it’s fine)</button>}
+              <button className="btn small ghost" onClick={() => { if (window.confirm('Delete it for good?')) act(f, 'delete', 'Deleted'); }}>Delete</button>
+              {f.authorUid && <button className="btn small ghost warn" onClick={() => suspend(f)}>⏸ Suspend author</button>}
+            </footer>
+          </article>
+        ))}
+      </div>
+      <div className="sa-card">
+        <h3>🌍 Latest in the Everyone feed <small>{recent.length}</small></h3>
+        {data && !recent.length && <p className="sa-empty">No posts in the last 48 hours.</p>}
+        {recent.map((p) => (
+          <article key={p.id} className="rp rp-done">
+            <header><span className="rp-kind">{p.anon ? '🕶 masked' : '🍵 post'}</span><b>{who(p)}</b><span className="rp-status">{ago(p.at)} · {p.cc || 0} comments{p.hidden ? ' · hidden' : ''}</span></header>
+            <p className="rp-text">“{p.text || '(hidden)'}”</p>
+            <footer>
+              {!p.hidden && <button className="btn small ghost" onClick={() => act({ ...p, feed: 'all', pid: p.id }, 'hide', 'Hidden')}>Hide</button>}
+              <button className="btn small ghost" onClick={() => { if (window.confirm('Delete this post and its comments?')) act({ ...p, feed: 'all', pid: p.id }, 'delete', 'Deleted'); }}>Delete</button>
+              {p.authorUid && <button className="btn small ghost warn" onClick={() => suspend(p)}>⏸ Suspend author</button>}
+            </footer>
+          </article>
+        ))}
+      </div>
+    </>
+  );
+}
+
 const NAV = [
   ['Insights', [
     ['overview', 'Overview', '📊', 'How Nibble is doing right now: people online, sign-ups, versions and activity.', ['Click any number to jump to the matching list.', 'Numbers are live while this tab is open; it pauses after 3 minutes in the background to save Firebase reads.']],
@@ -1675,6 +1773,7 @@ const NAV = [
   ]],
   ['Inbox', [
     ['reviews', 'Reviews', '⭐', 'Reviews people write in the app. Nothing shows on the website until you approve it.', ['Approve honest reviews, good or bad: a mix of ratings looks more trustworthy than only 5 stars.', 'Hide spam or anything rude; you can’t change someone’s words or stars.', 'Feature a few great ones to show them first. Replies show under the review.']],
+    ['tea', 'Tea Room', '🍵', 'The Tea Room: switches, blocked words, reported or hidden posts (with who really wrote them) and the latest posts in the Everyone feed.', ['A post reported by 3 different people hides itself; restore it if the reports were unfair.', 'Masked posts are anonymous to users, not to you: use that only to stop harm.', 'Group feeds are private to their members; you only see group posts here once someone reports them.', 'Posts disappear after 48 hours.']],
     ['reports', 'Reports', '📬', 'Bug reports, feedback and contact-form messages from the app and the website.', ['Mark a report Seen when you’ve read it and Done when it’s handled.', 'Use ✉️ Reply by email to answer someone; the reply opens in the Email page.']],
   ]],
   ['Communicate', [
@@ -1794,6 +1893,7 @@ function Dashboard({ social, state }) {
         {users && tab === 'overview' && <Overview social={social} users={list} banned={banned || []} latest={latest} minVersion={minVersion} go={go} />}
         {users && tab === 'users' && <Users users={list} bannedMap={bannedMap} latest={latest} minVersion={minVersion} filter={filter} setFilter={setFilter} openUid={openUid} setOpenUid={setOpenUid} me={state.user.uid} />}
         {users && tab === 'games' && <GamesTab social={social} state={state} users={list} toast={toast} setOpenUid={setOpenUid} go={go} />}
+        {users && tab === 'tea' && <TeaTab social={social} state={state} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'reviews' && <ReviewsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'reports' && <ReportsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} reply={(d) => { setDraft(d); go('email'); }} />}
         {tab === 'email' && <EmailTab social={social} toast={toast} draft={draft} setDraft={setDraft} />}
