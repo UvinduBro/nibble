@@ -1183,6 +1183,10 @@ export default function SocialApp({ mode = 'web' }) {
   const toggleNav = (v) => { setNavPref(v); try { localStorage.setItem('nibble-nav-mini', v ? '1' : '0'); } catch {} };
   const [note, setNote] = useState(null);
   const [desktop, setDesktop] = useState(null);
+  // "Waking up…" for more than 12 s: show what might be wrong
+  const [slow, setSlow] = useState(false);
+  const waking = !state.ready || (state.user && state.profile === undefined);
+  useEffect(() => { if (!waking) { setSlow(false); return undefined; } const t = setTimeout(() => setSlow(true), 12_000); return () => clearTimeout(t); }, [waking]);
   const [presetAdd, setPresetAdd] = useState('');
   const [chatWith, setChatWith] = useState('');
   useEffect(() => {
@@ -1202,6 +1206,11 @@ export default function SocialApp({ mode = 'web' }) {
     if (window.nibbleDesktop && window.nibbleDesktop.onVisible) window.nibbleDesktop.onVisible((v) => { window.__nibbleHidden = !v; window.dispatchEvent(new Event('nibble-visibility')); });
   }, []);
   const local = useDesktopBridge(desktop, social, state);
+  // phones: keep the open page's button visible in the swipeable menu row
+  useEffect(() => {
+    const t = setTimeout(() => { const b = document.querySelector('.sa.phone .sa-side nav button.on'); if (b && b.scrollIntoView) b.scrollIntoView({ inline: 'center', block: 'nearest' }); }, 120);
+    return () => clearTimeout(t);
+  }, [tab, state.profile]);
   const toast = useMemo(() => (n) => setNote(n), []);
   const player = useRoomPlayer(social, state, toast);
   const isDesk = mode === 'desktop' || !!desktop;
@@ -1260,7 +1269,22 @@ export default function SocialApp({ mode = 'web' }) {
       </div>
     );
   } else if (!state.ready || (state.user && state.profile === undefined)) {
-    body = <div className="sa-center"><PetFigure skin="mint" mood="sleep" w={140} h={130} /><p className="sa-sub">Waking up…</p></div>;
+    // never sit on "Waking up…" forever: after a while (or on an error) say why and offer a retry
+    const why = state.loadError === 'resource-exhausted' ? 'Nibble’s server has used up today’s free limit. It resets at midnight Pacific time (about 1:30 PM in Sri Lanka). Your desktop pets keep working offline.'
+      : state.loadError === 'permission-denied' ? 'The server didn’t let this account in. Try signing out and in again; if it keeps happening, tell us from the website’s contact form.'
+      : state.loadError || slow ? 'This is taking longer than usual. Check your internet connection, or try again. Some work and school networks block Nibble’s server.' : '';
+    body = (
+      <div className="sa-center">
+        <PetFigure skin="mint" mood="sleep" w={140} h={130} />
+        <p className="sa-sub">{why || 'Waking up…'}</p>
+        {why && (
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button className="btn small" onClick={() => location.reload()}>Try again</button>
+            {state.user && <button className="btn small ghost" onClick={() => social.signOut()}>Sign out</button>}
+          </div>
+        )}
+      </div>
+    );
   } else if (!state.user) body = <AuthScreen social={social} desktop={desktop} />;
   else if (state.banned) {
     body = (

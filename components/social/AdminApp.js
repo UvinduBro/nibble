@@ -1756,21 +1756,30 @@ function Dashboard({ social, state }) {
 
 export default function AdminApp() {
   const { social, state, missing } = useSocial();
-  if (missing) return <div className="sa solo"><div className="sa-center"><h1>Nibble Admin</h1><p className="sa-sub">The backend isn’t configured yet.</p></div></div>;
-  if (!social || !state.ready) return <div className="sa solo"><div className="sa-center"><h1>Nibble Admin</h1><p className="sa-sub">Loading…</p></div></div>;
-
-  let inner;
-  if (!state.user) inner = <div className="sa-center"><h1>Nibble Admin</h1><p className="sa-sub">Sign in to continue.</p><div style={{ maxWidth: 380, width: '100%' }}><AuthScreen social={social} /></div></div>;
-  else if (!state.profile) inner = <div className="sa-center"><h1>Nibble Admin</h1><p className="sa-sub">Finish setting up your account in the <a className="sa-link" href="/app">Nibble app</a> first.</p></div>;
-  else if (!state.admin) inner = (
-    <div className="sa-center">
-      <h1>Not an admin</h1>
-      <p className="sa-sub">Your account isn’t an admin yet. To become one, add a document in Firestore:<br />collection <b>admins</b> → document ID = your UID below → any field.</p>
-      <code className="sa-copy" style={{ userSelect: 'all' }}>{state.user.uid}</code>
-      <p className="sa-sub" style={{ marginTop: 10 }}><button className="btn small ghost" onClick={() => social.signOut()}>Sign out</button></p>
-    </div>
-  );
-  else return <div className="sa solo ad"><Dashboard social={social} state={state} /></div>;
-
-  return <div className="sa solo">{inner}</div>;
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), 12_000); return () => clearTimeout(t); }, []);
+  const center = (title, sub, extra) => <div className="sa solo"><div className="sa-center"><h1>{title}</h1><p className="sa-sub">{sub}</p>{extra}</div></div>;
+  const out = <p className="sa-sub" style={{ marginTop: 10 }}><a className="sa-link" href="/app">Open the Nibble app</a> · <button className="sa-link" onClick={() => social.signOut()}>Sign out</button></p>;
+  if (missing) return center('Nibble Admin', 'The backend isn’t configured yet.');
+  if (!social || !state.ready) return center('Nibble Admin', slow ? 'Still loading. Check your connection and refresh the page.' : 'Loading…');
+  if (!state.user) {
+    return <div className="sa solo"><div className="sa-center"><h1>Nibble Admin</h1><p className="sa-sub">Sign in with your team account.</p><div style={{ maxWidth: 380, width: '100%' }}><AuthScreen social={social} /></div></div></div>;
+  }
+  // still loading this account (profile or admin check): never flash "not an admin" / "finish set-up"
+  if (state.profile === undefined || state.admin === null || state.admin === undefined) {
+    const why = state.loadError === 'resource-exhausted' ? 'Firebase’s free daily limit is used up, so the dashboard can’t load until it resets (midnight Pacific, about 1:30 PM in Sri Lanka).' : state.loadError || slow ? 'This is taking longer than usual. Check your connection and refresh.' : 'Checking your access…';
+    return center('Nibble Admin', why, (state.loadError || slow) ? <p className="sa-sub"><button className="btn small" onClick={() => location.reload()}>Try again</button></p> : null);
+  }
+  if (!state.admin) {
+    return center('This page is for the Nibble team', `You’re signed in as ${state.profile ? '@' + state.profile.username : state.user.email || 'a Nibble user'}, which isn’t a team account. Looking for your pets and friends? Open the Nibble app.`, <>
+      {out}
+      <details className="sa-sub" style={{ marginTop: 18, fontSize: 13 }}><summary style={{ cursor: 'pointer' }}>I’m on the team</summary>
+        <p>Ask an admin to add your account. They’ll need this ID:</p>
+        <code className="sa-copy" style={{ userSelect: 'all' }}>{state.user.uid}</code>
+      </details>
+    </>);
+  }
+  // an admin whose account isn't set up yet (no username): the dashboard needs one for its records
+  if (!state.profile) return center('Almost there', 'Your admin account needs a username first. Open the Nibble app, pick a username, then come back here.', out);
+  return <div className="sa solo ad"><Dashboard social={social} state={state} /></div>;
 }

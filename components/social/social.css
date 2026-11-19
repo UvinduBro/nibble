@@ -926,6 +926,16 @@
 }
 .sa.phone .sa-side { height: auto; overflow: visible; }
 .sa.phone .sa-side-top { width: 100%; }
+/* phones: the menu is one swipeable row instead of four rows of buttons, so pages start near the top */
+.sa.phone { max-width: 100vw; overflow-x: hidden; }
+.sa.phone > *, .sa.phone .sa-side, .sa.phone .sa-main { min-width: 0; max-width: 100vw; }
+.sa.phone .sa-side nav { width: 100%; min-width: 0; box-sizing: border-box; }
+.sa.phone .sa-side { gap: 8px; padding: 10px 12px 8px; }
+.sa.phone .sa-side nav { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: 0 -12px; padding: 2px 12px 4px; mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%); }
+.sa.phone .sa-side nav::-webkit-scrollbar { display: none; }
+.sa.phone .sa-side nav button { flex: none; scroll-snap-align: start; padding: 8px 12px; border-radius: 99px; background: rgba(255, 255, 255, 0.04); font-size: 14px; gap: 6px; }
+.sa.phone .sa-side nav button span { width: auto; font-size: 15px; }
+.sa.phone .sa-side nav button.on { background: rgba(126, 232, 198, 0.16); }
 /* content adapts to the width it has */
 .sa-main img, .sa-main canvas, .sa-main iframe { max-width: 100%; }
 .sa-main .sa-card { min-width: 0; }

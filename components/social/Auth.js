@@ -21,6 +21,9 @@ export function AuthScreen({ social, desktop }) {
   const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  // Instagram / Facebook / TikTok / LinkedIn… built-in browsers block Google sign-in pop-ups
+  const [inApp, setInApp] = useState(false);
+  useEffect(() => { setInApp(/FBAN|FBAV|FB_IAB|Instagram|Line\/|TikTok|musical_ly|Bytedance|LinkedInApp|Snapchat|Twitter|; wv\)/i.test(navigator.userAgent || '')); }, []);
 
   const run = async (fn) => {
     setBusy(true); setMsg(null);
@@ -53,6 +56,7 @@ export function AuthScreen({ social, desktop }) {
       </div>
       <h1>{mode === 'up' ? 'Make your Nibble account' : 'Welcome back'}</h1>
       <p className="sa-sub">Pick a username, add friends, and your pets visit each other’s desktops. Hold a pet to say hi.</p>
+      {inApp && !desktop && <p className="sa-msg">You’re in an app’s built-in browser, where Google sign-in often doesn’t work. Tap ⋯ and choose <b>Open in browser</b> (Safari or Chrome), or sign in with email below.</p>}
       <button className="sa-google" onClick={google} disabled={busy}><GoogleG /> Continue with Google</button>
       <div className="sa-or"><span>or with email</span></div>
       <form onSubmit={submit} className="sa-form">
@@ -137,14 +141,14 @@ export function Onboard({ social, state, initialSkin }) {
       <div className="sa-handle">
         <span>@</span>
         <input autoFocus value={name} onChange={(e) => setName(e.target.value.replace(/\s/g, ''))} placeholder="yourname" maxLength={21} aria-label="Username" />
-        <em className={clean ? (ok ? 'good' : 'bad') : ''}>{!clean ? '3–20 letters, numbers, _' : ok ? 'looks good' : 'letters, numbers, _ only'}</em>
+        <em className={clean ? (NAME_RE.test(clean) ? 'good' : 'bad') : ''}>{!clean ? '3–20 letters, numbers, _' : NAME_RE.test(clean) ? 'looks good' : clean.length < 3 ? 'at least 3 characters' : 'letters, numbers, _ only'}</em>
       </div>
       <h3>Pick the pet your friends will see</h3>
       <CharacterGrid value={skin} onPick={setSkin} compact />
       <label className="sa-inline">Pet name <input value={petName} onChange={(e) => setPetName(e.target.value)} placeholder={byKey[skin]?.name || 'Nibble'} maxLength={20} /></label>
       <SignupQuestions value={sq} onChange={setSq} />
       {err && <p className="sa-msg err">{err}</p>}
-      {!ok && NAME_RE.test(clean) && <p className="sa-sub">{!sq.source ? 'Tell us how you found Nibble' : 'Pick your country'} to continue.</p>}
+      {!ok && <p className="sa-sub">{!NAME_RE.test(clean) ? 'Pick a username above' : !sq.source ? 'Tell us how you found Nibble' : 'Pick your country'} to continue.</p>}
       <button className="btn big" disabled={!ok || busy}>{busy ? 'Claiming…' : `Let’s go, @${clean || 'you'}`}</button>
     </form>
   );
