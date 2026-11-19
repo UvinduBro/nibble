@@ -7,3 +7,195 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# Nibble: project guide for coding agents
+
+Read this first. It explains what Nibble is, how the pieces fit, where things live, what has been
+built (and why), and the rules to follow. Keep it up to date: when you finish a piece of work, add
+it to the **Changelog** at the bottom and update any section it touches.
+
+Owner: Uvindu Rajapakshe ("Uvi"). Co-creator and tester: Wageesha Ruvangi ("Wagee").
+Made in Colombo, Sri Lanka. Live at **https://meetnibble.com** (Vercel project `nibble`).
+
+---
+
+## 1. What Nibble is
+
+A free **desktop pet app** for Windows and Mac with a social layer:
+
+- An animated pet walks along the tops of your windows, naps when you're idle, reacts to the app
+  you're using, and lands on the taskbar / Dock.
+- **Nibble Social**: accounts, usernames, friends. Friends' pets visit your desktop, deliver
+  messages, pokes, hugs; private 30-minute disappearing messages; deadlines + shared reminders.
+- **Listen Together** music rooms (YouTube / Spotify, synced by server clock).
+- Single-player **mini games** that earn **points** (⭐) to spend on looks (animals, outfits, colours, skills).
+- **Nibble Premium** (optional Stripe subscription, default $5/year, off until the owner switches it on).
+- A public website with download, docs, reviews, contact, and a full **admin dashboard**.
+
+## 2. Repository map
+
+One Next.js 16 app (React 19) on Vercel. Firebase (Auth + Firestore, **Spark free plan**) is the only
+database. No custom backend server besides Next.js route handlers.
+
+| Path | What it is |
+|---|---|
+| `app/page.js` | Home / landing page (server component; fetches approved reviews) |
+| `app/app/` | Web app: Nibble Social in the browser (`SocialApp mode="web"`) |
+| `app/hub/` | Same app loaded inside the desktop Hub window (`mode="desktop"`) |
+| `app/admin/` | Admin dashboard (`components/social/AdminApp.js`) |
+| `app/link/` | Desktop Google sign-in hand-off (posts ID token to the app on 127.0.0.1) |
+| `app/about`, `desktop-pet`, `install-help`, `privacy`, `terms` | Public pages |
+| `app/api/*` | Route handlers (see §6) |
+| `app/og`, `app/mail-btn` | Generated images: share cards, email button picture (`next/og`) |
+| `app/llms.txt`, `app/llms-full.txt` | Facts for AI assistants (AEO) |
+| `app/robots.js`, `sitemap.js`, `manifest.js`, `layout.js` | SEO plumbing; metadata comes from `lib/seo.js` |
+| `app/Get-Nibble.exe`, `Nibble.dmg`, `install.*`, `install-files.txt` | Installers / downloads |
+| `components/social/` | The app UI: `SocialApp.js` (all app pages), `AdminApp.js` (all admin pages), `Auth.js`, `Music.js`, `Arcade.js`, `Wardrobe.js`, `Leaderboard.js`, `LiveDesk.js`, `Feedback.js`, `useSocial.js`, `social.css` |
+| `components/landing/`, `About.js`, `Sections.js`, `Desktop.js`, `PetFigure.js` | Website UI |
+| `lib/social/` | Client logic: `social.js` (core), `firebaseAdapter.js`, `fakeAdapter.js` (local test mode), `music.js`, `wallet.js`, `games.js`, `lan.js`, `config.js` |
+| `lib/` (server/shared) | `billing.js` (Stripe), `premium.js` (plan shape), `gcp.js` (service account + Firestore REST), `adminAuth.js`, `mail.js` (Resend/SMTP), `marketing.js`, `emailTemplates.js`, `reviews.js`, `seo.js`, `facts.js` (one source of truth for SEO/AEO), `installer.js`, `usage.js`, `reports.js`, `signup.js`, `shop.js`, `characters.js`, `stage.js` |
+| `public/nibble/engine/` | The pet engine (plain JS, no build): `pet.js`, `draw.js`, `lines.js`, `skins.js`, `wardrobe.js`, `social-draw.js`. Used by the website **and** copied into the desktop app |
+| `public/app/` | **Desktop app source** (Electron): `src/main.js`, `hub.js`, `preload.js`, `hubPreload.js`, `windowWatcher.js` (+ `helper/WinWatch.cs`), `nowPlaying.js`, `settings.js`, `renderer/` |
+| `public/email/` | Email art cut from the flyer (logo, icons, peeking Nibble, flyer.jpg) |
+| `public/version.json` | **Release notes + version** shown on the site and checked by the desktop app |
+| `tools/` | `windows-setup/Setup.cs` (Get-Nibble.exe), `windows-runtime/build.ps1`, `mac/build.mjs`, `brand.src.mjs` |
+| `.github/workflows/` | `mac-dmg.yml`, `win-runtime.yml`, `win-setup.yml` (run on push to `main` when their paths change) |
+| `firestore.rules` | **Security rules. Not deployed automatically**: the owner pastes them into the Firebase console → Firestore → Rules → Publish |
+
+## 3. How it works
+
+### Desktop app (Electron 45, `public/app/`)
+- `main.js`: transparent click-through always-on-top overlay window (pets), tray / menu-bar icon,
+  settings (`settings.json` in userData), auto-update check (`/version.json` every 6 h), self-repair
+  of missing files (`/install-files.txt`), Windows exe self-branding.
+- **Windows**: `windowWatcher.js` compiles `WinWatch.cs` via PowerShell at runtime (no native modules)
+  → window rectangles → pets walk on window tops. `nowPlaying.js` reads Windows media controls.
+  App identity (name "Nibble", AUMID `lk.uvi.nibble`) is registered in HKCU (AppUserModelId,
+  MuiCache, App Paths) once per version so Start/Search/notifications don't say "Electron".
+- **Mac**: menu-bar app (Dock icon only while the Hub is open). `windowWatcher.js` `startMac()`
+  runs a JXA (osascript) loop over CoreGraphics window list (no permission prompts). Pets walk on
+  window tops and hop onto an estimated Dock platform. The overlay excludes the menu bar strip and
+  uses `skipTransformProcessType` (otherwise the Hub loses its title-bar buttons in full screen).
+- **Hub** (`hub.js`): a BrowserWindow that loads `SITE + '/hub'` (the web app) with a
+  `window.nibbleDesktop` bridge (`hubPreload.js`). All IPC is sender-checked and sanitised.
+- `SITE` in `main.js` is still **`https://nibblex.vercel.app`** (Google sign-in on `/link` needs the
+  domain in Firebase authorized domains; switch to meetnibble.com only after confirming that).
+- **Updating the desktop app**: edit `public/app/**`, bump `public/app/package.json` version and
+  `public/version.json` (version, date, notes). Hub fixes ship instantly (it reloads on new
+  deploys via `/api/build`); overlay/main changes need users to update (tray → Update Nibble).
+
+### Sync / data flow
+`Firestore ⇄ lib/social/social.js (in the web app / Hub page) ⇄ IPC (hub.js) ⇄ overlay pets (renderer/app.js)`
+- Presence heartbeats in `presence/{uid}` (Saver mode slows them); friends watched live.
+- Messages/emotes via `inbox/{uid}/items`; music rooms in `rooms/{hostUid}` (position from
+  `pos` + `startedAt` on the server clock); points in `wallets/{uid}` (rules enforce caps).
+- `fakeAdapter.js` + `NEXT_PUBLIC_NIBBLE_FAKE=1` = local in-browser backend for testing (no rules).
+
+### Firestore collections (see `firestore.rules` for exact shapes)
+`users`, `usernames`, `users/{uid}/friends`, `users/{uid}/private/{about,deadlines}`, `requests`,
+`presence`, `inbox/{uid}/items`, `rooms`, `wallets`, `gifts`, `matches` (friend games, switched off),
+`lan/{net}/members`, `signup`, `reports`, `reminders`, `admins` (console-only), `banned`,
+`broadcast`/`broadcasts`, `config/app`, `config/premium` (public), `premium/{uid}` (server/admin
+only), `billing/*` + `billingCustomers/*` (server only, never readable from a browser),
+`reviews/{uid}`, `seo/site` (public).
+
+## 4. Website, admin and business features
+
+- **Admin dashboard** (`/admin`): left sidebar groups — Insights (Overview, Users, Games & points,
+  Firebase usage), Inbox (Reviews, Reports), Communicate (Announcements, Email, Marketing),
+  Money (Premium), Grow (SEO), System (Settings). Each page has a description + Tips box.
+  Admin = a doc at `admins/{uid}` created by hand in the Firebase console.
+- **Email** (Resend, domain `meetnibble.com` verified, DNS on Spaceship): sender
+  `no-reply@meetnibble.com`; contact-form mails to `hello@meetnibble.com` (Spacemail inbox).
+  SMTP (Spacemail) is a fallback. Admin → Email = one-off emails / reply to reports.
+- **Marketing** (Resend broadcasts): two lists (segments) — *Subscribers* (opt-in from website
+  footer or app Settings → Nibble news) and *Imported contacts* (admin import from a JSON/CSV link
+  or file, consent checkbox required). Templates in `lib/emailTemplates.js` in the flyer look;
+  Gmail dark-mode safe (gradient backgrounds, blend-mode text, button is an image from `/mail-btn`).
+- **Premium** (`lib/billing.js`, `lib/premium.js`, `app/api/billing/*`, `app/api/stripe/webhook`,
+  `app/api/admin/premium`): Stripe Checkout + customer portal, no SDK. Stripe secret key is saved
+  from Admin → Premium, **AES-256-GCM encrypted with `BILLING_KEY`**, stored in `billing/secrets`
+  via the service account; connecting auto-creates the webhook + price. Webhook verifies the
+  signature (5-min tolerance) and re-fetches the subscription before writing `premium/{uid}`.
+  Perks: badge, double daily bonus, music rooms for 20 (rules enforce bonus + room size).
+- **Reviews** (`lib/reviews.js`): one per account from the app (Feedback page + Home prompt),
+  pending until an admin approves; public section on the home page; AggregateRating JSON-LD only
+  with ≥ 3 real approved reviews. **Never invent reviews or testimonials.**
+- **SEO / AEO**: `lib/seo.js` (titles/descriptions/share images editable in Admin → SEO, stored in
+  `seo/site`), `lib/facts.js` (shared facts → JSON-LD Organization/WebSite/SoftwareApplication/
+  HowTo/FAQ, llms.txt). `/desktop-pet` targets "desktop pet app" searches. `*.vercel.app` hosts
+  send `X-Robots-Tag: noindex`. IndexNow key file in `public/<key>.txt` (`lib/indexnow-key.js`).
+- Install help page for SmartScreen/Defender/Gatekeeper blocks; About page with the founders.
+
+## 5. Environment variables (Vercel, production)
+
+Names only; never commit or print values.
+`RESEND_API_KEY` (send-only), `RESEND_MARKETING_KEY` (contacts + broadcasts), `RESEND_SEGMENT_ID`,
+`RESEND_IMPORT_SEGMENT_ID`, `MAIL_FROM`, `CONTACT_TO`, `SMTP_USER`, `SMTP_PASS`, `NET_SALT`
+(secret salt for `/api/netid`), `BILLING_KEY` (64 hex, encrypts saved Stripe keys),
+`GCP_USAGE_KEY` (service-account JSON; also used for server Firestore writes unless
+`FIREBASE_ADMIN_KEY` is set), optional `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` (override the
+saved ones), `NEXT_PUBLIC_GSC_VERIFY` (optional). Firebase web config in `lib/social/config.js` is public.
+
+## 6. API routes (all in `app/api/`)
+
+`build` (deployed commit), `feedback` (website reports/contact → Firestore REST + email), `netid`,
+`oembed`, `mac-release`, `subscribe` (newsletter opt-in), `billing/{checkout,portal,status}`,
+`stripe/webhook`, `admin/{usage,email,marketing,premium,seo,indexnow}`. Admin routes check the
+caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with that token).
+
+## 7. Rules and conventions
+
+- **Work on the session's dev branch, then fast-forward `main` only when the owner asks to
+  publish.** Pushing `main` deploys the website (Vercel) and may trigger the Mac/Windows CI builds.
+- **After changing `firestore.rules`, tell the owner to publish them** (and offer the full file in
+  copy-paste form). Features that need new rules fail until then.
+- Firestore is on the free Spark plan (50k reads / 20k writes a day). Avoid new live listeners,
+  polling, or per-item reads in loops; prefer one-off reads and caching.
+- Security: never trust the browser for money, admin rights, or identity (server checks the
+  Firebase token; price/account come from the server). Keep secrets server-side and encrypted.
+  Admin-only Firestore data must stay unreadable to clients.
+- User-facing copy: plain, friendly English; short sentences; no jargon. Comments explain *why*.
+- Don't invent data (reviews, users, stats). Ask before outward actions (emails, DNS, payments).
+- Version number: bump `public/app/package.json` + `public/version.json` only for real desktop
+  releases (the owner asked to keep 2.0.22 for the pre-launch fixes).
+- Test before publishing: `npx next build`; for UI, run `NEXT_PUBLIC_NIBBLE_FAKE=1 npx next dev`
+  and click through with Playwright (phone + desktop sizes). Real Firebase/Stripe can't be reached
+  from the cloud sandbox, so say clearly what was not tested live.
+- Commit messages: summary line + bullet list of what changed and why.
+
+## 8. Owner to-do / open items (as of 2026-11-19)
+
+- Publish the latest `firestore.rules` (Premium, Reviews, SEO sections).
+- Give the service account (shown in Admin → Premium) the **Cloud Datastore User** role.
+- Stripe: connect test key, enable the customer portal, test with 4242 4242 4242 4242, then live key; consider Stripe Tax.
+- Google Search Console + Bing Webmaster Tools: verify, submit `sitemap.xml`, request indexing.
+- Add `meetnibble.com` to Firebase authorized domains, then switch desktop `SITE` to it.
+- Firebase App Check (stops direct-to-Firestore spam on `reports`).
+- Real social links for the founders on the About page.
+- Separate passwords + 2FA for the shared team accounts (they were shared by email).
+
+## 9. Changelog
+
+Newest first. Add an entry for every piece of work.
+
+- **2026-11-19** Pre-launch fixes (version stays 2.0.22): admin page waits for account/admin check
+  (no false "finish set-up" / "not an admin"), clear non-team message; "Waking up…" never hangs
+  (12 s / error → reason + retry); sign-up username hint fixed; in-app browser Google sign-in
+  hint; phone menu is one swipeable row, no sideways scroll. AGENTS.md + CLAUDE.md added.
+- **2026-11-18** Reviews: rate in app, admin approval, home-page section, rating schema.
+  SEO/AEO: `lib/facts.js`, llms.txt, AI crawler robots, JSON-LD, `/desktop-pet`, vercel.app
+  noindex, IndexNow. About page moved to `/about` (founders off the home page).
+- **2026-11-17** Nibble Premium with Stripe (admin switch, price, features, encrypted keys,
+  webhook, gifts, perks). Emails stay dark in Gmail iOS dark mode. Marketing: contact import,
+  four flyer-style templates, lists, scheduling. Admin sidebar redesign with tips. Admin → SEO
+  (per-page meta, OG generator, Search Console). Install help page. Resend set-up (domain, keys),
+  admin Email + Marketing, newsletter opt-in. Security headers, rules hardening (no name
+  spoofing, size caps), NET_SALT, shared admin auth. Desktop 2.0.22: Windows app identity (not
+  "Electron"), Mac Hub buttons in full screen, Mac window walking + Dock.
+- **Before 2026-11-17** (summarised from git history): 2.0.2–2.0.21 desktop releases — private
+  messaging, native installer, customization, admin panel v1/v2, About me + pet thoughts,
+  deadlines/reminders, pet interactions, sounds, Listen Together, animals/outfits/games/points/
+  shop/gifts, people on your network, Mac app + dmg CI, branded Windows runtime, leaderboard,
+  music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
+  tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
