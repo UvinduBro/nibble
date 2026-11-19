@@ -93,7 +93,7 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow write: if false;
     }
-    // Stripe keys (encrypted) and Stripe customer ids: server only, never readable from a browser
+    // server-only data (a health-check doc and Stripe customer ids): never readable from a browser
     match /billing/{doc} { allow read, write: if false; }
     match /billingCustomers/{uid} { allow read, write: if false; }
 
