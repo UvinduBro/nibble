@@ -1253,46 +1253,79 @@
 .gr-settings { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 
 /* ---------- Tea Room ---------- */
-.tea-feeds { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; }
-.tea-feeds button { all: unset; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); font-weight: 700; font-size: 13.5px; color: var(--muted); }
-.tea-feeds button.on { background: var(--mint); color: #0b1a16; border-color: var(--mint); }
-.tea-prompt { all: unset; cursor: pointer; box-sizing: border-box; width: 100%; display: flex; flex-direction: column; gap: 3px; padding: 14px 18px; margin-bottom: 12px; border-radius: var(--r); background: linear-gradient(120deg, rgba(255, 209, 102, 0.16), rgba(255, 143, 208, 0.12)); border: 1px solid rgba(255, 209, 102, 0.3); }
-.tea-prompt span { font-size: 12px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; color: var(--yellow); }
-.tea-prompt b { font-size: 17px; }
-.tea-prompt small { color: var(--muted); font-size: 12.5px; }
-.tea-prompt.on { border-color: var(--yellow); }
-.tea-compose textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 78px; font: inherit; }
-.tea-compose-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.tea { max-width: 720px; }
+.tea-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px; margin-bottom: 16px; border-radius: 22px; background: radial-gradient(120% 140% at 0% 0%, rgba(255, 209, 102, 0.22), transparent 55%), radial-gradient(120% 140% at 100% 100%, rgba(155, 93, 229, 0.28), transparent 60%), var(--card); border: 1px solid rgba(255, 209, 102, 0.22); overflow: hidden; }
+.tea-hero h2 { margin: 0; font-size: 30px; }
+.tea-hero h2 span { display: inline-block; transform: rotate(-8deg); }
+.tea-hero p { margin: 4px 0 0; color: var(--muted); font-weight: 600; }
+.tea-feeds { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; scrollbar-width: none; }
+.tea-feeds button { all: unset; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); font-weight: 700; font-size: 13.5px; color: var(--muted); }
+.tea-feeds button.on { background: var(--yellow); color: #2a1d00; border-color: var(--yellow); }
+.tea-compose { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 14px 16px; margin-bottom: 14px; transition: border-color 0.2s, box-shadow 0.2s; }
+.tea-compose.anon { border-color: rgba(155, 93, 229, 0.55); box-shadow: 0 0 0 4px rgba(155, 93, 229, 0.1); background: linear-gradient(180deg, rgba(155, 93, 229, 0.08), transparent 60%), var(--card); }
+.tea-compose-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tea-as { flex: 1; min-width: 140px; }
+.tea-as b { display: block; font-size: 14.5px; }
+.tea-as small { color: var(--muted); font-size: 12px; }
+.tea .tea-compose textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 84px; margin-top: 12px; font: inherit; font-size: 16px; background: rgba(0, 0, 0, 0.18); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.tea-compose-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .tea-compose-row em { margin-left: auto; font-style: normal; color: var(--muted); font-size: 12px; font-weight: 700; }
-.tea-rules { display: block; color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.5; }
-.tea-anon { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; font-weight: 700; user-select: none; white-space: nowrap; }
-.tea-anon input { display: none; }
-.tea-anon.on { background: #2b2f55; border-color: rgba(155, 93, 229, 0.7); color: #d9c6ff; }
-.tea-anon-off { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
-.tea-mask { position: relative; display: inline-grid; place-items: center; border-radius: 30%; flex: none; }
-.tea-mask i { position: absolute; bottom: -4px; right: -6px; font-style: normal; font-size: 13px; }
-.tea-chip { font-style: normal; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 999px; background: rgba(155, 93, 229, 0.22); color: #d9c6ff; margin-left: 6px; }
+.tea-compose-row em.low { color: var(--pink); }
+.tea-qbtn { all: unset; cursor: pointer; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--yellow); background: rgba(255, 209, 102, 0.1); border: 1px dashed rgba(255, 209, 102, 0.4); }
+.tea-qbtn.on { border-style: solid; background: rgba(255, 209, 102, 0.22); }
+.tea-id { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
+.tea-id button { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.tea-id button.on { background: var(--mint); color: #0b1a16; }
+.tea-id button.on.anon { background: #9b5de5; color: #fff; }
+.tea-id.small button { padding: 4px 9px; font-size: 12px; }
+.tea-mask { position: relative; display: inline-grid; place-items: center; border-radius: 30%; flex: none; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--mc) 70%, #fff), var(--mc)); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08); }
+.tea-mask i { position: absolute; bottom: -5px; right: -7px; font-style: normal; font-size: 13px; }
+.tea-chip { font-style: normal; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 999px; background: rgba(155, 93, 229, 0.22); color: #d9c6ff; }
+.tea-chip.hot { background: rgba(255, 127, 81, 0.2); color: #ffb08f; }
+.tea-chip.op { background: rgba(126, 232, 198, 0.16); color: var(--mint); }
+.tea-bar { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
+.tea-post { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 16px 18px; margin-bottom: 12px; }
+.tea-post.anon { background: linear-gradient(135deg, rgba(155, 93, 229, 0.1), transparent 55%), var(--card); border-color: rgba(155, 93, 229, 0.3); }
 .tea-post header { display: flex; align-items: center; gap: 10px; }
-.tea-post header > .tea-who { flex: 1; min-width: 0; }
-.tea-post header small { display: block; color: var(--muted); font-size: 12px; }
-.tea-post.masked { border-color: rgba(155, 93, 229, 0.3); }
-.tea-prompt-tag { margin: 12px 0 0; font-size: 12.5px; color: var(--yellow); font-weight: 700; }
-.tea-text { margin: 10px 0 12px; font-size: 15.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
-.tea-post footer { display: flex; flex-wrap: wrap; gap: 6px; }
-.tea-post footer button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); border: 1px solid transparent; font-size: 15px; }
-.tea-post footer button b { font-size: 12.5px; }
-.tea-post footer button.on { border-color: var(--mint); background: rgba(126, 232, 198, 0.12); }
-.tea-post footer .tea-ccount { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--muted); }
+.tea-who { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.tea-who b { font-size: 15px; }
+.tea-who small { flex-basis: 100%; color: var(--muted); font-size: 12px; margin-top: -3px; }
+.tea-q { margin: 12px 0 0; font-size: 12.5px; color: var(--yellow); font-weight: 700; }
+.tea-text { margin: 10px 0 14px; font-size: 16.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tea-post footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tea-reacts { display: flex; gap: 4px; flex-wrap: wrap; }
+.tea-reacts button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px; border-radius: 999px; font-size: 15px; border: 1px solid transparent; opacity: 0.6; transition: transform 0.12s, opacity 0.15s; }
+.tea-reacts button:hover { opacity: 1; transform: scale(1.12); }
+.tea-reacts button.has { opacity: 1; background: rgba(255, 255, 255, 0.06); }
+.tea-reacts button.on { opacity: 1; border-color: var(--yellow); background: rgba(255, 209, 102, 0.14); }
+.tea-reacts button b { font-size: 12.5px; }
+.tea-ccount { all: unset; cursor: pointer; margin-left: auto; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); background: rgba(255, 255, 255, 0.05); }
+.tea-ccount.on { color: var(--text); background: rgba(255, 255, 255, 0.1); }
+.tea-menu { position: relative; }
+.tea-dots { all: unset; cursor: pointer; padding: 2px 8px; border-radius: 8px; color: var(--muted); font-size: 18px; line-height: 1; }
+.tea-dots:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.tea-pop { position: absolute; right: 0; top: 100%; z-index: 5; display: flex; flex-direction: column; min-width: 130px; padding: 4px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
+.tea-pop button { all: unset; cursor: pointer; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 600; }
+.tea-pop button:hover { background: rgba(255, 255, 255, 0.07); }
 .tea-thread { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
-.tea-c { display: flex; gap: 10px; align-items: flex-start; }
-.tea-c > div { min-width: 0; flex: 1; }
-.tea-c small { color: var(--muted); font-size: 12px; }
-.tea-c small b { color: var(--text); }
-.tea-c p { margin: 3px 0 0; overflow-wrap: anywhere; }
+.tea-c { display: flex; gap: 8px; align-items: flex-start; }
+.tea-bubble { min-width: 0; flex: 1; background: rgba(255, 255, 255, 0.04); border-radius: 4px 14px 14px 14px; padding: 7px 11px; }
+.tea-c.anon .tea-bubble { background: rgba(155, 93, 229, 0.1); }
+.tea-bubble small { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.tea-bubble small b { color: var(--text); }
+.tea-bubble small span { margin-left: auto; }
+.tea-bubble p { margin: 3px 0 0; overflow-wrap: anywhere; }
 .tea-reply { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.tea-reply input { flex: 1; min-width: 160px; }
-.tea-more { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
+.tea-reply input { flex: 1; min-width: 150px; }
+.tea-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 26px 0; color: var(--muted); }
+.tea-empty b { color: var(--text); font-size: 16px; }
+.tea-more { display: flex; justify-content: center; margin-top: 6px; }
 @media (max-width: 640px) {
   .gr-panel { padding: 12px; }
-  .tea-post footer .tea-ccount { margin-left: 0; }
+  .tea-hero { padding: 14px 16px; }
+  .tea-hero h2 { font-size: 24px; }
+  .tea-compose-row { flex-wrap: wrap; }
+  .tea-qbtn { flex-basis: 100%; }
+  .tea-compose-row em { margin-left: 0; }
+  .tea-compose-row .btn { margin-left: auto; }
 }

@@ -113,10 +113,12 @@ server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports
   uid:thread) → animal + colour, stable within a thread (secret: `TEA_SALT` → `NET_SALT` → derived from
   the service key). Posts last 48 h (expired ones swept when someone posts), reactions (🍵😱🤫🧢✅),
   comments, daily prompt, report → hidden at 3 reports (text moved to `teaHidden`). Daily limits per
-  person in `LIMITS`. Masked posts can't @mention, link, or share emails/phones. Admin switches in
-  `config/app.tea` (`on`, `everyone`, `anon` (groups), `anonAll` (Everyone, off by default)) + `teaWords`.
-  Admin → Inbox → Tea Room shows flags with the real author, latest Everyone posts, hide / restore /
-  delete / suspend. Reading is one page of 20 per open (no live listener); the "new tea" dot is one
+  person in `LIMITS` (generous; not shown in the UI). Anonymous posts may mention people and link; only
+  emails / phone numbers are refused (doxxing), plus the tiny built-in `BLOCKED` list and admin `teaWords`.
+  The owner wants **no rules/restrictions copy in the Tea Room UI** (it's for gossip). Admin switches in
+  `config/app.tea` (`on`, `everyone`, `anon` (groups), `anonAll` (Everyone); all default on) + `teaWords`.
+  Admin → Inbox → Tea Room: flags, and "Who posted what" = the latest 80 posts + comments in every feed
+  (from `teaAuthors`) with the real @username, hide / restore / delete / suspend. Reading is one page of 20 per open (no live listener); the "new tea" dot is one
   1-doc read every 30 min. Test mode runs `teaCore` in the browser against the fake DB.
 
 ## 4. Website, admin and business features
@@ -216,6 +218,13 @@ Newest first. Add an entry for every piece of work.
   (groups, msgs, teaRooms, config/app `tea` + `teaWords`). Adapters gained `list()` / `watchQuery()`;
   `lib/gcp.js` gained `fsQuery()` / `fsIncrement()`. Hub notifications may open `groups` / `tea`
   (ships with the next desktop build).
+
+- **2026-11-20** Tea Room v2: anonymous posting on everywhere by default (Everyone + groups), "Masked"
+  renamed "Anonymous", no rules/limits text in the UI, mention/link limits on anonymous posts removed
+  (emails/phones still refused), higher daily limits. Redesigned page (hero, As me / Anonymous switch
+  with a preview of how you'll appear, today's question chip, New / Hot sort, ⋯ menu for report /
+  delete, chat-bubble comments). Admin → Tea Room "Who posted what": real author of every recent
+  post and comment in every feed.
 
 - **2026-11-20** Desktop 2.0.23 released (version bump + notes for Groups / Tea Room; Hub
   notifications can open the `groups` and `tea` tabs). Published to `main`.

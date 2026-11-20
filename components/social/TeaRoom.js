@@ -1,10 +1,10 @@
 'use client';
-// Tea Room ☕: short posts and comments as yourself or masked, in the Everyone feed or a group's own
-// feed. Posts disappear after 48 hours. Reads are one page at a time (no live listener) to save quota.
-import { useEffect, useState } from 'react';
+// Tea Room ☕: gossip posts and comments, as yourself or anonymous, in the Everyone feed or a
+// group's own feed. Reads are one page at a time (no live listener) to save Firebase quota.
+import { useEffect, useMemo, useRef, useState } from 'react';
 import PetFigure from '../PetFigure';
 import { niceError } from '../../lib/social/social';
-import { REACTS, MAX_POST, MAX_COMMENT, HIDE_AT, PROMPTS, dailyPrompt, teaConfig, LIMITS } from '../../lib/tea';
+import { REACTS, MAX_POST, MAX_COMMENT, PROMPTS, dailyPrompt, teaConfig } from '../../lib/tea';
 
 const ago = (t) => {
   const s = Math.max(0, (Date.now() - t) / 1000);
@@ -13,33 +13,48 @@ const ago = (t) => {
   if (s < 86400) return Math.floor(s / 3600) + 'h';
   return Math.floor(s / 86400) + 'd';
 };
-const left = (exp) => { const h = Math.max(0, (exp - Date.now()) / 3600_000); return h >= 1 ? `${Math.floor(h)}h left` : `${Math.max(1, Math.floor(h * 60))}m left`; };
+const heat = (p) => Object.values(p.rc || {}).reduce((t, n) => t + Math.max(0, n || 0), 0) + 2 * (p.cc || 0);
 
-function Who({ x, size = 38 }) {
-  if (x.anon && x.mask) {
-    return <span className="tea-mask" style={{ width: size, height: size, background: x.mask.color, fontSize: size * 0.5 }}>{x.mask.emoji}<i>🕶</i></span>;
-  }
+// anonymous people get a mystery animal; everyone else their own pet
+function Who({ x, size = 40 }) {
+  if (x.anon && x.mask) return <span className="tea-mask" style={{ width: size, height: size, '--mc': x.mask.color, fontSize: size * 0.5 }}>{x.mask.emoji}<i>🕶</i></span>;
   return <span className="sa-ava" style={{ width: size, height: size }}><PetFigure skin={x.skin || 'mint'} mood="idle" w={size} h={size} size={size / 92} look={x.look} /></span>;
 }
 const whoName = (x) => (x.anon && x.mask ? x.mask.name : '@' + (x.name || 'someone'));
 
-function MaskToggle({ on, set, allowed, why }) {
-  if (!allowed) return <span className="tea-anon-off" title={why}>🙂 Posting as yourself</span>;
+// "As me" / "Anonymous" switch
+function Identity({ anon, setAnon, allowed, small }) {
   return (
-    <label className={'tea-anon' + (on ? ' on' : '')} title="Masked: nobody sees it’s you, not even your friends">
-      <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} />
-      <span>{on ? '🕶 Masked' : '🙂 As yourself'}</span>
-    </label>
+    <div className={'tea-id' + (small ? ' small' : '')} role="radiogroup" aria-label="Post as">
+      <button type="button" role="radio" aria-checked={!anon} className={!anon ? 'on' : ''} onClick={() => setAnon(false)}>🙂 {small ? 'Me' : 'As me'}</button>
+      {allowed && <button type="button" role="radio" aria-checked={anon} className={anon ? 'on anon' : ''} onClick={() => setAnon(true)}>🕶 Anonymous</button>}
+    </div>
   );
 }
 
-function Thread({ social, state, feed, p, canAnon, toast, onCount, canMod }) {
+function Menu({ items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const off = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('pointerdown', off);
+    return () => document.removeEventListener('pointerdown', off);
+  }, [open]);
+  return (
+    <span className="tea-menu" ref={ref}>
+      <button type="button" className="tea-dots" aria-label="More" onClick={() => setOpen(!open)}>⋯</button>
+      {open && <span className="tea-pop">{items.map(([l, f]) => <button type="button" key={l} onClick={() => { setOpen(false); f(); }}>{l}</button>)}</span>}
+    </span>
+  );
+}
+
+function Thread({ social, feed, p, canAnon, toast, onCount, canMod }) {
   const [list, setList] = useState(null);
   const [t, setT] = useState('');
   const [anon, setAnon] = useState(false);
   const [busy, setBusy] = useState(false);
-  const load = () => social.tea.comments(feed, p.id).then(setList, (x) => { setList([]); toast({ err: true, text: niceError(x) }); });
-  useEffect(() => { load(); }, [p.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { social.tea.comments(feed, p.id).then(setList, (x) => { setList([]); toast({ err: true, text: niceError(x) }); }); }, [p.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const send = async (e) => {
     e.preventDefault();
     if (!t.trim()) return;
@@ -53,36 +68,30 @@ function Thread({ social, state, feed, p, canAnon, toast, onCount, canMod }) {
     setBusy(false);
   };
   const remove = (c) => social.tea.remove(feed, p.id, c.id).then(() => { setList((l) => l.filter((x) => x.id !== c.id)); onCount(-1); }, (x) => toast({ err: true, text: niceError(x) }));
-  const report = (c) => {
-    const why = window.prompt('What’s wrong with this comment? (optional)', '');
-    if (why === null) return;
-    social.tea.report(feed, p.id, c.id, why).then((r) => toast({ text: r.already ? 'You already reported this.' : r.hidden ? 'Thanks. It’s hidden now.' : 'Thanks for telling us.' }), (x) => toast({ err: true, text: niceError(x) }));
-  };
+  const report = (c) => social.tea.report(feed, p.id, c.id, '').then((r) => toast({ text: r.already ? 'You already reported this.' : 'Reported. Thanks!' }), (x) => toast({ err: true, text: niceError(x) }));
   return (
     <div className="tea-thread">
       {list === null && <p className="sa-empty">Loading…</p>}
-      {list && !list.length && <p className="sa-empty">No comments yet. Spill your side ☕</p>}
       {list && list.map((c) => (
-        <div key={c.id} className="tea-c">
-          <Who x={c} size={28} />
-          <div>
-            <small><b>{whoName(c)}</b>{c.op && <em className="tea-chip">poster</em>} · {ago(c.at)}
-              {(social.tea.isMine(p.id, c.id) || canMod) ? <button className="gr-mini" title="Delete" onClick={() => remove(c)}>✕</button> : <button className="gr-mini" title="Report" onClick={() => report(c)}>⚑</button>}
-            </small>
+        <div key={c.id} className={'tea-c' + (c.anon ? ' anon' : '')}>
+          <Who x={c} size={30} />
+          <div className="tea-bubble">
+            <small><b>{whoName(c)}</b>{c.op && <em className="tea-chip op">poster</em>}<span>{ago(c.at)}</span></small>
             <p>{c.text}</p>
           </div>
+          <Menu items={social.tea.isMine(p.id, c.id) || canMod ? [['🗑 Delete', () => remove(c)]] : [['⚑ Report', () => report(c)]]} />
         </div>
       ))}
       <form className="tea-reply" onSubmit={send}>
-        <input value={t} maxLength={MAX_COMMENT} placeholder="Add a comment…" onChange={(e) => setT(e.target.value)} />
-        <MaskToggle on={anon} set={setAnon} allowed={canAnon} />
-        <button className="btn small" disabled={busy || !t.trim()}>Reply</button>
+        <input value={t} maxLength={MAX_COMMENT} placeholder={list && !list.length ? 'Be the first to reply…' : 'Reply…'} onChange={(e) => setT(e.target.value)} />
+        <Identity anon={anon} setAnon={setAnon} allowed={canAnon} small />
+        <button className="btn small" disabled={busy || !t.trim()}>Send</button>
       </form>
     </div>
   );
 }
 
-function Post({ social, state, feed, p, canAnon, toast, onGone, canMod }) {
+function Post({ social, feed, p, canAnon, toast, onGone, canMod }) {
   const [rc, setRc] = useState(p.rc || {});
   const [mine, setMine] = useState(social.tea.myReact(p.id));
   const [open, setOpen] = useState(false);
@@ -96,29 +105,33 @@ function Post({ social, state, feed, p, canAnon, toast, onGone, canMod }) {
     setRc(n); setMine(next);
     try { await social.tea.react(feed, p.id, next); } catch (x) { setRc(before.rc); setMine(before.mine); toast({ err: true, text: niceError(x) }); }
   };
-  const report = () => {
-    const why = window.prompt('What’s wrong with this post? (optional)', '');
-    if (why === null) return;
-    social.tea.report(feed, p.id, '', why).then((r) => { toast({ text: r.already ? 'You already reported this.' : r.hidden ? 'Thanks. It’s hidden now.' : 'Thanks for telling us.' }); if (r.hidden) onGone(p.id); }, (x) => toast({ err: true, text: niceError(x) }));
-  };
+  const report = () => social.tea.report(feed, p.id, '', '').then((r) => { toast({ text: r.already ? 'You already reported this.' : 'Reported. Thanks!' }); if (r.hidden) onGone(p.id); }, (x) => toast({ err: true, text: niceError(x) }));
   const remove = () => { if (window.confirm('Delete this post?')) social.tea.remove(feed, p.id).then(() => onGone(p.id), (x) => toast({ err: true, text: niceError(x) })); };
   const prompt = p.prompt >= 0 ? PROMPTS[p.prompt] || '' : '';
+  const hot = heat({ rc, cc }) >= 8;
   return (
-    <article className={'sa-card tea-post' + (p.anon ? ' masked' : '')}>
+    <article className={'tea-post' + (p.anon ? ' anon' : '')}>
       <header>
         <Who x={p} />
-        <span className="tea-who"><b>{whoName(p)}</b>{p.anon && <em className="tea-chip">masked</em>}<small>{ago(p.at)} · {left(p.exp)}</small></span>
-        {(social.tea.isMine(p.id) || canMod) ? <button className="gr-mini" title="Delete" onClick={remove}>✕</button> : <button className="gr-mini" title="Report" onClick={report}>⚑ Report</button>}
+        <span className="tea-who">
+          <b>{whoName(p)}</b>
+          {p.anon && <em className="tea-chip">anonymous</em>}
+          {hot && <em className="tea-chip hot">🔥 hot</em>}
+          <small>{ago(p.at)}</small>
+        </span>
+        <Menu items={social.tea.isMine(p.id) || canMod ? [['🗑 Delete', remove]] : [['⚑ Report', report]]} />
       </header>
-      {prompt && <p className="tea-prompt-tag">☕ {prompt}</p>}
+      {prompt && <p className="tea-q">☕ {prompt}</p>}
       <p className="tea-text">{p.text}</p>
       <footer>
-        {REACTS.map(([k, e, l]) => (
-          <button key={k} className={mine === k ? 'on' : ''} title={l} onClick={() => react(k)}>{e}{rc[k] > 0 && <b>{rc[k]}</b>}</button>
-        ))}
-        <button className={'tea-ccount' + (open ? ' on' : '')} onClick={() => setOpen(!open)}>💬 {cc > 0 ? cc : ''} {cc === 1 ? 'comment' : 'comments'}</button>
+        <span className="tea-reacts">
+          {REACTS.map(([k, e, l]) => (
+            <button key={k} type="button" className={(mine === k ? 'on ' : '') + (rc[k] > 0 ? 'has' : '')} title={l} onClick={() => react(k)}>{e}{rc[k] > 0 && <b>{rc[k]}</b>}</button>
+          ))}
+        </span>
+        <button type="button" className={'tea-ccount' + (open ? ' on' : '')} onClick={() => setOpen(!open)}>💬 {cc > 0 ? cc : 'Reply'}</button>
       </footer>
-      {open && <Thread social={social} state={state} feed={feed} p={p} canAnon={canAnon} toast={toast} onCount={(d) => setCc((n) => Math.max(0, n + d))} canMod={canMod} />}
+      {open && <Thread social={social} feed={feed} p={p} canAnon={canAnon} toast={toast} onCount={(d) => setCc((n) => Math.max(0, n + d))} canMod={canMod} />}
     </article>
   );
 }
@@ -138,19 +151,22 @@ export default function TeaRoom({ social, state, toast, go, teaFeed, setTeaFeed 
   const [anon, setAnon] = useState(false);
   const [usePrompt, setUsePrompt] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sort, setSort] = useState('new');
   const today = dailyPrompt();
+  const me = state.profile || {};
 
   const load = (after) => {
     setErr('');
     if (!after) setPosts(null);
     social.tea.load(feed, after).then((r) => {
-      setPosts((cur) => (after ? [...(cur || []), ...r.posts] : r.posts));
+      setPosts((l) => (after ? [...(l || []), ...r.posts] : r.posts));
       setMore(r.more); setLast(r.last);
     }, (x) => { setPosts([]); setErr(niceError(x)); });
   };
   useEffect(() => { if (feed && cfg.on) load(); }, [feed, cfg.on]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (group) social.groups.markSeen(group.id, 'tea'); }, [group && group.id, group && group.teaAt]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!canAnon) setAnon(false); }, [canAnon]);
+  const shown = useMemo(() => (posts && sort === 'hot' ? [...posts].sort((a, b) => heat(b) - heat(a) || b.at - a.at) : posts), [posts, sort]);
 
   const post = async (e) => {
     e.preventDefault();
@@ -160,24 +176,23 @@ export default function TeaRoom({ social, state, toast, go, teaFeed, setTeaFeed 
       const r = await social.tea.post(feed, text, anon, usePrompt ? today.id : -1);
       setPosts((l) => [{ id: r.id, ...r.doc }, ...(l || [])]);
       setText(''); setUsePrompt(false);
-      toast({ text: anon ? '🕶 Posted, masked' : '🍵 Posted' });
+      toast({ text: anon ? '🕶 Posted anonymously' : '🍵 Posted' });
     } catch (x) { toast({ err: true, text: niceError(x) }); }
     setBusy(false);
   };
 
   if (!cfg.on) {
-    return (
-      <div className="sa-page"><div className="sa-center"><PetFigure skin="mint" mood="sleep" w={140} h={130} /><h1>The Tea Room is closed</h1><p className="sa-sub">The Nibble team switched it off for a little while. Check back soon!</p></div></div>
-    );
+    return <div className="sa-page"><div className="sa-center"><PetFigure skin="mint" mood="sleep" w={140} h={130} /><h1>The Tea Room is closed</h1><p className="sa-sub">It’s taking a little break. Check back soon!</p></div></div>;
   }
 
   return (
     <div className="sa-page tea">
-      <div className="sa-head">
+      <div className="tea-hero">
         <div>
-          <h2>Tea Room <small className="sa-ttl">☕ posts disappear after 48 h</small></h2>
-          <p className="sa-sub">Spill the tea: short posts as yourself or masked. Masked means nobody sees it’s you, not even your friends.</p>
+          <h2>Tea Room <span>☕</span></h2>
+          <p>Spill it. As you, or anonymously.</p>
         </div>
+        <PetFigure skin={me.skin || 'mint'} mood="dance" w={96} h={88} size={0.8} acc={me.acc} tint={me.tint} makeup={me.makeup} look={me.style} />
       </div>
 
       {!feeds.length ? (
@@ -195,32 +210,37 @@ export default function TeaRoom({ social, state, toast, go, teaFeed, setTeaFeed 
             })}
           </div>
 
-          <button type="button" className={'tea-prompt' + (usePrompt ? ' on' : '')} onClick={() => setUsePrompt(!usePrompt)}>
-            <span>☕ Today’s question</span><b>{today.text}</b><small>{usePrompt ? '✓ your post answers this' : 'Tap to answer it'}</small>
-          </button>
-
-          <form className="sa-card tea-compose" onSubmit={post}>
-            <textarea rows={3} value={text} maxLength={MAX_POST} placeholder={usePrompt ? today.text : feed === 'all' ? 'What’s the tea? (everyone on Nibble can see this)' : `What’s the tea, ${cur ? cur.name : ''}?`} onChange={(e) => setText(e.target.value)} />
-            <div className="tea-compose-row">
-              <MaskToggle on={anon} set={setAnon} allowed={canAnon} why={feed === 'all' ? 'Masked posts are only in group Tea Rooms.' : 'Masked posts are switched off right now.'} />
-              <em>{MAX_POST - text.length}</em>
-              <button className="btn small" disabled={busy || !text.trim()}>{busy ? 'Posting…' : 'Post'}</button>
+          <form className={'tea-compose' + (anon ? ' anon' : '')} onSubmit={post}>
+            <div className="tea-compose-top">
+              {anon ? <span className="tea-mask" style={{ width: 40, height: 40, '--mc': '#9b5de5', fontSize: 20 }}>❔<i>🕶</i></span> : <Who x={{ skin: me.skin, look: me.style }} />}
+              <span className="tea-as">{anon ? <><b>Anonymous</b><small>A mystery animal. Nobody sees it’s you.</small></> : <><b>@{me.username}</b><small>Posting as yourself</small></>}</span>
+              <Identity anon={anon} setAnon={setAnon} allowed={canAnon} />
             </div>
-            <small className="tea-rules">
-              Be kind: no bullying, no secrets that aren’t yours. {anon ? `Masked posts can’t @mention people or include links (${LIMITS.anon} a day). ` : ''}Posts reported by {HIDE_AT} people are hidden, and the team can see who wrote a reported post.
-            </small>
+            <textarea rows={3} value={text} maxLength={MAX_POST} placeholder={usePrompt ? today.text : feed === 'all' ? 'What’s the tea? ☕' : `What’s the tea in ${cur ? cur.name : 'the group'}?`} onChange={(e) => setText(e.target.value)} />
+            <div className="tea-compose-row">
+              <button type="button" className={'tea-qbtn' + (usePrompt ? ' on' : '')} onClick={() => setUsePrompt(!usePrompt)} title="Answer today’s question">☕ {today.text}</button>
+              <em className={MAX_POST - text.length < 30 ? 'low' : ''}>{MAX_POST - text.length}</em>
+              <button className="btn small" disabled={busy || !text.trim()}>{busy ? 'Posting…' : anon ? 'Post anonymously' : 'Post'}</button>
+            </div>
           </form>
 
-          {posts === null && <p className="sa-empty">Brewing…</p>}
-          {err && <div className="sa-card"><p className="sa-empty">{/ermission|Not allowed/.test(err) ? 'Can’t open this feed yet. If the Firestore rules were just updated, wait a minute and try again.' : err}</p><button className="btn small ghost" onClick={() => load()}>Try again</button></div>}
-          {posts && !err && !posts.length && <div className="sa-card"><p className="sa-empty">No tea here yet. Be the first to spill some ☕</p></div>}
-          {posts && posts.map((p) => (
-            <Post key={p.id} social={social} state={state} feed={feed} p={p} canAnon={canAnon} toast={toast} canMod={!!(group && group.isOwner)} onGone={(id) => setPosts((l) => l.filter((x) => x.id !== id))} />
-          ))}
-          <div className="tea-more">
-            {more && <button className="btn small ghost" onClick={() => load(last)}>Load more</button>}
-            {posts && <button className="btn small ghost" onClick={() => load()}>↻ Refresh</button>}
+          <div className="tea-bar">
+            <div className="lb-tabs" role="tablist">
+              <button role="tab" aria-selected={sort === 'new'} className={sort === 'new' ? 'on' : ''} onClick={() => setSort('new')}>🆕 New</button>
+              <button role="tab" aria-selected={sort === 'hot'} className={sort === 'hot' ? 'on' : ''} onClick={() => setSort('hot')}>🔥 Hot</button>
+            </div>
+            <button className="sa-link" onClick={() => load()}>↻ Refresh</button>
           </div>
+
+          {posts === null && <p className="sa-empty">Brewing…</p>}
+          {err && <div className="sa-card"><p className="sa-empty">{/ermission|Not allowed/.test(err) ? 'Can’t open this feed yet. Try again in a minute.' : err}</p><button className="btn small ghost" onClick={() => load()}>Try again</button></div>}
+          {shown && !err && !shown.length && (
+            <div className="tea-empty"><PetFigure skin="mint" mood="happy" w={100} h={92} /><b>No tea yet</b><span>Be the first to spill some ☕</span></div>
+          )}
+          {shown && shown.map((p) => (
+            <Post key={p.id} social={social} feed={feed} p={p} canAnon={canAnon} toast={toast} canMod={!!(group && group.isOwner)} onGone={(id) => setPosts((l) => l.filter((x) => x.id !== id))} />
+          ))}
+          {more && <div className="tea-more"><button className="btn small ghost" onClick={() => load(last)}>Load more</button></div>}
         </>
       )}
     </div>
