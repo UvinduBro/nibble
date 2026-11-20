@@ -50,10 +50,10 @@ database. No custom backend server besides Next.js route handlers.
 | `app/llms.txt`, `app/llms-full.txt` | Facts for AI assistants (AEO) |
 | `app/robots.js`, `sitemap.js`, `manifest.js`, `layout.js` | SEO plumbing; metadata comes from `lib/seo.js` |
 | `app/Get-Nibble.exe`, `Nibble.dmg`, `install.*`, `install-files.txt` | Installers / downloads |
-| `components/social/` | The app UI: `SocialApp.js` (all app pages), `AdminApp.js` (all admin pages), `Auth.js`, `Music.js`, `Arcade.js`, `Wardrobe.js`, `Leaderboard.js`, `LiveDesk.js`, `Feedback.js`, `Groups.js`, `TeaRoom.js`, `useSocial.js`, `social.css` |
+| `components/social/` | The app UI: `SocialApp.js` (all app pages), `AdminApp.js` (all admin pages), `StripeAdmin.js` (Admin → Money → Stripe), `Auth.js`, `Music.js`, `Arcade.js`, `Wardrobe.js`, `Leaderboard.js`, `LiveDesk.js`, `Feedback.js`, `Groups.js`, `TeaRoom.js`, `useSocial.js`, `social.css` |
 | `components/landing/`, `About.js`, `Sections.js`, `Desktop.js`, `PetFigure.js` | Website UI |
 | `lib/social/` | Client logic: `social.js` (core), `firebaseAdapter.js`, `fakeAdapter.js` (local test mode), `music.js`, `wallet.js`, `games.js`, `lan.js`, `groups.js`, `tea.js`, `config.js` |
-| `lib/` (server/shared) | `billing.js` (Stripe SDK client, webhook verify, Premium sync), `billingRisk.js` (pre-checks, temp-mail block, fraud metadata), `premium.js` (plan shape), `gcp.js` (service account + Firestore REST), `adminAuth.js`, `mail.js` (Resend/SMTP), `marketing.js`, `emailTemplates.js`, `reviews.js`, `seo.js`, `facts.js` (one source of truth for SEO/AEO), `installer.js`, `usage.js`, `reports.js`, `signup.js`, `shop.js`, `characters.js`, `stage.js`, `tea.js` (Tea Room constants/filters/masks), `teaCore.js` (Tea Room actions, shared by server + test mode), `teaServer.js` |
+| `lib/` (server/shared) | `billing.js` (Stripe SDK client, webhook verify, Premium sync), `billingRisk.js` (pre-checks, temp-mail block, fraud metadata), `billingAudit.js` (admin money-action audit log), `premium.js` (plan shape), `gcp.js` (service account + Firestore REST), `adminAuth.js`, `mail.js` (Resend/SMTP), `marketing.js`, `emailTemplates.js`, `reviews.js`, `seo.js`, `facts.js` (one source of truth for SEO/AEO), `installer.js`, `usage.js`, `reports.js`, `signup.js`, `shop.js`, `characters.js`, `stage.js`, `tea.js` (Tea Room constants/filters/masks), `teaCore.js` (Tea Room actions, shared by server + test mode), `teaServer.js` |
 | `public/nibble/engine/` | The pet engine (plain JS, no build): `pet.js`, `draw.js`, `lines.js`, `skins.js`, `wardrobe.js`, `social-draw.js`. Used by the website **and** copied into the desktop app |
 | `public/app/` | **Desktop app source** (Electron): `src/main.js`, `hub.js`, `preload.js`, `hubPreload.js`, `windowWatcher.js` (+ `helper/WinWatch.cs`), `nowPlaying.js`, `settings.js`, `renderer/` |
 | `public/email/` | Email art cut from the flyer (logo, icons, peeking Nibble, flyer.jpg) |
@@ -97,7 +97,7 @@ database. No custom backend server besides Next.js route handlers.
 `lan/{net}/members`, `signup`, `reports`, `reminders`, `admins` (console-only), `banned`,
 `broadcast`/`broadcasts`, `config/app`, `config/premium` (public), `premium/{uid}` (server/admin
 only), `billingCustomers/*` (server only, never readable from a browser; `billing/health` is a write test, `billing/terms` notes a missing Stripe terms URL),
-`billingEvents/{evt}` (server only: Stripe webhook dedupe + log, 90 days), `billingFlags/{uid}` (server only: disputes, fraud warnings, refunds),
+`billingEvents/{evt}` (server only: Stripe webhook dedupe + log, 90 days), `billingFlags/{uid}` (server only: disputes, fraud warnings, refunds), `billingAudit/{id}` (server only: admin money actions, 2 years),
 `reviews/{uid}`, `seo/site` (public), `groups/{gid}` (+ `msgs`), `teaRooms/{feed}/posts/{pid}` (+ `comments`;
 server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports`, `teaHidden`, `teaFlags`.
 
@@ -126,7 +126,7 @@ server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports
 
 - **Admin dashboard** (`/admin`): left sidebar groups — Insights (Overview, Users, Games & points,
   Firebase usage), Inbox (Reviews, Reports), Communicate (Announcements, Email, Marketing),
-  Money (Premium), Grow (SEO), System (Settings). Each page has a description + Tips box.
+  Money (Premium, Stripe), Grow (SEO), System (Settings). Each page has a description + Tips box.
   Admin = a doc at `admins/{uid}` created by hand in the Firebase console.
 - **Email** (Resend, domain `meetnibble.com` verified, DNS on Spaceship): sender
   `no-reply@meetnibble.com`; contact-form mails to `hello@meetnibble.com` (Spacemail inbox).
@@ -152,6 +152,16 @@ server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports
   them. Set-up steps for the payment person: `docs/STRIPE_SETUP.md`. The webhook endpoint is created
   by hand in the Stripe dashboard (15 events, see `WEBHOOK_EVENTS`). Webhook verifies the signature
   (5-min tolerance) and re-fetches the subscription before writing `premium/{uid}`.
+  **Admin → Stripe** (`components/social/StripeAdmin.js`, `app/api/admin/stripe`): the owner's Stripe back office
+  so they rarely need the Stripe dashboard. Overview (balance, payouts, 30-day money, MRR, "Needs you"), payments
+  (Radar risk, refund full/partial, block card), person drawer (subscriptions, cards, payments, invoices, flag,
+  Nibble facts), subscriptions (cancel / resume / end now / pause / change package / free days), invoices
+  (retry / void), disputes (evidence pre-filled from Nibble data, draft / submit / accept), fraud (early fraud
+  warnings, Radar block lists `nibble_blocked_emails` / `nibble_blocked_cards`, which need two Radar rules),
+  activity (webhook log, Stripe events, audit log). Search: @username → `usernames` → `findCustomer`, email, or
+  any Stripe id. Every action needs a reason and is written to `billingAudit`; refunds also carry `nb_by` /
+  `nb_reason` metadata. Missing key permissions show as "This needs a Stripe key permission: …" per section.
+  Admin → Premium keeps the product side (on/off, packages, features, promo codes, gifts, set-up checklist).
   Plan (`config/premium`): on/off, name, promo-codes toggle, default package, features, and up to 6
   **packages** (id, name, amount, currency, year/month/week, trial days, label, active, Stripe
   priceId). Packages are saved through the server (it creates the Stripe price; a new amount = new
@@ -183,7 +193,7 @@ used and can be deleted.) Firebase web config in `lib/social/config.js` is publi
 
 `build` (deployed commit), `tea` (Tea Room actions), `feedback` (website reports/contact → Firestore REST + email), `netid`,
 `oembed`, `mac-release`, `subscribe` (newsletter opt-in), `billing/{checkout,portal,status}`,
-`stripe/webhook`, `admin/{usage,email,marketing,premium,seo,indexnow,tea}`. Admin routes check the
+`stripe/webhook`, `admin/{usage,email,marketing,premium,stripe,seo,indexnow,tea}`. Admin routes check the
 caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with that token).
 
 ## 7. Rules and conventions
@@ -215,6 +225,9 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
   `/pricing`), Public details (terms/refund/privacy URLs, statement descriptor `MEETNIBBLE.COM`), restricted key,
   webhook with the **15 events** at the SDK's API version, portal, customer emails (trial reminders), Radar rules,
   test cards, then live. Deploy `/pricing` + `/refunds` before live activation. Consider Stripe Tax.
+- Stripe key: add the Admin → Stripe permissions (Balance, Payouts, Events, PaymentIntents, Payment methods read;
+  Payment Disputes, Invoices, Radar value lists write) and the two Radar block-list rules (`docs/STRIPE_SETUP.md`).
+- Publish `firestore.rules` again (adds `billingAudit`).
 - Google Search Console + Bing Webmaster Tools: verify, submit `sitemap.xml`, request indexing.
 - Add `meetnibble.com` to Firebase authorized domains, then switch desktop `SITE` to it.
 - Firebase App Check (stops direct-to-Firestore spam on `reports`).
@@ -224,6 +237,15 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 ## 9. Changelog
 
 Newest first. Add an entry for every piece of work.
+
+- **2026-11-21** Admin → Money → Stripe: a back office for payments so the owner rarely needs the Stripe
+  dashboard. Overview (balance, payouts, 30-day revenue chart, MRR, members, "Needs you"), payments with Radar
+  risk and full/partial refunds, a person drawer, subscriptions (cancel / resume / end now / pause / change
+  package / free days), invoices (retry / void), disputes with pre-filled evidence (draft / submit / accept),
+  fraud warnings and Radar block lists, webhook log, Stripe events, and an audit log (`billingAudit`) of every
+  action with its reason. Subscribers, flags, refunds and the webhook log moved here from Admin → Premium.
+  New route `/api/admin/stripe`; rules add `billingAudit` (server only). Needs extra key permissions. Not tested
+  against Stripe from here.
 
 - **2026-11-21** Admin → Premium webhook check compares only the API release name (`….endive`), so a newer
   dated version of the same release (e.g. `2026-11-18.endive`) shows ✓; `.preview` versions never match.

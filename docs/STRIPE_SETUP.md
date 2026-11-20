@@ -69,6 +69,10 @@ In Stripe → **Settings → Business → Public details**:
      Promotion codes, Customer portal, Refunds
    - **Read:** Charges, Disputes, Invoices, Webhook endpoints, Account (connected account / "All
      account" read), Radar → Early fraud warnings
+   - **Also for Admin → Stripe** (payments page in the Nibble admin): Read **Balance** (incl. balance
+     transactions), **Payouts**, **Events**, **PaymentIntents**, **Payment methods**; and change
+     **Payment Disputes** and **Invoices** from Read to **Write**, plus Write **Radar value lists**.
+     Without them that part of Admin → Stripe shows "This needs a Stripe key permission: …".
 3. Copy the `rk_test_…` key. (A full `sk_test_…` key also works, but a restricted key does far less
    damage if it ever leaks. The admin checklist shows which one you're using.)
 
@@ -114,6 +118,12 @@ Stripe → **Radar → Rules**. Turn these on (they're free with standard Radar)
 - Block if `:cvc_check: = 'fail'`
 - Block if `:address_zip_check: = 'fail'` (checkout always asks for the billing address)
 - Optional: Block if `:card_funding: = 'prepaid'` (prepaid cards are a common fraud source)
+
+For the **block lists** in Admin → Stripe → Fraud, add these two rules (one time):
+- Block if `:email: in @nibble_blocked_emails`
+- Block if `:card_fingerprint: in @nibble_blocked_cards`
+(The lists are created the first time you block something in the admin; you can add the rules after
+that, or create the lists by hand in Radar → Lists with those exact aliases.)
 
 With **Radar for Fraud Teams** you can also write rules on the fields Nibble adds to the customer:
 - Review if `::customer:nb_country_mismatch:: = 'true'`
@@ -192,17 +202,24 @@ repeat in live mode:
    **Redeploy**.
 7. Admin → Premium → **Re-check** (should say **LIVE**). Then **Edit → Save** each package again so
    live prices are created (the test price IDs don't exist in live mode).
-8. Make one real purchase with your own card, then refund it from Admin → Premium → Disputes &
-   fraud warnings → Refund a payment.
+8. Make one real purchase with your own card, then refund it from Admin → Stripe → Payments → Refund.
+
+## What you can do in Admin → Stripe (no Stripe login needed)
+Balance and payouts, revenue and MRR, every payment with its Radar risk, refunds (full or partial),
+members and subscriptions (cancel, resume, end now, pause, change package, free days), invoices
+(retry, void, links), disputes (pre-filled evidence, save draft, submit, accept), early fraud warnings,
+block lists, the webhook log, Stripe events and an audit log of every admin action with its reason.
+
+Still in the Stripe dashboard: business and bank details, payout schedule, branding, Radar **rules**,
+tax, team members / 2FA, and monthly report downloads.
 
 ## Good to know
-- **Refunds:** our policy is a full refund within 14 days of any payment. Paste the payment id
-  (`ch_…` or `py_…`, from Stripe → Payments) into Admin → Premium → Refund a payment. A full refund
-  ends that person's Premium automatically.
+- **Refunds:** our policy is a full refund within 14 days of any payment. Admin → Stripe → search
+  the @username → Refund. A full refund ends that person's Premium automatically.
 - **Disputes / fraud warnings:** Premium ends and the account is flagged (it can't buy again). Look
-  at the payment in Stripe, respond to the dispute there if you want to fight it, then **Clear** the
-  flag in Admin if the person is fine.
-- **Stopping a subscription:** Admin → Premium → Subscribers → Cancel (at period end) or End now.
+  at the payment, answer the dispute in Admin → Stripe → Disputes if you want to fight it, then **Clear
+  flag** on the person if they're fine.
+- **Stopping a subscription:** Admin → Stripe → Subscriptions → Cancel (at period end) or End now.
 - Stripe fees are about 2.9% + 30¢ per payment ($5 → about $4.55). Look at **Stripe Tax** before
   selling to places that need sales tax / VAT.
 - Changing a price creates a new Stripe price; people already subscribed keep paying the old one.

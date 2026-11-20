@@ -2,6 +2,7 @@
 import './social.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocial } from './useSocial';
+import StripeAdmin from './StripeAdmin';
 import { AuthScreen } from './Auth';
 import PetFigure, { useNibble, PetSnap } from '../PetFigure';
 import { ITEMS, SPECIES as SHOP_SPECIES, OUTFITS as SHOP_OUTFITS, SKILLS as SHOP_SKILLS, PT } from '../../lib/shop';
@@ -1374,7 +1375,6 @@ function SeoTab({ social, toast }) {
 
 // Sidebar: grouped pages, each with a one-line purpose and a short guide (shown under the title)
 // ---------- Premium: Stripe subscriptions (keys live in Vercel env, never here) ----------
-const SUB_COLOR = { active: C.mint, trialing: C.cyan, past_due: C.yellow, canceled: C.slate, unpaid: C.coral, incomplete: C.slate, incomplete_expired: C.slate };
 const blankPkg = () => ({ id: '', name: '', amount: '', currency: 'usd', interval: 'year', trialDays: 0, highlight: '', active: true });
 function Check({ ok, warn, children }) { return <li className={ok ? 'ok' : warn ? 'bad' : ''}>{ok ? '✓ ' : warn ? '⚠️ ' : '○ '}{children}</li>; }
 function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
@@ -1388,8 +1388,6 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
   const [promo, setPromo] = useState({ code: '', kind: 'percent', percentOff: 20, amountOff: '', currency: 'usd', duration: 'once', months: 3, maxRedemptions: '', expiresAt: '' });
   const [gift, setGift] = useState({ who: '', days: 365 });
   const [name, setName] = useState(plan.name);
-  const [refundId, setRefundId] = useState('');
-  const [showEvents, setShowEvents] = useState(false);
   useEffect(() => { if (!featsDirty) setFeats(plan.features); setName(plan.name); }, [state.premiumPlan]); // eslint-disable-line react-hooks/exhaustive-deps
   const load = () => { setErr(''); social.admin.premium().then(setInfo).catch((e) => { setInfo({}); setErr(niceError(e)); }); };
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1419,10 +1417,6 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
   const setF = (i, patch) => { setFeats(feats.map((f, j) => (j === i ? { ...f, ...patch } : f))); setFeatsDirty(true); };
   const giftUser = users.find((u) => u.username === gift.who.replace(/^@/, '').trim().toLowerCase() || u.uid === gift.who.trim());
   const stats = info && info.stats;
-  const subs = (info && info.subscribers) || [];
-  const flags = (info && info.flags) || [];
-  const events = (info && info.events) || [];
-  const failed = events.filter((ev) => ev.status === 'failed').length;
   const nameOf = (uid) => (users.find((u) => u.uid === uid) || {}).username;
   const dash = `https://dashboard.stripe.com/${hl.key && hl.key.mode === 'test' ? 'test/' : ''}`;
   return (
@@ -1582,81 +1576,13 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
       </div>
 
       <div className="sa-card">
-        <h3>👥 Subscribers <small>{subs.length}{stats && stats.more ? '+' : ''}</small></h3>
-        {!subs.length && <p className="sa-empty">{hl.key && hl.key.ok ? 'No subscribers yet.' : 'Add the Stripe keys to see subscribers.'}</p>}
-        {subs.length > 0 && (
-          <table className="ad-mini">
-            <thead><tr><th>Who</th><th>Status</th><th>Renews / ends</th><th>Price</th><th /></tr></thead>
-            <tbody>{subs.map((x) => (
-              <tr key={x.id}>
-                <td>{nameOf(x.uid) ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(x.uid); }}>@{nameOf(x.uid)}</button> : x.uid}<br /><small style={{ color: 'var(--muted)' }}>{x.email}{x.pkg ? ' · ' + x.pkg : ''}</small></td>
-                <td><b style={{ color: SUB_COLOR[x.status] || C.slate }}>{x.status.replace('_', ' ')}</b>{x.cancelAtEnd ? <small> · cancelling</small> : null}
-                  {x.risk && (x.risk.flags || x.risk.ageDays !== '') ? <><br /><small style={{ color: x.risk.flags && x.risk.flags !== 'none' ? C.coral : 'var(--muted)' }} title="From the checkout: account age, sign-in, request country vs. sign-up country">{x.risk.flags && x.risk.flags !== 'none' ? '⚠️ ' + x.risk.flags.replace(/_/g, ' ') + ' · ' : ''}{x.risk.ageDays !== '' ? `${x.risk.ageDays}d old` : ''}{x.risk.provider ? ' · ' + x.risk.provider.replace('.com', '') : ''}{x.risk.ipCountry ? ' · ' + x.risk.ipCountry : ''}</small></> : null}</td>
-                <td>{x.until ? new Date(x.until).toLocaleDateString() : '—'}</td>
-                <td>{money(x.amount, x.currency)}/{x.interval}</td>
-                <td className="ad-sub-btns">
-                  {['active', 'trialing', 'past_due'].includes(x.status) && (x.cancelAtEnd
-                    ? <button className="btn small ghost" disabled={!!busy} onClick={() => act('sub', { action: 'resume', subId: x.id }, 'Subscription resumed')}>Resume</button>
-                    : <button className="btn small ghost" disabled={!!busy} onClick={() => { if (window.confirm('Cancel at the end of the period they paid for? They keep Premium until then.')) act('sub', { action: 'cancel', subId: x.id }, 'Will cancel at period end'); }}>Cancel</button>)}
-                  {['active', 'trialing', 'past_due'].includes(x.status) && <button className="btn small ghost" disabled={!!busy} onClick={() => { if (window.confirm('Cancel NOW? Premium ends immediately. (Refunds are done in Stripe.)')) act('sub', { action: 'cancel', subId: x.id, now: true }, 'Cancelled now'); }}>End now</button>}
-                  <button className="btn small ghost" disabled={!!busy} onClick={() => act('sub', { action: 'resync', uid: x.uid }, 'Synced')}>Sync</button>
-                  <a className="btn small ghost" href={`${dash}subscriptions/${x.id}`} target="_blank" rel="noreferrer">Stripe ↗</a>
-                </td>
-              </tr>
-            ))}</tbody>
-          </table>
-        )}
-      </div>
-
-      <div className="sa-card">
-        <h3>🚩 Disputes & fraud warnings <small>{flags.filter((f) => f.open).length} to review</small></h3>
-        <p className="ad-foot" style={{ marginTop: 0 }}>A dispute (chargeback) or a Stripe fraud warning ends Premium straight away and blocks new purchases until you clear it here. Fraud warnings are refunded automatically to avoid the dispute fee. Full refunds also end Premium but don’t block buying again.</p>
-        {!flags.length && <p className="sa-empty">Nothing here. 🎉</p>}
-        {flags.length > 0 && (
-          <table className="ad-mini">
-            <thead><tr><th>Who</th><th>What</th><th>Amount</th><th>When</th><th /></tr></thead>
-            <tbody>{flags.map((f) => (
-              <tr key={f.uid} style={{ opacity: f.open ? 1 : 0.6 }}>
-                <td>{nameOf(f.uid) ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(f.uid); }}>@{nameOf(f.uid)}</button> : f.uid}</td>
-                <td><b style={{ color: f.open ? C.coral : C.slate }}>{FLAG_LABEL[f.reason] || f.reason}</b>{f.disputeStatus ? <small> · {f.disputeStatus.replace(/_/g, ' ')}</small> : null}{f.refunded ? <small> · refunded</small> : null}{!f.open ? <small> · cleared</small> : null}</td>
-                <td>{f.amount ? money(f.amount, f.currency) : f.lastRefund ? money(f.lastRefund.amount, f.lastRefund.currency) : '—'}</td>
-                <td>{f.at ? new Date(f.at).toLocaleDateString() : '—'}</td>
-                <td className="ad-sub-btns">
-                  {f.open && <button className="btn small ghost" disabled={!!busy} onClick={() => { if (window.confirm('You checked this one and they may buy Premium again?')) act('flag', { action: 'clearFlag', uid: f.uid }, 'Flag cleared'); }}>Clear</button>}
-                  {f.chargeId && <a className="btn small ghost" href={`${dash}payments/${f.chargeId}`} target="_blank" rel="noreferrer">Stripe ↗</a>}
-                </td>
-              </tr>
-            ))}</tbody>
-          </table>
-        )}
-        <form className="sa-form" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); const id = refundId.trim(); if (id && window.confirm(`Refund ${id} in full? This ends their Premium.`)) act('refund', { action: 'refund', chargeId: id }, 'Refunded').then((r) => { if (r) setRefundId(''); }); }}>
-          <label><span>Refund a payment <small>14-day refund requests: paste the payment id (ch_… or py_…) from Stripe</small></span>
-            <div style={{ display: 'flex', gap: 8 }}><input value={refundId} onChange={(e) => setRefundId(e.target.value)} placeholder="ch_…" /><button className="btn small" disabled={!refundId.trim() || !!busy || !(hl.key && hl.key.ok)}>Refund</button></div></label>
-        </form>
-      </div>
-
-      <div className="sa-card">
-        <h3>📬 Webhook log <small>last {events.length}{failed ? ` · ${failed} failed` : ''}</small></h3>
-        {!events.length && <p className="sa-empty">No events yet. They show up after the first purchase.</p>}
-        {events.length > 0 && (
-          <table className="ad-mini">
-            <thead><tr><th>Event</th><th>Result</th><th>When</th></tr></thead>
-            <tbody>{events.slice(0, showEvents ? 50 : 10).map((ev) => (
-              <tr key={ev.id}>
-                <td><code>{ev.type}</code>{ev.uid && nameOf(ev.uid) ? <small> · @{nameOf(ev.uid)}</small> : null}{!ev.live ? <small> · test</small> : null}</td>
-                <td><b style={{ color: ev.status === 'done' ? C.mint : ev.status === 'failed' ? C.coral : C.yellow }}>{ev.status}</b>{ev.tries > 1 ? <small> · {ev.tries} tries</small> : null}{ev.error ? <><br /><small style={{ color: C.coral }}>{ev.error}</small></> : null}</td>
-                <td>{ev.at ? new Date(ev.at).toLocaleString() : '—'}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        )}
-        {events.length > 10 && <button className="btn small ghost" style={{ marginTop: 8 }} onClick={() => setShowEvents(!showEvents)}>{showEvents ? 'Show fewer' : 'Show all'}</button>}
-        <p className="ad-foot">Every Stripe event is handled once (repeats are ignored). Failed ones are retried by Stripe for up to 3 days.</p>
+        <h3>💳 Payments, subscribers and disputes</h3>
+        <p className="sa-sub">Members, payments, refunds, invoices, disputes, fraud warnings, payouts and the webhook log are on their own page now.</p>
+        <button className="btn small" onClick={() => go('stripe')}>Open Money → Stripe →</button>
       </div>
     </>
   );
 }
-const FLAG_LABEL = { dispute: '⚖️ Dispute', fraud_warning: '🚨 Fraud warning', refund: '↩️ Refunded' };
 // the plan before config/premium loads
 function cleanPlanUI() { return { ...DEFAULT_PLAN, packages: DEFAULT_PLAN.packages, features: DEFAULT_PLAN.features }; }
 
@@ -1844,7 +1770,8 @@ const NAV = [
     ['marketing', 'Marketing', '📢', 'Bulk email: import contacts, pick a designed template, preview it, test it and send it to a list.', ['Import only people who agreed to hear from you; keep them in “Imported contacts”.', 'Always send yourself a test first, and check the phone preview.', 'Free plan: 3,000 emails a month, 100 a day. Bigger lists need a paid Resend plan.', 'Every email gets an unsubscribe link automatically.']],
   ]],
   ['Money', [
-    ['premium', 'Premium', '💎', 'Nibble Premium: switch it on or off, manage packages, prices, free trials, promo codes and features, check the Stripe set-up, manage subscribers, and review disputes, fraud warnings and refunds.', ['Refund requests within 14 days are always granted (our refund policy): paste the payment id under Disputes & fraud warnings.', 'A flagged account can’t buy again until you clear it. Look at the payment in Stripe first.', 'Stripe keys go in Vercel environment variables (see the set-up guide); this page never shows them.', 'Test with a sk_test_ key and card 4242 4242 4242 4242 before switching to live keys.', 'A new price only applies to new subscribers; people already subscribed keep theirs.', 'Built-in features change the app (badge, double bonus, bigger rooms); custom ones are just listed.']],
+    ['premium', 'Premium', '💎', 'Nibble Premium, the product: switch it on or off, packages, prices, free trials, promo codes, features, gifts and the Stripe set-up checklist. Payments and members are on Stripe.', ['Stripe keys go in Vercel environment variables (see the set-up guide); this page never shows them.', 'Test with a sk_test_ key and card 4242 4242 4242 4242 before switching to live keys.', 'A new price only applies to new subscribers; people already subscribed keep theirs.', 'Built-in features change the app (badge, double bonus, bigger rooms); custom ones are just listed.']],
+    ['stripe', 'Stripe', '💳', 'Run payments without opening Stripe: balance and payouts, every payment, members and their subscriptions, invoices, refunds, disputes, fraud warnings, block lists and an audit log.', ['Search by @username, email or any Stripe id; “Open person” shows everything about one buyer.', 'Refunds within 14 days are always granted (our refund policy). A full refund ends their Premium.', 'Answer disputes before the deadline: the form is pre-filled from Nibble’s records.', 'Every action asks why and is saved in Activity → Admin actions.', 'Bank details, payout schedule, Radar rules and tax still live in the Stripe dashboard.']],
   ]],
   ['Grow', [
     ['seo', 'SEO', '🔎', 'How Nibble looks on Google and when shared: page titles, descriptions and share images.', ['Titles: 30–60 characters. Descriptions: 120–160.', 'After big changes, ask Google to re-crawl from Search Console → URL inspection.', 'Use Facebook’s Sharing Debugger to refresh old share previews.']],
@@ -1961,6 +1888,7 @@ function Dashboard({ social, state }) {
         {tab === 'email' && <EmailTab social={social} toast={toast} draft={draft} setDraft={setDraft} />}
         {tab === 'marketing' && <MarketingTab social={social} state={state} toast={toast} />}
         {tab === 'seo' && <SeoTab social={social} toast={toast} />}
+        {users && tab === 'stripe' && <StripeAdmin social={social} state={state} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'premium' && <PremiumTab social={social} state={state} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'usage' && <UsageTab social={social} state={state} users={list} toast={toast} />}
         {tab === 'announce' && <Announce social={social} state={state} history={history} toast={toast} />}

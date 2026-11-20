@@ -1,17 +1,15 @@
 // Admin → Premium (admins only). Stripe keys come from Vercel env (STRIPE_SECRET_KEY,
 // STRIPE_WEBHOOK_SECRET); nothing here stores or shows a key.
-//   GET  → health checks, the plan, subscribers + stats, promotion codes
+//   GET  → health checks, the plan, member stats, promotion codes
 //   POST { action: 'package', pkg }            create / update a package (new Stripe price if the money changed)
 //   POST { action: 'archivePackage', id }      stop selling a package (subscribers keep it)
 //   POST { action: 'promo', code, percentOff | amountOff, currency, duration, months, maxRedemptions, expiresAt }
 //   POST { action: 'promoActive', id, active }
-//   POST { action: 'cancel', subId, now } | { action: 'resume', subId }
-//   POST { action: 'grant', uid, days } | { action: 'revoke', uid } | { action: 'resync', uid }
-//   POST { action: 'clearFlag', uid }                 reviewed a dispute / fraud warning: they may buy again
-//   POST { action: 'refund', chargeId }               full refund of one payment (ends Premium via the webhook)
+//   POST { action: 'grant', uid, days } | { action: 'revoke', uid }
+// Payments, subscribers, refunds, disputes, flags and the webhook log live in /api/admin/stripe (Admin → Stripe).
 import { adminUid, bearer } from '../../../../lib/adminAuth';
-import { getSecrets, getPlan, stripe, mask, refreshFromStripe, syncSubscription, subUntil, WEBHOOK_URL, WEBHOOK_EVENTS, STRIPE_VERSION } from '../../../../lib/billing';
-import { serviceKey, fsGet, fsSet, fsQuery } from '../../../../lib/gcp';
+import { getSecrets, getPlan, stripe, mask, subUntil, WEBHOOK_URL, WEBHOOK_EVENTS, STRIPE_VERSION } from '../../../../lib/billing';
+import { serviceKey, fsGet, fsSet } from '../../../../lib/gcp';
 import { CURRENCIES, INTERVALS, MAX_PACKAGES, cleanPackage } from '../../../../lib/premium';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +19,6 @@ export const maxDuration = 30;
 const h = { 'cache-control': 'no-store' };
 const bad = (error, status = 400) => Response.json({ error }, { status, headers: h });
 const UID = /^[A-Za-z0-9]{10,40}$/;
-const SUB = /^sub_\w+$/;
 
 async function guard(req) {
   const token = bearer(req);
@@ -79,14 +76,7 @@ export async function GET(req) {
   if (g.res) return g.res;
   const sec = getSecrets();
   const [plan, chk] = await Promise.all([getPlan(), health(sec)]);
-  const out = { health: chk, plan, webhookUrl: WEBHOOK_URL, webhookEvents: WEBHOOK_EVENTS, subscribers: [], stats: null, promos: [], flags: [], events: [] };
-  // disputes / fraud warnings / refunds, and the latest webhook deliveries (server-only collections)
-  const [flags, events] = await Promise.all([
-    fsQuery('billingFlags', { order: ['at', 'desc'], limit: 50 }).catch(() => []),
-    fsQuery('billingEvents', { order: ['at', 'desc'], limit: 50 }).catch(() => []),
-  ]);
-  out.flags = flags.map((d) => ({ uid: d.id, open: !!d.data.open, reason: d.data.reason || '', chargeId: d.data.chargeId || '', amount: d.data.amount || 0, currency: d.data.currency || '', at: d.data.at || 0, disputeStatus: d.data.disputeStatus || '', refunded: !!d.data.refunded, lastRefund: d.data.lastRefund || null, history: Array.isArray(d.data.history) ? d.data.history.slice(-5) : [] }));
-  out.events = events.map((d) => ({ id: d.id, type: d.data.type || '', status: d.data.status || '', uid: d.data.uid || '', at: d.data.at || 0, tries: d.data.tries || 1, error: d.data.error || '', live: !!d.data.live }));
+  const out = { health: chk, plan, webhookUrl: WEBHOOK_URL, webhookEvents: WEBHOOK_EVENTS, stats: null, promos: [] };
   if (sec.secretKey && chk.key.ok) {
     try {
       const [list, promos] = await Promise.all([
@@ -94,7 +84,7 @@ export async function GET(req) {
         stripe('GET', '/promotion_codes', { limit: 50, expand: ['data.promotion.coupon'] }).catch(() => ({ data: [] })),
       ]);
       const item = (s) => (s.items && s.items.data[0]) || {};
-      out.subscribers = (list.data || []).filter((s) => s.metadata && s.metadata.uid).map((s) => ({
+      const subscribers = (list.data || []).filter((s) => s.metadata && s.metadata.uid).map((s) => ({
         id: s.id, uid: s.metadata.uid, pkg: s.metadata.package || '', email: (s.customer && s.customer.email) || '', status: s.status, until: subUntil(s),
         cancelAtEnd: !!s.cancel_at_period_end, trialEnd: (s.trial_end || 0) * 1000,
         amount: (item(s).price && item(s).price.unit_amount) || 0, currency: (item(s).price && item(s).price.currency) || '',
@@ -102,7 +92,7 @@ export async function GET(req) {
         // fraud context we put on the Stripe customer at checkout (lib/billingRisk.js)
         risk: (() => { const m = (s.customer && s.customer.metadata) || {}; return { flags: m.nb_risk_flags || '', ageDays: m.nb_acct_age_days || '', provider: m.nb_auth_provider || '', ipCountry: m.nb_ip_country || '', signupCountry: m.nb_signup_country || '', mismatch: m.nb_country_mismatch || '' }; })(),
       }));
-      const live = out.subscribers.filter((s) => ['active', 'trialing', 'past_due'].includes(s.status));
+      const live = subscribers.filter((s) => ['active', 'trialing', 'past_due'].includes(s.status));
       const yearly = live.filter((s) => s.status !== 'trialing').reduce((t, s) => t + (s.interval === 'month' ? s.amount * 12 : s.interval === 'week' ? s.amount * 52 : s.amount), 0);
       out.stats = { active: live.length, trialing: live.filter((s) => s.status === 'trialing').length, cancelling: live.filter((s) => s.cancelAtEnd).length, pastDue: live.filter((s) => s.status === 'past_due').length, yearly, currency: (live[0] && live[0].currency) || 'usd', more: !!list.has_more };
       out.promos = (promos.data || []).map((x) => ({ ...x, coupon: x.coupon || (x.promotion && typeof x.promotion.coupon === 'object' ? x.promotion.coupon : null) })).map((p) => ({
@@ -121,7 +111,7 @@ export async function POST(req) {
   let b;
   try { b = await req.json(); } catch { return bad('Bad request.'); }
   const sec = getSecrets();
-  const needStripe = !['grant', 'revoke', 'clearFlag'].includes(b.action);
+  const needStripe = !['grant', 'revoke'].includes(b.action);
   if (needStripe && !sec.secretKey) return bad('Add STRIPE_SECRET_KEY in Vercel first (see the set-up guide).', 503);
 
   try {
@@ -179,15 +169,6 @@ export async function POST(req) {
       await stripe('POST', '/promotion_codes/' + b.id, { active: b.active ? 'true' : 'false' });
       return Response.json({ ok: true }, { headers: h });
     }
-    if (b.action === 'cancel' || b.action === 'resume') {
-      const id = String(b.subId || '');
-      if (!SUB.test(id)) return bad('Unknown subscription.');
-      const sub = b.action === 'cancel' && b.now
-        ? await stripe('DELETE', '/subscriptions/' + id)
-        : await stripe('POST', '/subscriptions/' + id, { cancel_at_period_end: b.action === 'cancel' ? 'true' : 'false' });
-      await syncSubscription(sub).catch(() => {});
-      return Response.json({ ok: true }, { headers: h });
-    }
     if (b.action === 'grant' || b.action === 'revoke') {
       const uid = String(b.uid || '');
       if (!UID.test(uid)) return bad('Unknown user.');
@@ -198,25 +179,6 @@ export async function POST(req) {
         : { active: false, until: Date.now(), since: (prev && prev.since) || Date.now(), status: 'revoked', source: 'admin', cancelAtEnd: false, updatedAt: Date.now() };
       await fsSet('premium/' + uid, doc);
       return Response.json({ ok: true, premium: doc }, { headers: h });
-    }
-    if (b.action === 'clearFlag') {
-      const uid = String(b.uid || '');
-      if (!UID.test(uid)) return bad('Unknown user.');
-      const prev = await fsGet('billingFlags/' + uid).catch(() => null);
-      if (!prev) return bad('No flag for this account.');
-      await fsSet('billingFlags/' + uid, { open: false, clearedBy: g.uid, clearedAt: Date.now() }, { merge: true });
-      return Response.json({ ok: true }, { headers: h });
-    }
-    if (b.action === 'refund') {
-      const id = String(b.chargeId || '');
-      if (!/^(ch|py)_\w+$/.test(id)) return bad('Unknown payment.');
-      const r = await stripe('POST', '/refunds', { charge: id, reason: 'requested_by_customer', metadata: { nb_by: g.uid } }, { idempotency: 'admin-refund-' + id });
-      return Response.json({ ok: true, id: r.id, status: r.status }, { headers: h });
-    }
-    if (b.action === 'resync') {
-      const uid = String(b.uid || '');
-      if (!UID.test(uid)) return bad('Unknown user.');
-      return Response.json({ ok: true, premium: await refreshFromStripe(uid) }, { headers: h });
     }
     return bad('Unknown action.');
   } catch (e) {
