@@ -137,7 +137,7 @@ server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports
   Gmail dark-mode safe (gradient backgrounds, blend-mode text, button is an image from `/mail-btn`).
 - **Premium** (`lib/billing.js`, `lib/billingRisk.js`, `lib/premium.js`, `app/api/billing/*`, `app/api/stripe/webhook`,
   `app/api/admin/premium`): Stripe Checkout + customer portal with the official `stripe` SDK (exact version
-  pinned in `package.json`; its `Stripe.API_VERSION` is the API version, and the webhook endpoint should match).
+  pinned in `package.json`; its `Stripe.API_VERSION` is the API version; the webhook endpoint must use the same release name, e.g. `.endive`, never `.preview`).
   Seller of record: **Entryly Solutions LLC** (`SELLER` in `lib/facts.js`); refund policy: full refund within
   `REFUND_DAYS` (14) of any payment. Before a checkout link: verified email, no temp-mail domain (`mailchecker`
   + `EXTRA_BLOCKED`), not in `banned`, no open `billingFlags`. Every Checkout Session carries ~40 `nb_*` fraud
@@ -150,7 +150,7 @@ server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports
   refunded); full refunds end Premium. **Stripe keys live only in
   Vercel env** (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`); the admin page never shows or stores
   them. Set-up steps for the payment person: `docs/STRIPE_SETUP.md`. The webhook endpoint is created
-  by hand in the Stripe dashboard (6 events, see `WEBHOOK_EVENTS`). Webhook verifies the signature
+  by hand in the Stripe dashboard (15 events, see `WEBHOOK_EVENTS`). Webhook verifies the signature
   (5-min tolerance) and re-fetches the subscription before writing `premium/{uid}`.
   Plan (`config/premium`): on/off, name, promo-codes toggle, default package, features, and up to 6
   **packages** (id, name, amount, currency, year/month/week, trial days, label, active, Stripe
@@ -224,6 +224,10 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 ## 9. Changelog
 
 Newest first. Add an entry for every piece of work.
+
+- **2026-11-21** Admin → Premium webhook check compares only the API release name (`….endive`), so a newer
+  dated version of the same release (e.g. `2026-11-18.endive`) shows ✓; `.preview` versions never match.
+  Set-up guide updated for Stripe's "event destination" screens. Owner is setting up Stripe in live mode.
 
 - **2026-11-21** Stripe to industry standard + site ready for Stripe underwriting. Official `stripe` SDK
   (23.1.0, API `2026-10-28.endive`) replaces the hand-written fetch/HMAC code. Checkout: pre-checks (verified

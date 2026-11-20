@@ -75,8 +75,12 @@ In Stripe → **Settings → Business → Public details**:
 ### 3. Webhook endpoint
 1. Stripe → **Developers → Webhooks → Add endpoint**.
 2. Endpoint URL: `https://meetnibble.com/api/stripe/webhook`
-3. **API version:** pick the version shown in Admin → Premium → Stripe set-up ("Webhook API version
-   matches the app"). It's the version of the Stripe library in `package.json`.
+3. **API version:** pick a version from the same release as the app, which is the name after the
+   dot (today `….endive`, e.g. `2026-10-28.endive` or `2026-11-18.endive`). Versions inside one
+   release send the same event shapes. **Never pick a `.preview` version** (it's a beta). Admin →
+   Premium → Stripe set-up shows ✓ when the release matches.
+   Newer dashboards call this an **event destination**: scope **Your account**, payload
+   **Snapshot**, type **Webhook endpoint**.
 4. Select these **15 events**:
    - `checkout.session.completed`, `checkout.session.expired`
    - `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
@@ -130,7 +134,7 @@ show ✓:
 - Secret key in Vercel (shows TEST mode and the Stripe account name)
 - Webhook signing secret in Vercel
 - Webhook endpoint in Stripe (warns if an event is missing)
-- Webhook API version matches the app
+- Webhook API version is the same release as the app
 - Customer portal turned on
 - Terms of service URL set in Stripe
 - Fraud warnings readable (Radar)
@@ -181,7 +185,7 @@ repeat in live mode:
 2. Stripe → switch **Test mode off**. Finish account activation (business details exactly as in
    Part 0, bank account for payouts).
 3. Create the **live restricted key** with the same permissions.
-4. Create the **live webhook endpoint** with the same URL, API version and 15 events; copy its live
+4. Create the **live webhook endpoint** with the same URL, an `.endive` API version and the 15 events; copy its live
    `whsec_…` secret.
 5. Save the **customer portal**, **emails** and **Radar rules** in live mode.
 6. Vercel: replace `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` with the live values →

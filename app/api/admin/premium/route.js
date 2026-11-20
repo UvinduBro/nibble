@@ -60,11 +60,17 @@ async function health(sec) {
     const ep = hooks.data.find((w) => w.url === WEBHOOK_URL);
     const events = ep ? ep.enabled_events || [] : [];
     const missing = ep && !events.includes('*') ? WEBHOOK_EVENTS.filter((e) => !events.includes(e)) : [];
-    out.webhook = { found: !!ep, enabled: !!ep && ep.status === 'enabled', missing, id: ep ? ep.id : '', apiVersion: (ep && ep.api_version) || '', versionOk: !ep || !ep.api_version || ep.api_version === STRIPE_VERSION };
+    out.webhook = { found: !!ep, enabled: !!ep && ep.status === 'enabled', missing, id: ep ? ep.id : '', apiVersion: (ep && ep.api_version) || '', versionOk: !ep || !ep.api_version || sameRelease(ep.api_version, STRIPE_VERSION) };
   }
   if (portal) out.portal = { ok: !!(portal.data && portal.data.length) };
   return out;
 }
+
+// Stripe API versions look like 2026-10-28.endive: the name after the dot is the release, and dated
+// versions inside one release send the same event shapes. So only the release name has to match.
+// A .preview version is a beta and never counts as a match.
+const release = (v) => { const r = String(v || '').split('.').pop(); return r === 'preview' ? '' : r; };
+const sameRelease = (a, b) => !!release(a) && release(a) === release(b);
 
 async function savePlanPart(patch) { await fsSet('config/premium', { ...patch, updatedAt: Date.now() }, { merge: true }); }
 
