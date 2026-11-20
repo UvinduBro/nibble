@@ -111,7 +111,7 @@ server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports
   feeds = `all` (Everyone) + one per group. **All writes go through `/api/tea`** (service account) so a
   masked post never stores its author; the author is in `teaAuthors` (server only). Mask = HMAC(secret,
   uid:thread) → animal + colour, stable within a thread (secret: `TEA_SALT` → `NET_SALT` → derived from
-  the service key). Posts last 48 h (expired ones swept when someone posts), reactions (🍵😱🤫🧢✅),
+  the service key). **Posts are permanent** (no expiry; older docs may carry an ignored `exp`), Facebook-style reactions,
   comments, daily prompt, report → hidden at 3 reports (text moved to `teaHidden`). Daily limits per
   person in `LIMITS` (generous; not shown in the UI). Anonymous posts may mention people and link; only
   emails / phone numbers are refused (doxxing), plus the tiny built-in `BLOCKED` list and admin `teaWords`.
@@ -120,6 +120,23 @@ server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports
   Admin → Inbox → Tea Room: flags, and "Who posted what" = the latest 80 posts + comments in every feed
   (from `teaAuthors`) with the real @username, hide / restore / delete / suspend. Reading is one page of 20 per open (no live listener); the "new tea" dot is one
   1-doc read every 30 min. Test mode runs `teaCore` in the browser against the fake DB.
+
+### Reactions, icons, admin team
+- **Reactions** (`lib/reactions.js`, `components/social/Reactions.js`): like / love / haha / wow / sad / angry.
+  Tea Room posts (`rc` counters via `/api/tea`), group chat (`groups/{gid}/msgs/{id}.rx = { uid: key }`, rules
+  let each member set only their own), private messages (a `react` inbox item `"<key>:<inbox doc id>"`; the
+  sender keeps `docId` on the sent message to match it; never shown as a message or sent to the pets).
+- **3D icons** (`components/Emo.js`): Microsoft Fluent Emoji 3D (MIT, `public/icons/3d/*.webp`, 128 px,
+  `LICENSE.txt`). `<Emo k="tea" />` or `<Emo e="🍵" />` (falls back to the emoji). Used in the app and admin
+  sidebars, reactions, groups, Tea Room and friend actions, because system emoji look bad on older PCs.
+  To add one: fetch `assets/<Name>/3D/<name>_3d.png` from raw.githubusercontent.com/microsoft/fluentui-emoji,
+  resize with sharp to 128 px webp, add the emoji → key in `MAP`.
+- **Admin → System → Team** (`app/api/admin/team`): add an admin by username / remove one (server writes
+  `admins/{uid}` with the service account; can't remove yourself or the last admin).
+- `useSocial.getSocial()` shares one start-up promise: two clients per page used to be possible, and the
+  hidden one consumed inbox items (messages / reactions vanished).
+- `lib/gcp.js fsIncrement` is a **transform-only** write. (It used to be `update` + empty mask, which wiped
+  the whole Tea Room post when someone reacted or commented: the "posts disappear" bug.)
 
 ## 4. Website, admin and business features
 
@@ -218,6 +235,11 @@ Newest first. Add an entry for every piece of work.
   (groups, msgs, teaRooms, config/app `tea` + `teaWords`). Adapters gained `list()` / `watchQuery()`;
   `lib/gcp.js` gained `fsQuery()` / `fsIncrement()`. Hub notifications may open `groups` / `tea`
   (ships with the next desktop build).
+
+- **2026-11-20** Fix: Tea Room posts vanished after a reaction or comment (counter write replaced the
+  whole doc); posts are now permanent. Fix: duplicate social client could swallow messages. New:
+  Facebook-style reactions (Tea Room, group chat, private messages), Admin → Team (add / remove admins),
+  3D Fluent icons instead of emoji across the app and admin. Rules: group msgs `rx` update.
 
 - **2026-11-20** Tea Room v2: anonymous posting on everywhere by default (Everyone + groups), "Masked"
   renamed "Anonymous", no rules/limits text in the UI, mention/link limits on anonymous posts removed

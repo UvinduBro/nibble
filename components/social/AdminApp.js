@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocial } from './useSocial';
 import { AuthScreen } from './Auth';
 import PetFigure, { useNibble, PetSnap } from '../PetFigure';
+import Emo from '../Emo';
 import { ITEMS, SPECIES as SHOP_SPECIES, OUTFITS as SHOP_OUTFITS, SKILLS as SHOP_SKILLS, PT } from '../../lib/shop';
 import { SOLO as SOLO_A } from '../games/solo';
 import { SOLO2 } from '../games/solo2';
@@ -1747,7 +1748,7 @@ function TeaTab({ social, state, users, toast, go, setOpenUid }) {
       </div>
       <div className="sa-card">
         <h3>🕵️ Who posted what <small>latest {recent.length} posts and comments, every feed</small></h3>
-        {data && !recent.length && <p className="sa-empty">No posts in the last 48 hours.</p>}
+        {data && !recent.length && <p className="sa-empty">No posts yet.</p>}
         {recent.map((p) => (
           <article key={p.id} className={'rp ' + (p.hidden ? 'rp-new' : 'rp-done')}>
             <header>
@@ -1769,6 +1770,44 @@ function TeaTab({ social, state, users, toast, go, setOpenUid }) {
   );
 }
 
+
+// ---------- Team (who can open this dashboard) ----------
+function TeamTab({ social, state, toast }) {
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState('');
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const run = (action, arg, ok) => {
+    setBusy(true); setErr('');
+    return social.admin.team(action, arg).then((l) => { setList(l); if (ok) toast({ text: ok }); }, (e) => { if (!action) setList([]); (action ? toast({ err: true, text: niceError(e) }) : setErr(niceError(e))); }).finally(() => setBusy(false));
+  };
+  useEffect(() => { run(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <>
+      <form className="sa-card sa-form" onSubmit={(e) => { e.preventDefault(); const n = name.trim().replace(/^@/, ''); if (n) run('add', n, `@${n} is now an admin`).then(() => setName('')); }}>
+        <h3>➕ Add an admin</h3>
+        <p className="sa-sub" style={{ margin: 0 }}>They need a Nibble account first. Once added, they can open meetnibble.com/admin straight away.</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="@username" maxLength={21} style={{ flex: 1 }} />
+          <button className="btn small" disabled={busy || !name.trim()}>Make admin</button>
+        </div>
+      </form>
+      <div className="sa-card">
+        <h3>🛡️ Admins <small>{list ? list.length : ''}</small></h3>
+        {list === null && <p className="sa-empty">Loading…</p>}
+        {err && <p className="sa-empty">{err}</p>}
+        {list && list.map((a) => (
+          <div key={a.uid} className="tm-row">
+            <span className="sa-ava" style={{ width: 40, height: 40 }}><PetFigure skin={a.skin} mood="idle" w={40} h={40} size={40 / 92} /></span>
+            <span className="tm-name"><b>@{a.username || 'unknown'}{a.uid === state.user.uid ? ' (you)' : ''}</b><small>{a.addedBy ? `added by @${a.addedBy}` : 'added in the Firebase console'}{a.at ? ' · ' + ago(a.at) : ''}</small></span>
+            {a.uid !== state.user.uid && <button className="btn small ghost warn" disabled={busy} onClick={() => { if (window.confirm(`Remove @${a.username} as an admin?`)) run('remove', a.uid, `@${a.username} is no longer an admin`); }}>Remove</button>}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 const NAV = [
   ['Insights', [
     ['overview', 'Overview', '📊', 'How Nibble is doing right now: people online, sign-ups, versions and activity.', ['Click any number to jump to the matching list.', 'Numbers are live while this tab is open; it pauses after 3 minutes in the background to save Firebase reads.']],
@@ -1778,7 +1817,7 @@ const NAV = [
   ]],
   ['Inbox', [
     ['reviews', 'Reviews', '⭐', 'Reviews people write in the app. Nothing shows on the website until you approve it.', ['Approve honest reviews, good or bad: a mix of ratings looks more trustworthy than only 5 stars.', 'Hide spam or anything rude; you can’t change someone’s words or stars.', 'Feature a few great ones to show them first. Replies show under the review.']],
-    ['tea', 'Tea Room', '🍵', 'The Tea Room: switches, blocked words, reported posts, and who really wrote every post and comment (anonymous ones too), in every feed.', ['Anonymous posts are anonymous to users, never to admins: the real @username shows here.', 'A post reported by 3 different people hides itself; restore it if the reports were unfair.', 'Posts disappear after 48 hours.']],
+    ['tea', 'Tea Room', '🍵', 'The Tea Room: switches, blocked words, reported posts, and who really wrote every post and comment (anonymous ones too), in every feed.', ['Anonymous posts are anonymous to users, never to admins: the real @username shows here.', 'A post reported by 3 different people hides itself; restore it if the reports were unfair.']],
     ['reports', 'Reports', '📬', 'Bug reports, feedback and contact-form messages from the app and the website.', ['Mark a report Seen when you’ve read it and Done when it’s handled.', 'Use ✉️ Reply by email to answer someone; the reply opens in the Email page.']],
   ]],
   ['Communicate', [
@@ -1793,6 +1832,7 @@ const NAV = [
     ['seo', 'SEO', '🔎', 'How Nibble looks on Google and when shared: page titles, descriptions and share images.', ['Titles: 30–60 characters. Descriptions: 120–160.', 'After big changes, ask Google to re-crawl from Search Console → URL inspection.', 'Use Facebook’s Sharing Debugger to refresh old share previews.']],
   ]],
   ['System', [
+    ['team', 'Team', '🛡️', 'Who can open this dashboard. Add a teammate by username or remove someone.', ['Admins can see everything here, including who wrote anonymous Tea Room posts. Only add people you trust.', 'You can’t remove yourself, and there’s always at least one admin.']],
     ['settings', 'Settings', '⚙️', 'App-wide switches: minimum desktop version, pinned notice, shop and the state of the Firestore rules.', ['Raising the minimum version asks everyone older to update.', 'If something here says “publish the rules”, paste firestore.rules into Firebase and click Publish.']],
   ]],
 ];
@@ -1856,7 +1896,7 @@ function Dashboard({ social, state }) {
               <div className="ad-nav-k">{group}</div>
               {items.map(([k, l, i]) => (
                 <button key={k} className={tab === k ? 'on' : ''} aria-current={tab === k ? 'page' : undefined} onClick={() => go(k)}>
-                  <span className="ad-nav-i">{i}</span><span className="ad-nav-l">{l}</span>
+                  <span className="ad-nav-i"><Emo e={i} size={20} /></span><span className="ad-nav-l">{l}</span>
                   {k === 'users' && users ? <b className="ad-nav-n">{online}</b> : null}
                 </button>
               ))}
@@ -1898,6 +1938,7 @@ function Dashboard({ social, state }) {
         {users && tab === 'overview' && <Overview social={social} users={list} banned={banned || []} latest={latest} minVersion={minVersion} go={go} />}
         {users && tab === 'users' && <Users users={list} bannedMap={bannedMap} latest={latest} minVersion={minVersion} filter={filter} setFilter={setFilter} openUid={openUid} setOpenUid={setOpenUid} me={state.user.uid} />}
         {users && tab === 'games' && <GamesTab social={social} state={state} users={list} toast={toast} setOpenUid={setOpenUid} go={go} />}
+        {tab === 'team' && <TeamTab social={social} state={state} toast={toast} />}
         {users && tab === 'tea' && <TeaTab social={social} state={state} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'reviews' && <ReviewsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'reports' && <ReportsTab social={social} users={list} toast={toast} go={go} setOpenUid={setOpenUid} reply={(d) => { setDraft(d); go('email'); }} />}

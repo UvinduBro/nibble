@@ -3,8 +3,10 @@
 // group's own feed. Reads are one page at a time (no live listener) to save Firebase quota.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import PetFigure from '../PetFigure';
+import Emo from '../Emo';
+import { ReactButton, ReactSummary } from './Reactions';
 import { niceError } from '../../lib/social/social';
-import { REACTS, MAX_POST, MAX_COMMENT, PROMPTS, dailyPrompt, teaConfig } from '../../lib/tea';
+import { MAX_POST, MAX_COMMENT, PROMPTS, dailyPrompt, teaConfig } from '../../lib/tea';
 
 const ago = (t) => {
   const s = Math.max(0, (Date.now() - t) / 1000);
@@ -17,7 +19,7 @@ const heat = (p) => Object.values(p.rc || {}).reduce((t, n) => t + Math.max(0, n
 
 // anonymous people get a mystery animal; everyone else their own pet
 function Who({ x, size = 40 }) {
-  if (x.anon && x.mask) return <span className="tea-mask" style={{ width: size, height: size, '--mc': x.mask.color, fontSize: size * 0.5 }}>{x.mask.emoji}<i>🕶</i></span>;
+  if (x.anon && x.mask) return <span className="tea-mask" style={{ width: size, height: size, '--mc': x.mask.color }}><Emo e={x.mask.emoji} size={Math.round(size * 0.68)} /><i><Emo k="sunglasses" size={Math.round(size * 0.4)} /></i></span>;
   return <span className="sa-ava" style={{ width: size, height: size }}><PetFigure skin={x.skin || 'mint'} mood="idle" w={size} h={size} size={size / 92} look={x.look} /></span>;
 }
 const whoName = (x) => (x.anon && x.mask ? x.mask.name : '@' + (x.name || 'someone'));
@@ -26,8 +28,8 @@ const whoName = (x) => (x.anon && x.mask ? x.mask.name : '@' + (x.name || 'someo
 function Identity({ anon, setAnon, allowed, small }) {
   return (
     <div className={'tea-id' + (small ? ' small' : '')} role="radiogroup" aria-label="Post as">
-      <button type="button" role="radio" aria-checked={!anon} className={!anon ? 'on' : ''} onClick={() => setAnon(false)}>🙂 {small ? 'Me' : 'As me'}</button>
-      {allowed && <button type="button" role="radio" aria-checked={anon} className={anon ? 'on anon' : ''} onClick={() => setAnon(true)}>🕶 Anonymous</button>}
+      <button type="button" role="radio" aria-checked={!anon} className={!anon ? 'on' : ''} onClick={() => setAnon(false)}><Emo k="smile" size={16} /> {small ? 'Me' : 'As me'}</button>
+      {allowed && <button type="button" role="radio" aria-checked={anon} className={anon ? 'on anon' : ''} onClick={() => setAnon(true)}><Emo k="sunglasses" size={16} /> Anonymous</button>}
     </div>
   );
 }
@@ -44,7 +46,7 @@ function Menu({ items }) {
   return (
     <span className="tea-menu" ref={ref}>
       <button type="button" className="tea-dots" aria-label="More" onClick={() => setOpen(!open)}>⋯</button>
-      {open && <span className="tea-pop">{items.map(([l, f]) => <button type="button" key={l} onClick={() => { setOpen(false); f(); }}>{l}</button>)}</span>}
+      {open && <span className="tea-pop">{items.map(([l, f, ic]) => <button type="button" key={l} onClick={() => { setOpen(false); f(); }}>{ic && <Emo k={ic} size={16} />} {l}</button>)}</span>}
     </span>
   );
 }
@@ -79,7 +81,7 @@ function Thread({ social, feed, p, canAnon, toast, onCount, canMod }) {
             <small><b>{whoName(c)}</b>{c.op && <em className="tea-chip op">poster</em>}<span>{ago(c.at)}</span></small>
             <p>{c.text}</p>
           </div>
-          <Menu items={social.tea.isMine(p.id, c.id) || canMod ? [['🗑 Delete', () => remove(c)]] : [['⚑ Report', () => report(c)]]} />
+          <Menu items={social.tea.isMine(p.id, c.id) || canMod ? [['Delete', () => remove(c), 'trash']] : [['Report', () => report(c), 'flag']]} />
         </div>
       ))}
       <form className="tea-reply" onSubmit={send}>
@@ -97,7 +99,7 @@ function Post({ social, feed, p, canAnon, toast, onGone, canMod }) {
   const [open, setOpen] = useState(false);
   const [cc, setCc] = useState(p.cc || 0);
   const react = async (k) => {
-    const next = mine === k ? '' : k;
+    const next = k;
     const before = { rc, mine };
     const n = { ...rc };
     if (mine) n[mine] = Math.max(0, (n[mine] || 0) - 1);
@@ -116,20 +118,19 @@ function Post({ social, feed, p, canAnon, toast, onGone, canMod }) {
         <span className="tea-who">
           <b>{whoName(p)}</b>
           {p.anon && <em className="tea-chip">anonymous</em>}
-          {hot && <em className="tea-chip hot">🔥 hot</em>}
+          {hot && <em className="tea-chip hot"><Emo k="fire" size={12} /> hot</em>}
           <small>{ago(p.at)}</small>
         </span>
-        <Menu items={social.tea.isMine(p.id) || canMod ? [['🗑 Delete', remove]] : [['⚑ Report', report]]} />
+        <Menu items={social.tea.isMine(p.id) || canMod ? [['Delete', remove, 'trash']] : [['Report', report, 'flag']]} />
       </header>
-      {prompt && <p className="tea-q">☕ {prompt}</p>}
+      {prompt && <p className="tea-q"><Emo k="tea" size={16} /> {prompt}</p>}
       <p className="tea-text">{p.text}</p>
       <footer>
-        <span className="tea-reacts">
-          {REACTS.map(([k, e, l]) => (
-            <button key={k} type="button" className={(mine === k ? 'on ' : '') + (rc[k] > 0 ? 'has' : '')} title={l} onClick={() => react(k)}>{e}{rc[k] > 0 && <b>{rc[k]}</b>}</button>
-          ))}
+        <ReactSummary counts={rc} />
+        <span className="tea-acts">
+          <ReactButton mine={mine} onPick={react} />
+          <button type="button" className={'tea-ccount' + (open ? ' on' : '')} onClick={() => setOpen(!open)}><Emo k="speech" size={18} /> {cc > 0 ? `${cc} comment${cc > 1 ? 's' : ''}` : 'Comment'}</button>
         </span>
-        <button type="button" className={'tea-ccount' + (open ? ' on' : '')} onClick={() => setOpen(!open)}>💬 {cc > 0 ? cc : 'Reply'}</button>
       </footer>
       {open && <Thread social={social} feed={feed} p={p} canAnon={canAnon} toast={toast} onCount={(d) => setCc((n) => Math.max(0, n + d))} canMod={canMod} />}
     </article>
@@ -189,7 +190,7 @@ export default function TeaRoom({ social, state, toast, go, teaFeed, setTeaFeed 
     <div className="sa-page tea">
       <div className="tea-hero">
         <div>
-          <h2>Tea Room <span>☕</span></h2>
+          <h2>Tea Room <Emo k="tea" size={34} /></h2>
           <p>Spill it. As you, or anonymously.</p>
         </div>
         <PetFigure skin={me.skin || 'mint'} mood="dance" w={96} h={88} size={0.8} acc={me.acc} tint={me.tint} makeup={me.makeup} look={me.style} />
@@ -206,19 +207,19 @@ export default function TeaRoom({ social, state, toast, go, teaFeed, setTeaFeed 
             {feeds.map((f) => {
               const g = f.group && (state.groups || []).find((x) => x.id === f.id);
               const dot = f.id === 'all' ? state.teaNew : g && g.newTea;
-              return <button key={f.id} className={f.id === feed ? 'on' : ''} onClick={() => setTeaFeed(f.id)}>{f.emoji} {f.name}{dot && f.id !== feed && <i className="gr-new-dot" />}</button>;
+              return <button key={f.id} className={f.id === feed ? 'on' : ''} onClick={() => setTeaFeed(f.id)}><Emo e={f.emoji} size={18} /> {f.name}{dot && f.id !== feed && <i className="gr-new-dot" />}</button>;
             })}
           </div>
 
           <form className={'tea-compose' + (anon ? ' anon' : '')} onSubmit={post}>
             <div className="tea-compose-top">
-              {anon ? <span className="tea-mask" style={{ width: 40, height: 40, '--mc': '#9b5de5', fontSize: 20 }}>❔<i>🕶</i></span> : <Who x={{ skin: me.skin, look: me.style }} />}
+              {anon ? <span className="tea-mask" style={{ width: 40, height: 40, '--mc': '#9b5de5' }}><Emo k="question" size={26} /><i><Emo k="sunglasses" size={16} /></i></span> : <Who x={{ skin: me.skin, look: me.style }} />}
               <span className="tea-as">{anon ? <><b>Anonymous</b><small>A mystery animal. Nobody sees it’s you.</small></> : <><b>@{me.username}</b><small>Posting as yourself</small></>}</span>
               <Identity anon={anon} setAnon={setAnon} allowed={canAnon} />
             </div>
             <textarea rows={3} value={text} maxLength={MAX_POST} placeholder={usePrompt ? today.text : feed === 'all' ? 'What’s the tea? ☕' : `What’s the tea in ${cur ? cur.name : 'the group'}?`} onChange={(e) => setText(e.target.value)} />
             <div className="tea-compose-row">
-              <button type="button" className={'tea-qbtn' + (usePrompt ? ' on' : '')} onClick={() => setUsePrompt(!usePrompt)} title="Answer today’s question">☕ {today.text}</button>
+              <button type="button" className={'tea-qbtn' + (usePrompt ? ' on' : '')} onClick={() => setUsePrompt(!usePrompt)} title="Answer today’s question"><Emo k="tea" size={16} /> {today.text}</button>
               <em className={MAX_POST - text.length < 30 ? 'low' : ''}>{MAX_POST - text.length}</em>
               <button className="btn small" disabled={busy || !text.trim()}>{busy ? 'Posting…' : anon ? 'Post anonymously' : 'Post'}</button>
             </div>
@@ -226,8 +227,8 @@ export default function TeaRoom({ social, state, toast, go, teaFeed, setTeaFeed 
 
           <div className="tea-bar">
             <div className="lb-tabs" role="tablist">
-              <button role="tab" aria-selected={sort === 'new'} className={sort === 'new' ? 'on' : ''} onClick={() => setSort('new')}>🆕 New</button>
-              <button role="tab" aria-selected={sort === 'hot'} className={sort === 'hot' ? 'on' : ''} onClick={() => setSort('hot')}>🔥 Hot</button>
+              <button role="tab" aria-selected={sort === 'new'} className={sort === 'new' ? 'on' : ''} onClick={() => setSort('new')}><Emo k="new" size={16} /> New</button>
+              <button role="tab" aria-selected={sort === 'hot'} className={sort === 'hot' ? 'on' : ''} onClick={() => setSort('hot')}><Emo k="fire" size={16} /> Hot</button>
             </div>
             <button className="sa-link" onClick={() => load()}>↻ Refresh</button>
           </div>

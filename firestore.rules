@@ -281,7 +281,12 @@ service cloud.firestore {
           && incoming().exp is int && incoming().exp > request.time.toMillis() && incoming().exp <= request.time.toMillis() + 90000000;
         allow delete: if signedIn() && (resource.data.from == me() || grp().owner == me()
           || (me() in grp().members && resource.data.exp < request.time.toMillis()));
-        allow update: if false;
+        // reactions: each member can only set (or clear) their own one
+        allow update: if signedIn() && !isBanned() && me() in grp().members
+          && incoming().diff(resource.data).affectedKeys().hasOnly(['rx'])
+          && incoming().rx is map && incoming().rx.size() <= 40
+          && incoming().rx.diff(resource.data.get('rx', {})).affectedKeys().hasOnly([me()])
+          && incoming().rx.get(me(), '') in ['', 'like', 'love', 'haha', 'wow', 'sad', 'angry'];
       }
     }
 

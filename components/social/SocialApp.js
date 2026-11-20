@@ -7,6 +7,7 @@ import { guessCountry } from '../../lib/signup';
 import LiveDesk from './LiveDesk';
 import { Music, MusicDock, useRoomPlayer, readDock, saveDock } from './Music';
 import PetFigure, { useNibble } from '../PetFigure';
+import Emo from '../Emo';
 import { byKey, CHARACTERS } from '../../lib/characters';
 import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess, cleanStyleMap } from '../../lib/social/social';
 import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
@@ -19,6 +20,7 @@ import Groups from './Groups';
 import TeaRoom from './TeaRoom';
 import { teaConfig } from '../../lib/tea';
 import FeedbackForm, { systemName } from './Feedback';
+import { ChatReact } from './Reactions';
 import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
 import { GAMES } from '../../lib/social/games';
 
@@ -47,7 +49,7 @@ const ago = (t) => {
 };
 const EMOTE_TITLE = { wave: 'Wave', hug: 'Cuddle', kiss: 'Kiss', poke: 'Poke', annoy: 'Tease', icecream: 'Share ice cream', heart: 'Send a heart', highfive: 'High five', tickle: 'Tickle', cheer: 'Cheer them on', snack: 'Share a snack', dance: 'Dance together', boop: 'Boop', flower: 'Give a flower', cake: 'Birthday cake', fistbump: 'Fist bump', pillow: 'Pillow fight', serenade: 'Serenade', gift: 'Gift box', bubbles: 'Bubbles' };
 const NAV = [
-  ['home', 'Home', '⌂'], ['style', 'Customize', '✿'], ['games', 'Games', '◆'], ['board', 'Leaderboard', '🏆'], ['friends', 'Friends', '☺'], ['messages', 'Messages', '✉'], ['groups', 'Groups', '👥'], ['tea', 'Tea Room', '🍵'], ['music', 'Music', '♫'], ['deadlines', 'Reminders', '⏰'], ['profile', 'Profile', '☻'], ['feedback', 'Feedback', '🐛'], ['premium', 'Premium', '✦'], ['settings', 'Settings', '⚙'],
+  ['home', 'Home', 'house'], ['style', 'Customize', 'palette'], ['games', 'Games', 'game'], ['board', 'Leaderboard', 'trophy'], ['friends', 'Friends', 'smile'], ['messages', 'Messages', 'envelope'], ['groups', 'Groups', 'people'], ['tea', 'Tea Room', 'tea'], ['music', 'Music', 'notes'], ['deadlines', 'Reminders', 'alarm'], ['profile', 'Profile', 'bust'], ['feedback', 'Feedback', 'bug'], ['premium', 'Premium', 'gem'], ['settings', 'Settings', 'gear'],
 ];
 
 // `who` = a profile or friend: their accessories, colour, makeup and wardrobe look show on the avatar
@@ -115,15 +117,15 @@ function FriendActions({ social, f, toast, compact }) {
   const kinds = compact ? ['wave', 'hug', 'kiss', 'icecream'] : SHOP_EMOTES.filter((e) => owns(owned, 'em', e.key)).map((e) => e.key);
   return (
     <div className="sa-acts">
-      {kinds.map((k) => <button key={k} title={EMOTE_TITLE[k] || k} onClick={() => act(k)}>{EMOTES[k]}</button>)}
-      <button title="Private message" onClick={() => setWhisper('')}>💬</button>
+      {kinds.map((k) => <button key={k} title={EMOTE_TITLE[k] || k} onClick={() => act(k)}><Emo e={EMOTES[k]} size={22} /></button>)}
+      <button title="Private message" onClick={() => setWhisper('')}><Emo k="speech" size={22} /></button>
       {social.music && <button title="Listen together" onClick={() => {
         const r = social.state.music && social.state.music.room;
         const mine = r && r.host === social.state.user.uid;
         (mine ? social.music.invite(f.uid) : social.music.start([f.uid]))
           .then(() => toast({ text: `🎧 Invited @${f.username} to listen together — open Music to pick a song` }))
           .catch((e) => toast({ err: true, text: niceError(e) }));
-      }}>🎧</button>}
+      }}><Emo k="headphone" size={22} /></button>}
     </div>
   );
 }
@@ -150,8 +152,8 @@ function FriendRow({ social, f, toast, full, desktop }) {
         {f.np && <small className="sa-np">🎧 {f.np.title}{f.np.artist ? ' — ' + f.np.artist : ''}{f.np.app ? ' · ' + f.np.app : ''}</small>}
       </div>
       <div className="sa-visit">
-        <button title={`Bring @${f.username}'s pet to ${desktop ? 'your desktop' : 'your desk'}`} onClick={() => { bringHere(desktop, f); toast({ text: `🏠 @${f.username}'s pet is coming over` }); }}>🏠 Bring here</button>
-        <button title={`Send your pet to @${f.username}'s desktop`} onClick={() => social.send(f.uid, 'visit').then(() => toast({ text: `🚀 Your pet is visiting @${f.username}` })).catch((e) => toast({ err: true, text: niceError(e) }))}>🚀 Visit</button>
+        <button title={`Bring @${f.username}'s pet to ${desktop ? 'your desktop' : 'your desk'}`} onClick={() => { bringHere(desktop, f); toast({ text: `🏠 @${f.username}'s pet is coming over` }); }}><Emo k="house" size={16} /> Bring here</button>
+        <button title={`Send your pet to @${f.username}'s desktop`} onClick={() => social.send(f.uid, 'visit').then(() => toast({ text: `🚀 Your pet is visiting @${f.username}` })).catch((e) => toast({ err: true, text: niceError(e) }))}><Emo k="rocket" size={16} /> Visit</button>
       </div>
       <FriendActions social={social} f={f} toast={toast} compact={!full} />
       {full && (confirm
@@ -289,6 +291,9 @@ function Messages({ social, state, chatWith, setChatWith }) {
       <div key={m.id} className={'sa-m' + (m.mine ? ' mine' : '') + (m.text ? '' : ' act')}>
         <small>{m.mine ? 'You' : '@' + m.fromName} · {ago(m.at)}</small>
         <p>{text}</p>
+        {/* reactions: on messages a friend sent you, and theirs shows on yours */}
+        {!m.mine && m.direct && String(m.id).startsWith('i_') && <ChatReact mine={m.myRx || ''} counts={m.myRx ? { [m.myRx]: 1 } : {}} onPick={(k) => social.reactMsg(m.id, k).catch(() => {})} />}
+        {m.mine && m.theirRx && <span className="rx-chat right"><ChatReactSummary k={m.theirRx} /></span>}
       </div>
     );
   };
@@ -332,6 +337,8 @@ function Messages({ social, state, chatWith, setChatWith }) {
   );
 }
 
+
+function ChatReactSummary({ k }) { return <span className="rx-sum"><span><Emo k={k} size={18} /></span></span>; }
 
 // extra desktop pets: an animal (natural colours) or a special character
 const localPetValue = (p) => (p.style && p.style.sp ? 'sp:' + p.style.sp : CHARACTERS.some((c) => c.group === 'anime' && c.key === p.skin) ? 'ch:' + p.skin : 'sp:');
@@ -1368,13 +1375,13 @@ export default function SocialApp({ mode = 'web' }) {
             <div><b>@{state.profile.username}{social.premium.perk('badge') && <span className="sa-prem" title="Nibble Premium">⭐</span>}</b><small><span className={'sa-dot' + (state.prefs.invisible ? '' : ' on') + (state.prefs.dnd ? ' dnd' : '')} />{state.prefs.invisible ? 'appearing offline' : state.prefs.dnd ? 'do not disturb' : 'online'}</small></div>
           </div>
           <button className="sa-pts" onClick={() => setTab('games')} title="Your points: earn them in Games, spend them in Customize">
-            <span>{PT}</span><b>{state.wallet && state.wallet.ready ? state.wallet.points : '…'}</b><small>points</small>
+            <span><Emo k="star" size={22} /></span><b>{state.wallet && state.wallet.ready ? state.wallet.points : '…'}</b><small>points</small>
             {state.wallet && state.wallet.canDaily && <em>🎁 bonus</em>}
           </button>
           <nav>
             {NAV.filter(([k]) => (k !== 'premium' || (state.premiumPlan && state.premiumPlan.enabled) || social.premium.active()) && (k !== 'tea' || teaConfig(state.config).on)).map(([k, l, i]) => (
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)} title={mini ? l : undefined}>
-                <span>{i}</span><b className="sa-nl">{l}</b>
+                <span><Emo k={i} size={22} /></span><b className="sa-nl">{l}</b>
                 {k === 'friends' && state.incoming.length > 0 && <em className="sa-badge">{state.incoming.length}</em>}
                 {k === 'games' && myTurns(state) > 0 && <em className="sa-badge">{myTurns(state)}</em>}
                 {k === 'groups' && groupBadge(state) > 0 && <em className="sa-badge">{groupBadge(state)}</em>}

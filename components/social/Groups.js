@@ -3,9 +3,11 @@
 // group actions: pack walk (everyone's pets come over), poke everyone, listen together, group Tea Room.
 import { useEffect, useRef, useState } from 'react';
 import PetFigure from '../PetFigure';
+import Emo from '../Emo';
+import { ChatReact } from './Reactions';
+import { countReactions } from '../../lib/reactions';
 import { niceError } from '../../lib/social/social';
 import { GROUP_EMOJIS, MAX_GROUP_MSG, MAX_GROUP_NAME, MAX_MEMBERS, MAX_GROUPS } from '../../lib/social/groups';
-import { PT } from '../../lib/shop';
 
 const ago = (t) => {
   if (!t) return '';
@@ -52,10 +54,10 @@ function NewGroup({ social, state, toast, onDone }) {
   };
   return (
     <form className="sa-card sa-form gr-new" onSubmit={submit}>
-      <h3>✨ New group</h3>
+      <h3><Emo k="sparkles" size={20} /> New group</h3>
       <label>Name<input autoFocus value={name} maxLength={MAX_GROUP_NAME} placeholder="e.g. Study buddies, The squad" onChange={(e) => setName(e.target.value)} /></label>
       <label>Icon</label>
-      <div className="gr-emojis">{GROUP_EMOJIS.map((x) => <button type="button" key={x} className={emoji === x ? 'on' : ''} onClick={() => setEmoji(x)}>{x}</button>)}</div>
+      <div className="gr-emojis">{GROUP_EMOJIS.map((x) => <button type="button" key={x} className={emoji === x ? 'on' : ''} onClick={() => setEmoji(x)}><Emo e={x} size={24} /></button>)}</div>
       <label>Invite friends <small>(they’ll get an invite to accept)</small></label>
       <FriendPicker friends={state.friends} picked={picked} setPicked={setPicked} max={MAX_MEMBERS - 1} />
       <div style={{ display: 'flex', gap: 8 }}>
@@ -102,6 +104,8 @@ function Chat({ social, state, g, toast }) {
                 : <button className="gr-mini" title="Report" onClick={() => report(m)}>⚑</button>}
             </small>
             <p>{m.text}</p>
+            <ChatReact align={m.from === me ? 'right' : 'left'} mine={(m.rx || {})[me] || ''} counts={countReactions(m.rx)}
+              onPick={(k) => social.groups.react(g.id, m.id, k).catch((x) => toast({ err: true, text: niceError(x) }))} />
           </div>
         ))}
       </div>
@@ -135,7 +139,7 @@ function Members({ social, state, g, toast, go }) {
         <Ava who={who} size={36} mood={f && !f.online ? 'sleep' : 'idle'} />
         <span className="gr-mem-name">
           <b>@{g.names[uid] || (f && f.username) || 'someone'}{isMe ? ' (you)' : ''}</b>
-          <small>{uid === g.owner ? '👑 made this group' : pending ? '✉️ invited' : f ? <><span className={'sa-dot' + (f.online ? ' on' : '')} /> {f.online ? 'online' : 'offline'}</> : isMe ? 'member' : 'not your friend yet'}</small>
+          <small>{uid === g.owner ? <><Emo k="crown" size={14} /> made this group</> : pending ? <><Emo k="envelope" size={14} /> invited</> : f ? <><span className={'sa-dot' + (f.online ? ' on' : '')} /> {f.online ? 'online' : 'offline'}</> : isMe ? 'member' : 'not your friend yet'}</small>
         </span>
         {!isMe && !f && !pending && <button className="btn small ghost" onClick={() => social.addFriend(g.names[uid] || '').then((r) => toast({ text: r === 'accepted' ? 'You’re friends now!' : 'Friend request sent' }), (x) => toast({ err: true, text: niceError(x) }))}>Add friend</button>}
         {g.isOwner && !isMe && <button className="sa-x" title={pending ? 'Cancel invite' : 'Remove from group'} onClick={() => { if (window.confirm(pending ? 'Cancel this invite?' : `Remove @${g.names[uid] || 'them'} from the group?`)) social.groups.kick(g.id, uid).catch((x) => toast({ err: true, text: niceError(x) })); }}>✕</button>}
@@ -166,12 +170,12 @@ function Points({ social, state, g }) {
   const [rows, setRows] = useState(null);
   useEffect(() => { setRows(null); social.groups.points(g.id).then(setRows, () => setRows([])); }, [g.id, g.members.length]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!rows) return <p className="sa-empty">Counting stars…</p>;
-  const medal = ['🥇', '🥈', '🥉'];
+  const medal = ['medal1', 'medal2', 'medal3'];
   return (
     <ol className="gr-points">
       {rows.map((r, i) => (
         <li key={r.uid} className={r.uid === state.user.uid ? 'me' : ''}>
-          <span>{medal[i] || i + 1}</span><b>@{r.username}</b><em>{PT} {r.total.toLocaleString()}</em>
+          <span>{medal[i] ? <Emo k={medal[i]} size={22} /> : i + 1}</span><b>@{r.username}</b><em><Emo k="star" size={16} /> {r.total.toLocaleString()}</em>
         </li>
       ))}
     </ol>
@@ -187,7 +191,7 @@ function Settings({ social, g, toast, close }) {
         <>
           <form className="sa-form" onSubmit={(e) => { e.preventDefault(); social.groups.rename(g.id, name, emoji).then(() => toast({ text: 'Saved' }), (x) => toast({ err: true, text: niceError(x) })); }}>
             <label>Name<input value={name} maxLength={MAX_GROUP_NAME} onChange={(e) => setName(e.target.value)} /></label>
-            <div className="gr-emojis">{GROUP_EMOJIS.map((x) => <button type="button" key={x} className={emoji === x ? 'on' : ''} onClick={() => setEmoji(x)}>{x}</button>)}</div>
+            <div className="gr-emojis">{GROUP_EMOJIS.map((x) => <button type="button" key={x} className={emoji === x ? 'on' : ''} onClick={() => setEmoji(x)}><Emo e={x} size={24} /></button>)}</div>
             <div><button className="btn small" disabled={!name.trim()}>Save</button></div>
           </form>
           <p className="sa-sub">Deleting the group removes it and its chat for everyone.</p>
@@ -252,7 +256,7 @@ export default function Groups({ social, state, toast, go, desktop, openTea }) {
 
       {invites.map((i) => (
         <div key={i.id} className="sa-card gr-inv">
-          <span className="gr-emo">{i.emoji}</span>
+          <span className="gr-emo"><Emo e={i.emoji} size={24} /></span>
           <span><b>{i.name}</b><small>@{i.names[i.owner] || 'a friend'} invited you · {i.members.length} member{i.members.length > 1 ? 's' : ''}</small></span>
           <button className="btn small" onClick={() => social.groups.accept(i.id).then(() => { setSel(i.id); toast({ text: `Welcome to ${i.emoji} ${i.name}!` }); }, (x) => toast({ err: true, text: niceError(x) }))}>Join</button>
           <button className="btn small ghost" onClick={() => social.groups.decline(i.id).catch((x) => toast({ err: true, text: niceError(x) }))}>No thanks</button>
@@ -277,7 +281,7 @@ export default function Groups({ social, state, toast, go, desktop, openTea }) {
           <div className="sa-threads">
             {groups.map((x) => (
               <button key={x.id} className={x.id === g.id ? 'on' : ''} onClick={() => setSel(x.id)}>
-                <span className="gr-emo">{x.emoji}</span>
+                <span className="gr-emo"><Emo e={x.emoji} size={24} /></span>
                 <span><b>{x.name}</b><small>{x.members.length} member{x.members.length > 1 ? 's' : ''}{x.chatBy && x.chatAt ? ` · @${x.chatBy} ${ago(x.chatAt)}` : ''}</small></span>
                 {(x.unreadChat || x.newTea) && <i className="gr-new-dot" title="Something new" />}
               </button>
@@ -285,18 +289,18 @@ export default function Groups({ social, state, toast, go, desktop, openTea }) {
           </div>
           <div className="sa-thread gr-panel">
             <div className="gr-top">
-              <span className="gr-emo big">{g.emoji}</span>
+              <span className="gr-emo big"><Emo e={g.emoji} size={32} /></span>
               <div><b>{g.name}</b><small>{g.members.length} member{g.members.length > 1 ? 's' : ''}{g.invited.length ? ` · ${g.invited.length} invited` : ''}</small></div>
             </div>
             <div className="gr-acts">
-              <button onClick={packWalk} title="Everyone’s pets come over and dance">🐾 Pack walk</button>
-              <button onClick={pokeAll} title="Wave at everyone in the group">👋 Wave at all</button>
-              <button onClick={listen} title="Start a Listen Together room with the group">🎧 Listen</button>
-              <button onClick={() => openTea(g.id)} title="The group’s own Tea Room">🍵 Tea{g.newTea && <i className="gr-new-dot" />}</button>
+              <button onClick={packWalk} title="Everyone’s pets come over and dance"><Emo k="paw" size={18} /> Pack walk</button>
+              <button onClick={pokeAll} title="Wave at everyone in the group"><Emo k="wave" size={18} /> Wave at all</button>
+              <button onClick={listen} title="Start a Listen Together room with the group"><Emo k="headphone" size={18} /> Listen</button>
+              <button onClick={() => openTea(g.id)} title="The group’s own Tea Room"><Emo k="tea" size={18} /> Tea{g.newTea && <i className="gr-new-dot" />}</button>
             </div>
             <div className="lb-tabs gr-tabs" role="tablist">
-              {[['chat', '💬 Chat'], ['members', '👥 Members'], ['points', '🏆 Points'], ['settings', '⚙ Group']].map(([k, l]) => (
-                <button key={k} role="tab" aria-selected={view === k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}{k === 'chat' && g.unreadChat && view !== 'chat' && <i className="gr-new-dot" />}</button>
+              {[['chat', 'Chat', 'speech'], ['members', 'Members', 'people'], ['points', 'Points', 'trophy'], ['settings', 'Group', 'gear']].map(([k, l, ic]) => (
+                <button key={k} role="tab" aria-selected={view === k} className={view === k ? 'on' : ''} onClick={() => setView(k)}><Emo k={ic} size={16} /> {l}{k === 'chat' && g.unreadChat && view !== 'chat' && <i className="gr-new-dot" />}</button>
               ))}
             </div>
             {view === 'chat' && <Chat social={social} state={state} g={g} toast={toast} />}

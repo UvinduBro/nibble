@@ -1329,3 +1329,63 @@
   .tea-compose-row em { margin-left: 0; }
   .tea-compose-row .btn { margin-left: auto; }
 }
+
+/* Admin → Team */
+.tm-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.tm-row:first-of-type { border-top: 0; }
+.tm-name { flex: 1; min-width: 0; }
+.tm-name b { display: block; }
+.tm-name small { color: var(--muted); font-size: 12.5px; }
+
+/* 3D icons (components/Emo.js) */
+.emo { display: inline-block; vertical-align: -0.2em; object-fit: contain; flex: none; user-select: none; -webkit-user-drag: none; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35)); }
+.sa-side nav button span .emo { vertical-align: middle; }
+.sa-side nav button:not(.on) span .emo { filter: saturate(0.75) drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35)); }
+.sa-acts button .emo, .sa-visit button .emo { vertical-align: middle; }
+
+/* Facebook-style reactions (components/social/Reactions.js) */
+.rx-wrap { position: relative; display: inline-flex; }
+.rx-btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 13.5px; font-weight: 700; color: var(--muted); background: rgba(255, 255, 255, 0.05); user-select: none; -webkit-touch-callout: none; }
+.rx-btn:hover { background: rgba(255, 255, 255, 0.09); color: var(--text); }
+.rx-btn .emo { filter: grayscale(1) opacity(0.7); }
+.rx-btn.on .emo { filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35)); }
+.rx-btn.rx-like { color: #6aa8ff; } .rx-btn.rx-love { color: #ff6b8b; } .rx-btn.rx-haha, .rx-btn.rx-wow, .rx-btn.rx-sad { color: var(--yellow); } .rx-btn.rx-angry { color: #ff8a5c; }
+.rx-bar { position: absolute; bottom: calc(100% + 8px); left: -6px; z-index: 30; display: flex; gap: 2px; padding: 6px 8px; border-radius: 999px; background: var(--card2); border: 1px solid var(--line); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); animation: rx-in 0.18s ease-out; }
+.rx-chat.right .rx-bar { left: auto; right: -6px; }
+.rx-bar button { all: unset; cursor: pointer; position: relative; display: grid; place-items: center; width: 42px; height: 42px; transition: transform 0.15s cubic-bezier(.3,1.6,.6,1); animation: rx-pop 0.3s backwards cubic-bezier(.3,1.6,.6,1); }
+.rx-bar button:hover { transform: translateY(-8px) scale(1.3); }
+.rx-bar button i { position: absolute; top: -26px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 11px; font-weight: 800; white-space: nowrap; padding: 2px 7px; border-radius: 999px; background: rgba(0, 0, 0, 0.8); color: #fff; opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+.rx-bar button:hover i { opacity: 1; }
+@keyframes rx-in { from { opacity: 0; transform: translateY(6px) scale(0.9); } }
+@keyframes rx-pop { from { opacity: 0; transform: translateY(10px) scale(0.4); } }
+.rx-sum { all: unset; cursor: default; display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.rx-sum span { display: inline-flex; }
+.rx-sum span .emo + .emo { margin-left: -5px; }
+.rx-sum span .emo { border-radius: 50%; background: var(--card2); padding: 1px; }
+.rx-chat { display: inline-flex; align-items: center; gap: 6px; margin-top: 3px; }
+.rx-chat.right { flex-direction: row-reverse; }
+.rx-add { all: unset; cursor: pointer; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; opacity: 0.45; transition: opacity 0.15s, background 0.15s; }
+.rx-add:hover, .rx-add.on { opacity: 1; background: rgba(255, 255, 255, 0.07); }
+.rx-plus { font-size: 15px; line-height: 1; color: var(--muted); }
+.sa-m:hover .rx-add { opacity: 0.9; }
+@media (hover: none) { .rx-add { opacity: 0.8; } }
+
+.tea-post footer { gap: 10px; }
+.tea-acts { margin-left: auto; display: flex; gap: 6px; }
+.tea-acts .tea-ccount { margin-left: 0; display: inline-flex; align-items: center; gap: 6px; }
+.tea-hero h2 { display: flex; align-items: center; gap: 10px; }
+.tea-mask i { display: grid; }
+.tea-id button, .tea-qbtn, .tea-feeds button, .tea-chip, .tea-q, .tea-pop button, .lb-tabs button { display: inline-flex; align-items: center; gap: 5px; }
+.tea-qbtn { display: inline-block; }
+.sa-m > .rx-chat { display: flex; }
+.sa-m.mine > .rx-chat { justify-content: flex-start; }
+.gr-acts button { gap: 6px; }
+.gr-emo .emo { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
+.gr-mem-name small .emo { vertical-align: -2px; }
+.gr-points em { display: inline-flex; align-items: center; gap: 4px; }
+.sa-card h3 .emo { vertical-align: middle; }
+.gr-acts button { gap: 6px; }
+.gr-emo .emo { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
+.gr-mem-name small .emo { vertical-align: -2px; }
+.gr-points em { display: inline-flex; align-items: center; gap: 4px; }
+.sa-card h3 .emo { vertical-align: middle; }
