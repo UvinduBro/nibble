@@ -1,10 +1,10 @@
 {
-  "version": "2.0.22",
-  "date": "2026-11-17",
+  "version": "2.0.23",
+  "date": "2026-11-20",
   "notes": [
-    "Windows: Start, Search and notifications show Nibble (not Electron)",
-    "Mac: the Hub keeps its close, minimise and full-screen buttons when it's zoomed or full screen",
-    "Mac: pets now walk on top of your windows and hop onto the Dock",
-    "Get Nibble news by email (Settings → Nibble news), only if you want it"
+    "Groups: make a group with friends, chat together (messages clear after 24 hours) and bring the whole pack's pets to your desktop",
+    "Tea Room: short posts as yourself or masked, in the Everyone feed or your group's own feed (posts disappear after 48 hours)",
+    "Group chat notifications open the right page in the Hub",
+    "Fixes: accepting friend requests, the app getting stuck on \"Waking up…\", and the admin page loading"
   ]
 }

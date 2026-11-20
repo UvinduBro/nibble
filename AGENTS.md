@@ -217,6 +217,9 @@ Newest first. Add an entry for every piece of work.
   `lib/gcp.js` gained `fsQuery()` / `fsIncrement()`. Hub notifications may open `groups` / `tea`
   (ships with the next desktop build).
 
+- **2026-11-20** Desktop 2.0.23 released (version bump + notes for Groups / Tea Room; Hub
+  notifications can open the `groups` and `tea` tabs). Published to `main`.
+
 - **2026-11-19** Fix: accepting a friend request failed ("Not allowed") because the friends rule
   compared the second write (adding you to the requester's list) with the wrong user's name; it
   now always checks the username of the friend being added (`fid`).

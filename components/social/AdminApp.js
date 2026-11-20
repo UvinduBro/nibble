@@ -1200,7 +1200,7 @@ function MarketingTab({ social, state, toast }) {
             </label>
             <label><span>Subject <small>{fields.subject.length}/150</small></span><input value={fields.subject} maxLength={150} onChange={set('subject')} /></label>
             <label><span>Preview text <small>shown after the subject in the inbox</small></span><input value={fields.preview} maxLength={140} onChange={set('preview')} /></label>
-            {show('version') && <label><span>Version</span><input value={fields.version} maxLength={16} onChange={set('version')} placeholder="2.0.22" /></label>}
+            {show('version') && <label><span>Version</span><input value={fields.version} maxLength={16} onChange={set('version')} placeholder="2.0.23" /></label>}
             {show('headline') && <label><span>Headline</span><input value={fields.headline} maxLength={120} onChange={set('headline')} /></label>}
             {show('sub') && <label><span>Subheading</span><input value={fields.sub} maxLength={200} onChange={set('sub')} /></label>}
             {show('message') && <label><span>Message <small>{'{{{FIRST_NAME|there}}}'} = their first name · blank line = new paragraph</small></span><textarea rows={7} value={fields.message} maxLength={8000} onChange={set('message')} /></label>}
