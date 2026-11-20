@@ -12,6 +12,7 @@ import { EMOTES, EMOTE_TEXT, MAX_TEXT, niceError, verLess, cleanStyleMap } from 
 import { ROLES, INTERESTS, MAX_INTERESTS, cleanAbout } from '../../lib/about';
 import { priceLabel, buyable, money as fmtMoney, BUILTIN as PREMIUM_PERKS } from '../../lib/premium';
 import { MIN_REVIEW, MAX_REVIEW } from '../../lib/reviews';
+import { REFUND_DAYS, SELLER } from '../../lib/facts';
 import Wardrobe from './Wardrobe';
 import Arcade from './Arcade';
 import Leaderboard from './Leaderboard';
@@ -463,6 +464,12 @@ function Settings({ social, state, desktop, local, toast, go }) {
 }
 
 // ---------- Nibble Premium ----------
+// a few harmless facts about this device, sent with a checkout as extra fraud-check context
+function deviceInfo() {
+  try {
+    return { tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '', lang: (navigator.languages || [navigator.language]).slice(0, 3).join(','), screen: `${screen.width}x${screen.height}@${window.devicePixelRatio || 1}` };
+  } catch { return {}; }
+}
 function PremiumPage({ social, state, toast, desktop }) {
   const plan = state.premiumPlan;
   const prem = state.premium;
@@ -473,17 +480,18 @@ function PremiumPage({ social, state, toast, desktop }) {
   const [pick, setPick] = useState('');
   const chosen = options.find((k) => k.id === pick) || options[0];
   // after paying, Stripe tells our server in a few seconds; check a few times so Premium shows up
-  const check = async (quiet) => {
-    try { await social.premium.refresh(); } catch (e) { if (!quiet) toast({ err: true, text: niceError(e) }); }
+  const check = async (quiet, sessionId) => {
+    try { await social.premium.refresh(sessionId); } catch (e) { if (!quiet) toast({ err: true, text: niceError(e) }); }
   };
   useEffect(() => {
     const ret = window.__nibblePremiumReturn; window.__nibblePremiumReturn = '';
+    const sid = window.__nibblePremiumSession || ''; window.__nibblePremiumSession = '';
     if (ret === 'cancel') toast({ text: 'No problem: nothing was charged.' });
     if (ret === 'success') {
       setWaiting(true);
       let n = 0;
       const t = setInterval(() => { n++; check(true); if (n >= 6) { clearInterval(t); setWaiting(false); } }, 4000);
-      check(true);
+      check(true, sid);
       return () => clearInterval(t);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -498,7 +506,7 @@ function PremiumPage({ social, state, toast, desktop }) {
   const go = async (kind) => {
     setBusy(kind);
     try {
-      const url = kind === 'buy' ? await social.premium.checkout(chosen && chosen.id) : await social.premium.portal();
+      const url = kind === 'buy' ? await social.premium.checkout(chosen && chosen.id, deviceInfo()) : await social.premium.portal();
       if (!/^https:\/\/(checkout|billing)\.stripe\.com\//.test(url)) throw new Error('Unexpected payment link.');
       if (desktop) { window.open(url, '_blank'); toast({ text: 'Finish in your browser, then come back here.' }); }
       else location.href = url;
@@ -525,6 +533,7 @@ function PremiumPage({ social, state, toast, desktop }) {
         {active ? (
           <>
             <h3>⭐ Premium is on</h3>
+            {prem.action === 'confirm_payment' && <p className="sa-sub" style={{ color: 'var(--coral, #ff7a7a)' }}>Your bank wants you to confirm the last payment. Open “Manage subscription” to confirm it and keep Premium.</p>}
             <p className="sa-sub">{prem.source === 'admin' ? `Gifted by the Nibble team until ${until}.` : prem.cancelAtEnd ? `Ends on ${until}. You won’t be charged again.` : `Renews on ${until}.`}{prem.status === 'past_due' ? ' Your last payment didn’t go through: update your card to keep Premium.' : ''}</p>
             {prem.source !== 'admin' && <button className="btn small" disabled={!!busy} onClick={() => go('manage')}>{busy === 'manage' ? 'Opening…' : 'Manage subscription'}</button>}
           </>
@@ -543,7 +552,11 @@ function PremiumPage({ social, state, toast, desktop }) {
                 ))}
               </div>
             )}
-            <p className="sa-sub">Secure payment by Stripe. Card, Apple Pay and Google Pay where available. You can cancel any time from here.</p>
+            <p className="sa-sub">Secure payment by Stripe. Card, Apple Pay and Google Pay where available.</p>
+            <p className="ad-foot sa-disclose">
+              {chosen.trialDays > 0 && !prem ? `Free for ${chosen.trialDays} days, then ` : ''}{fmtMoney(chosen.amount, chosen.currency)} every {chosen.interval}. Renews automatically until you cancel; cancel any time here (Manage subscription). Full refund within {REFUND_DAYS} days of any payment. Sold by {SELLER.name}.{' '}
+              <a href="/pricing" target="_blank" rel="noreferrer">Pricing</a> · <a href="/refunds" target="_blank" rel="noreferrer">Refund policy</a> · <a href="/terms" target="_blank" rel="noreferrer">Terms</a>
+            </p>
             <button className="btn" disabled={!!busy || waiting} onClick={() => go('buy')}>{waiting ? 'Confirming your payment…' : busy === 'buy' ? 'Opening Stripe…' : chosen.trialDays > 0 && !prem ? `Start ${chosen.trialDays}-day free trial` : `Get Premium · ${fmtMoney(chosen.amount, chosen.currency)} / ${chosen.interval}`}</button>
             {(desktop || waiting) && <button className="btn small ghost" style={{ marginLeft: 8 }} onClick={() => check(false)}>I’ve paid: check again</button>}
           </>
@@ -1221,6 +1234,7 @@ export default function SocialApp({ mode = 'web' }) {
     if (q.get('premium')) {
       setTab('premium');
       window.__nibblePremiumReturn = q.get('premium');
+      window.__nibblePremiumSession = q.get('session_id') || '';
       try { window.history.replaceState(null, '', location.pathname); } catch {}
     }
     if (window.nibbleDesktop && window.nibbleDesktop.onTab) window.nibbleDesktop.onTab((t) => setTab(fixTab(t)));

@@ -98,6 +98,10 @@ service cloud.firestore {
     // server-only data (a health-check doc and Stripe customer ids): never readable from a browser
     match /billing/{doc} { allow read, write: if false; }
     match /billingCustomers/{uid} { allow read, write: if false; }
+    // Stripe webhook events we've handled (dedupe + audit) and disputes / fraud warnings / refunds per account.
+    // Written and read only by the server (service account); admins see them through /api/admin/premium.
+    match /billingEvents/{id} { allow read, write: if false; }
+    match /billingFlags/{uid} { allow read, write: if false; }
 
     // ---------- reviews ----------
     // One review per account (id = your uid). You write rating + text; every change goes back to
@@ -135,7 +139,7 @@ service cloud.firestore {
         && shortText(incoming().get('keywords', ''), 600) && shortText(incoming().get('twitter', ''), 30)
         && shortText(incoming().get('googleVerify', ''), 100) && shortText(incoming().get('bingVerify', ''), 100)
         && incoming().get('noindex', false) is bool
-        && incoming().get('pages', {}) is map && incoming().get('pages', {}).size() <= 10;
+        && incoming().get('pages', {}) is map && incoming().get('pages', {}).size() <= 16;
     }
 
     // one doc per claimed username → { uid }

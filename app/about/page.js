@@ -70,7 +70,7 @@ export default function AboutPage() {
         </section>
       </main>
 
-      <footer className="lp-foot"><div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · <a href="/about">About</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/#contact">Contact</a></div></footer>
+      <footer className="lp-foot"><div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · Operated by Entryly Solutions LLC · <a href="/about">About</a> · <a href="/pricing">Pricing</a> · <a href="/refunds">Refunds</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/#contact">Contact</a></div></footer>
     </div>
   );
 }

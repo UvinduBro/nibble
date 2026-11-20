@@ -44,7 +44,7 @@ database. No custom backend server besides Next.js route handlers.
 | `app/hub/` | Same app loaded inside the desktop Hub window (`mode="desktop"`) |
 | `app/admin/` | Admin dashboard (`components/social/AdminApp.js`) |
 | `app/link/` | Desktop Google sign-in hand-off (posts ID token to the app on 127.0.0.1) |
-| `app/about`, `desktop-pet`, `install-help`, `privacy`, `terms` | Public pages |
+| `app/about`, `desktop-pet`, `install-help`, `privacy`, `terms`, `pricing`, `refunds` | Public pages (`pricing` reads the live plan; `pricing`/`refunds`/`terms` name the seller, Stripe underwriting checks them) |
 | `app/api/*` | Route handlers (see §6) |
 | `app/og`, `app/mail-btn` | Generated images: share cards, email button picture (`next/og`) |
 | `app/llms.txt`, `app/llms-full.txt` | Facts for AI assistants (AEO) |
@@ -53,7 +53,7 @@ database. No custom backend server besides Next.js route handlers.
 | `components/social/` | The app UI: `SocialApp.js` (all app pages), `AdminApp.js` (all admin pages), `Auth.js`, `Music.js`, `Arcade.js`, `Wardrobe.js`, `Leaderboard.js`, `LiveDesk.js`, `Feedback.js`, `Groups.js`, `TeaRoom.js`, `useSocial.js`, `social.css` |
 | `components/landing/`, `About.js`, `Sections.js`, `Desktop.js`, `PetFigure.js` | Website UI |
 | `lib/social/` | Client logic: `social.js` (core), `firebaseAdapter.js`, `fakeAdapter.js` (local test mode), `music.js`, `wallet.js`, `games.js`, `lan.js`, `groups.js`, `tea.js`, `config.js` |
-| `lib/` (server/shared) | `billing.js` (Stripe), `premium.js` (plan shape), `gcp.js` (service account + Firestore REST), `adminAuth.js`, `mail.js` (Resend/SMTP), `marketing.js`, `emailTemplates.js`, `reviews.js`, `seo.js`, `facts.js` (one source of truth for SEO/AEO), `installer.js`, `usage.js`, `reports.js`, `signup.js`, `shop.js`, `characters.js`, `stage.js`, `tea.js` (Tea Room constants/filters/masks), `teaCore.js` (Tea Room actions, shared by server + test mode), `teaServer.js` |
+| `lib/` (server/shared) | `billing.js` (Stripe SDK client, webhook verify, Premium sync), `billingRisk.js` (pre-checks, temp-mail block, fraud metadata), `premium.js` (plan shape), `gcp.js` (service account + Firestore REST), `adminAuth.js`, `mail.js` (Resend/SMTP), `marketing.js`, `emailTemplates.js`, `reviews.js`, `seo.js`, `facts.js` (one source of truth for SEO/AEO), `installer.js`, `usage.js`, `reports.js`, `signup.js`, `shop.js`, `characters.js`, `stage.js`, `tea.js` (Tea Room constants/filters/masks), `teaCore.js` (Tea Room actions, shared by server + test mode), `teaServer.js` |
 | `public/nibble/engine/` | The pet engine (plain JS, no build): `pet.js`, `draw.js`, `lines.js`, `skins.js`, `wardrobe.js`, `social-draw.js`. Used by the website **and** copied into the desktop app |
 | `public/app/` | **Desktop app source** (Electron): `src/main.js`, `hub.js`, `preload.js`, `hubPreload.js`, `windowWatcher.js` (+ `helper/WinWatch.cs`), `nowPlaying.js`, `settings.js`, `renderer/` |
 | `public/email/` | Email art cut from the flyer (logo, icons, peeking Nibble, flyer.jpg) |
@@ -96,7 +96,8 @@ database. No custom backend server besides Next.js route handlers.
 `presence`, `inbox/{uid}/items`, `rooms`, `wallets`, `gifts`, `matches` (friend games, switched off),
 `lan/{net}/members`, `signup`, `reports`, `reminders`, `admins` (console-only), `banned`,
 `broadcast`/`broadcasts`, `config/app`, `config/premium` (public), `premium/{uid}` (server/admin
-only), `billingCustomers/*` (server only, never readable from a browser; `billing/health` is a write test),
+only), `billingCustomers/*` (server only, never readable from a browser; `billing/health` is a write test, `billing/terms` notes a missing Stripe terms URL),
+`billingEvents/{evt}` (server only: Stripe webhook dedupe + log, 90 days), `billingFlags/{uid}` (server only: disputes, fraud warnings, refunds),
 `reviews/{uid}`, `seo/site` (public), `groups/{gid}` (+ `msgs`), `teaRooms/{feed}/posts/{pid}` (+ `comments`;
 server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports`, `teaHidden`, `teaFlags`.
 
@@ -134,8 +135,19 @@ server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports
   footer or app Settings → Nibble news) and *Imported contacts* (admin import from a JSON/CSV link
   or file, consent checkbox required). Templates in `lib/emailTemplates.js` in the flyer look;
   Gmail dark-mode safe (gradient backgrounds, blend-mode text, button is an image from `/mail-btn`).
-- **Premium** (`lib/billing.js`, `lib/premium.js`, `app/api/billing/*`, `app/api/stripe/webhook`,
-  `app/api/admin/premium`): Stripe Checkout + customer portal, no SDK. **Stripe keys live only in
+- **Premium** (`lib/billing.js`, `lib/billingRisk.js`, `lib/premium.js`, `app/api/billing/*`, `app/api/stripe/webhook`,
+  `app/api/admin/premium`): Stripe Checkout + customer portal with the official `stripe` SDK (exact version
+  pinned in `package.json`; its `Stripe.API_VERSION` is the API version, and the webhook endpoint should match).
+  Seller of record: **Entryly Solutions LLC** (`SELLER` in `lib/facts.js`); refund policy: full refund within
+  `REFUND_DAYS` (14) of any payment. Before a checkout link: verified email, no temp-mail domain (`mailchecker`
+  + `EXTRA_BLOCKED`), not in `banned`, no open `billingFlags`. Every Checkout Session carries ~40 `nb_*` fraud
+  metadata fields (account age, provider, sign-up vs. `x-vercel-ip-country`, hashed network id via `NET_SALT`,
+  UA, `c_*` = untrusted client info, package…; never a raw IP or full email), mirrored on the Stripe customer for
+  Radar rules; required billing address, terms tick-box, 31-min expiry, open session reused on double clicks,
+  `success_url` carries `{CHECKOUT_SESSION_ID}` (checked in `/api/billing/status`). Webhook: SDK signature check
+  (comma-separated secrets for rotation), each event claimed once in `billingEvents` (`fsCreate`), disputes and
+  early fraud warnings cancel the subscription, revoke Premium and flag the account (fraud warnings are also
+  refunded); full refunds end Premium. **Stripe keys live only in
   Vercel env** (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`); the admin page never shows or stores
   them. Set-up steps for the payment person: `docs/STRIPE_SETUP.md`. The webhook endpoint is created
   by hand in the Stripe dashboard (6 events, see `WEBHOOK_EVENTS`). Webhook verifies the signature
@@ -161,7 +173,8 @@ server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports
 Names only; never commit or print values.
 `RESEND_API_KEY` (send-only), `RESEND_MARKETING_KEY` (contacts + broadcasts), `RESEND_SEGMENT_ID`,
 `RESEND_IMPORT_SEGMENT_ID`, `MAIL_FROM`, `CONTACT_TO`, `SMTP_USER`, `SMTP_PASS`, `NET_SALT`
-(secret salt for `/api/netid`), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+(secret salt for `/api/netid` and the hashed network id in Stripe metadata), `STRIPE_SECRET_KEY` (a restricted
+`rk_` key is preferred), `STRIPE_WEBHOOK_SECRET` (may hold `new,old` while rotating),
 `GCP_USAGE_KEY` (service-account JSON; also used for server Firestore writes unless
 `FIREBASE_ADMIN_KEY` is set), `TEA_SALT` (optional; secret for Tea Room masks, falls back to `NET_SALT`), `NEXT_PUBLIC_GSC_VERIFY` (optional). (`BILLING_KEY` is no longer
 used and can be deleted.) Firebase web config in `lib/social/config.js` is public.
@@ -198,7 +211,10 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 - Publish the latest `firestore.rules` (Premium, Reviews, SEO, Groups, Tea Room sections).
 - Give the service account (shown in Admin → Premium) the **Cloud Datastore User** role (Premium **and the
   Tea Room** need it: every Tea Room post is written by the server).
-- Stripe: follow `docs/STRIPE_SETUP.md` (keys in Vercel env, webhook, portal, test with 4242…, then live); consider Stripe Tax.
+- Stripe: follow `docs/STRIPE_SETUP.md`: business details must match the site (Entryly Solutions LLC, address on
+  `/pricing`), Public details (terms/refund/privacy URLs, statement descriptor `MEETNIBBLE.COM`), restricted key,
+  webhook with the **15 events** at the SDK's API version, portal, customer emails (trial reminders), Radar rules,
+  test cards, then live. Deploy `/pricing` + `/refunds` before live activation. Consider Stripe Tax.
 - Google Search Console + Bing Webmaster Tools: verify, submit `sitemap.xml`, request indexing.
 - Add `meetnibble.com` to Firebase authorized domains, then switch desktop `SITE` to it.
 - Firebase App Check (stops direct-to-Firestore spam on `reports`).
@@ -208,6 +224,19 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 ## 9. Changelog
 
 Newest first. Add an entry for every piece of work.
+
+- **2026-11-21** Stripe to industry standard + site ready for Stripe underwriting. Official `stripe` SDK
+  (23.1.0, API `2026-10-28.endive`) replaces the hand-written fetch/HMAC code. Checkout: pre-checks (verified
+  email, temp-mail block via `mailchecker`, suspended / flagged accounts), ~40 fraud metadata fields on the
+  session and the Stripe customer, required billing address, terms tick-box, 31-min expiry, open-session reuse,
+  verified `session_id` return. Webhook: 15 events, rotating secrets, exactly-once handling (`billingEvents`),
+  disputes / early fraud warnings revoke Premium + flag (`billingFlags`), fraud warnings auto-refunded, 3-D Secure
+  "confirm your payment" banner. Admin → Premium: disputes & fraud warnings (clear flag, refund a payment),
+  webhook log, risk info per subscriber, more set-up checks. Promotion codes use the new `promotion` shape.
+  Website: new `/pricing` and `/refunds` (14-day refund), terms (renewal, trials, price changes, Missouri law) and
+  privacy (Stripe fraud data) updated, seller Entryly Solutions LLC on every legal page and footer, home FAQ no
+  longer says "nothing to buy with real money", llms.txt / JSON-LD mention Premium. Rules: `billingEvents`,
+  `billingFlags` (server only), SEO pages map up to 16. Not tested against live Stripe.
 
 - **2026-11-19** Groups + Tea Room. Groups: create (name + icon), invite friends, accept / decline /
   leave, owner rename / remove / delete, 24 h group chat with unread badges and desktop notifications,

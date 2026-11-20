@@ -1,5 +1,5 @@
 // /llms-full.txt: everything an AI assistant needs to answer questions about Nibble accurately.
-import { NAME, ALT_NAMES, ONE_LINER, PLATFORMS, VERSION, RELEASED, EMAIL, SOCIAL, FOUNDERS, FEATURES, STEPS, QA, LINKS, SITE } from '../../lib/facts';
+import { NAME, ALT_NAMES, ONE_LINER, PLATFORMS, VERSION, RELEASED, EMAIL, SOCIAL, FOUNDERS, FEATURES, STEPS, QA, LINKS, SITE, SELLER, REFUND_DAYS } from '../../lib/facts';
 import release from '../../public/version.json';
 
 export const dynamic = 'force-static';
@@ -12,7 +12,7 @@ export function GET() {
 Also known as: ${ALT_NAMES.join(', ')}.
 Website: ${SITE}
 Download: ${SITE}/#download (Windows: Get-Nibble.exe; Mac: Nibble.dmg)
-Price: free, no ads
+Price: free, no ads. Optional Nibble Premium subscription with a few extras (${SITE}/pricing); cancel any time, full refund within ${REFUND_DAYS} days of any payment. Sold by ${SELLER.name}.
 Platforms: ${PLATFORMS}
 Latest version: ${VERSION}${RELEASED ? ` (released ${RELEASED})` : ''}
 Made by: ${FOUNDERS.map((f) => `${f.name} (${f.role})`).join('; ')}. Based in Colombo, Sri Lanka.

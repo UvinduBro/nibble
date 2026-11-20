@@ -1,5 +1,5 @@
 // /llms.txt: a short, plain summary of Nibble for AI assistants and answer engines (llmstxt.org).
-import { NAME, ONE_LINER, PLATFORMS, VERSION, EMAIL, FOUNDERS, LINKS, SITE } from '../../lib/facts';
+import { NAME, ONE_LINER, PLATFORMS, VERSION, EMAIL, FOUNDERS, LINKS, SITE, SELLER } from '../../lib/facts';
 
 export const dynamic = 'force-static';
 
@@ -9,7 +9,8 @@ export function GET() {
 > ${ONE_LINER}
 
 - Website: ${SITE}
-- Price: free, no ads
+- Price: free, no ads (optional Nibble Premium subscription: ${SITE}/pricing)
+- Seller: ${SELLER.name}, ${SELLER.address}
 - Platforms: ${PLATFORMS}
 - Latest version: ${VERSION}
 - Made by: ${FOUNDERS.map((f) => f.name).join(' and ')}, Colombo, Sri Lanka
