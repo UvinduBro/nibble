@@ -4,7 +4,10 @@
 // 3. Subscriptions are fetched from Stripe again rather than trusting the event body.
 // 4. Disputes and early fraud warnings end Premium at once and flag the account for a person to review
 //    (billingFlags/{uid}); an early fraud warning is also refunded, which avoids the dispute and its fee.
-import { verifyEvent, getStripe, syncSubscription, uidOfCustomer, ACTIVE, subUid } from '../../../../lib/billing';
+// 5. Only Nibble's own customers and checkouts are touched (the Stripe account may also sell other things), and
+//    events from the other mode (test vs. live) are ignored.
+// 6. Two subscriptions for one person (paid in two tabs at once): the newer one is cancelled and refunded.
+import { verifyEvent, getStripe, syncSubscription, uidOfCustomer, subOfCharge, isLive, ACTIVE, subUid, UID_RE } from '../../../../lib/billing';
 import { fsCreate, fsGet, fsSet, fsDelete, fsQuery } from '../../../../lib/gcp';
 
 export const dynamic = 'force-dynamic';
@@ -43,8 +46,30 @@ async function revoke(uid, customer, status) {
   }
   if (!ended) {
     const prev = await fsGet('premium/' + uid).catch(() => null);
-    if (prev && prev.active) await fsSet('premium/' + uid, { ...prev, active: false, until: Date.now(), status, source: 'stripe', updatedAt: Date.now() });
+    if (prev && prev.active) await fsSet('premium/' + uid, { ...prev, active: false, until: Date.now(), status: 'ended', source: 'stripe', updatedAt: Date.now() });
   }
+}
+
+// one person, one subscription: keep the oldest live one, cancel the others and refund what they charged
+async function dropDuplicates(uid, customer) {
+  const stripe = getStripe();
+  const list = await stripe.subscriptions.list({ customer, status: 'all', limit: 10 });
+  const live = list.data.filter((x) => subUid(x) === uid && ACTIVE.includes(x.status)).sort((a, b) => a.created - b.created);
+  for (const dup of live.slice(1)) {
+    const done = await stripe.subscriptions.cancel(dup.id, {}, { idempotencyKey: 'dup-' + dup.id });
+    const inv = idOf(done.latest_invoice);
+    if (inv) {
+      const pays = await stripe.invoicePayments.list({ invoice: inv, status: 'paid', limit: 5 });
+      for (const ip of pays.data) {
+        const pay = ip.payment || {};
+        const target = pay.payment_intent ? { payment_intent: idOf(pay.payment_intent) } : pay.charge ? { charge: idOf(pay.charge) } : null;
+        if (target) await stripe.refunds.create({ ...target, reason: 'duplicate', metadata: { nb_reason: 'duplicate_subscription', nb_sub: dup.id } }, { idempotencyKey: 'dup-refund-' + ip.id });
+      }
+    }
+    console.error('webhook: cancelled + refunded duplicate subscription', dup.id, 'for', uid);
+  }
+  if (live.length > 1) await syncSubscription(live[0], { noFallback: true });
+  return live.length - 1;
 }
 
 async function flag(uid, data) {
@@ -56,17 +81,30 @@ async function flag(uid, data) {
   });
 }
 
+// the Nibble account behind a Checkout Session ('' for sessions made by anything else on this Stripe account)
+function nibbleSession(o) {
+  const uid = String(o.client_reference_id || '');
+  const m = o.metadata || {};
+  return UID_RE.test(uid) && (m.uid === uid || m.nb_uid === uid) ? uid : '';
+}
+
 async function handle(ev) {
   const stripe = getStripe();
   const o = (ev.data && ev.data.object) || {};
   switch (ev.type) {
     case 'checkout.session.completed': {
-      if (o.client_reference_id) await fsSet('billingCustomers/' + o.client_reference_id, { openSession: '', openExp: 0, updatedAt: Date.now() }, { merge: true }).catch(() => {});
-      return o.mode === 'subscription' ? syncById(idOf(o.subscription)) : '';
+      const uid = nibbleSession(o);
+      if (!uid) return '';
+      const m = await fsGet('billingCustomers/' + uid).catch(() => null);
+      if (m && m.openSession === o.id) await fsSet('billingCustomers/' + uid, { openSession: '', openExp: 0, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+      if (o.mode !== 'subscription') return uid;
+      await syncById(idOf(o.subscription));
+      if (o.customer) await dropDuplicates(uid, idOf(o.customer));
+      return uid;
     }
     case 'checkout.session.expired': {
-      const uid = String(o.client_reference_id || '');
-      if (!/^[A-Za-z0-9]{10,40}$/.test(uid)) return '';
+      const uid = nibbleSession(o);
+      if (!uid) return '';
       const m = await fsGet('billingCustomers/' + uid).catch(() => null);
       if (m && m.openSession === o.id) await fsSet('billingCustomers/' + uid, { openSession: '', openExp: 0, updatedAt: Date.now() }, { merge: true });
       return uid;
@@ -96,13 +134,13 @@ async function handle(ev) {
     }
     case 'radar.early_fraud_warning.created': {
       const { charge, uid, customer } = await chargeOwner(idOf(o.charge));
+      if (!uid) return ''; // not a Nibble payment: leave it to whoever sells it
       let refunded = false;
       // refund now (if it's still refundable) so the card holder's bank doesn't turn it into a dispute
       if (o.actionable && !charge.refunded && !charge.disputed) {
         await stripe.refunds.create({ charge: charge.id, reason: 'fraudulent', metadata: { nb_reason: 'early_fraud_warning', nb_efw: o.id } }, { idempotencyKey: 'efw-' + o.id });
         refunded = true;
       }
-      if (!uid) return '';
       await revoke(uid, customer, 'fraud_warning');
       await flag(uid, { open: true, reason: 'fraud_warning', chargeId: charge.id, efwId: o.id, fraudType: o.fraud_type || '', amount: charge.amount || 0, currency: charge.currency || '', refunded, customer });
       return uid;
@@ -111,8 +149,17 @@ async function handle(ev) {
       if (!o.refunded) return ''; // partial refund: nothing changes
       const { uid, customer } = await chargeOwner(o.id);
       if (!uid) return '';
-      // a full refund (e.g. the 14-day refund) ends Premium; it doesn't block buying again later
-      await revoke(uid, customer, 'refunded');
+      // a full refund (e.g. the 14-day refund) ends the subscription it paid for, but only if it paid for the
+      // period they're in now: refunding last year's renewal doesn't take away this year's Premium.
+      // It never blocks buying again later.
+      const paid = await subOfCharge(o).catch(() => null);
+      if (paid && paid.sub) {
+        const sub = await stripe.subscriptions.retrieve(paid.sub);
+        if (ACTIVE.includes(sub.status) && idOf(sub.latest_invoice) === paid.invoice) {
+          const done = await stripe.subscriptions.cancel(sub.id, {}, { idempotencyKey: 'refund-' + sub.id });
+          await syncSubscription(done, { revoke: true });
+        }
+      }
       const prev = await fsGet('billingFlags/' + uid).catch(() => null);
       await flag(uid, { open: !!(prev && prev.open), reason: (prev && prev.open && prev.reason) || 'refund', lastRefund: { chargeId: o.id, amount: o.amount_refunded || 0, currency: o.currency || '', at: Date.now() }, customer });
       return uid;
@@ -135,6 +182,8 @@ export async function POST(req) {
   const ev = verifyEvent(raw, req.headers.get('stripe-signature'));
   if (!ev) return new Response('bad signature', { status: 400 });
   if (!/^evt_\w+$/.test(String(ev.id || ''))) return new Response('bad event', { status: 400 });
+  // a test event while running live (or the other way round) would be looked up with the wrong key and fail forever
+  if (!!ev.livemode !== isLive()) return Response.json({ received: true, ignored: 'other mode' });
   const path = 'billingEvents/' + ev.id;
   try {
     const fresh = await fsCreate(path, { type: String(ev.type || ''), at: Date.now(), created: (ev.created || 0) * 1000, live: !!ev.livemode, status: 'processing', tries: 1 });

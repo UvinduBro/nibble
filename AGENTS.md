@@ -238,6 +238,18 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 
 Newest first. Add an entry for every piece of work.
 
+- **2026-11-21** Payment flow security audit fixes. (1) Test and live Stripe customers are kept apart
+  (`billingCustomers.customerLive` / `customerTest`; saved ids are checked with Stripe, so a test-mode or deleted
+  customer is replaced instead of breaking checkout); `premium/{uid}` records `live`, test-mode Premium is ended in
+  live mode (on checkout / status check, plus Admin → Premium → "Clear test Premium"), and a test purchase no longer
+  uses up the real free trial. (2) Only one open payment page per person (older ones are expired) and the webhook
+  cancels + refunds a duplicate subscription; ending one subscription keeps Premium from another live one.
+  (3) The webhook and Admin → Stripe only touch Nibble's own checkouts and customers (the Stripe account may sell
+  other things): no auto-refund of other products' payments. (4) `premium/{uid}` (readable by friends) says
+  `ended`, never dispute / fraud / refund. (5) `/api/billing/status` with a session id is limited to one check per
+  3 s. (7) A full refund only ends Premium when it paid for the current period (`subOfCharge`). (8) Webhook events
+  from the other mode are ignored.
+
 - **2026-11-21** Admin → Money → Stripe: a back office for payments so the owner rarely needs the Stripe
   dashboard. Overview (balance, payouts, 30-day revenue chart, MRR, members, "Needs you"), payments with Radar
   risk and full/partial refunds, a person drawer, subscriptions (cancel / resume / end now / pause / change

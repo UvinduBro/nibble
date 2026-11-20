@@ -1576,6 +1576,11 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
       </div>
 
       <div className="sa-card">
+        {info && info.testLeftovers > 0 && (
+          <p className="sa-sub" style={{ color: C.yellow }}>⚠️ {info.testLeftovers} {info.testLeftovers === 1 ? 'account still has' : 'accounts still have'} Premium from a test-mode purchase (no real money).{' '}
+            <button className="btn small" disabled={!!busy} onClick={() => { if (window.confirm('End Premium that came from test purchases? Each account is checked with live Stripe first, so real subscribers keep theirs.')) act('test', { action: 'clearTestPremium' }, 'Test-mode Premium cleared'); }}>Clear test Premium</button>
+          </p>
+        )}
         <h3>💳 Payments, subscribers and disputes</h3>
         <p className="sa-sub">Members, payments, refunds, invoices, disputes, fraud warnings, payouts and the webhook log are on their own page now.</p>
         <button className="btn small" onClick={() => go('stripe')}>Open Money → Stripe →</button>
@@ -1771,7 +1776,7 @@ const NAV = [
   ]],
   ['Money', [
     ['premium', 'Premium', '💎', 'Nibble Premium, the product: switch it on or off, packages, prices, free trials, promo codes, features, gifts and the Stripe set-up checklist. Payments and members are on Stripe.', ['Stripe keys go in Vercel environment variables (see the set-up guide); this page never shows them.', 'Test with a sk_test_ key and card 4242 4242 4242 4242 before switching to live keys.', 'A new price only applies to new subscribers; people already subscribed keep theirs.', 'Built-in features change the app (badge, double bonus, bigger rooms); custom ones are just listed.']],
-    ['stripe', 'Stripe', '💳', 'Run payments without opening Stripe: balance and payouts, every payment, members and their subscriptions, invoices, refunds, disputes, fraud warnings, block lists and an audit log.', ['Search by @username, email or any Stripe id; “Open person” shows everything about one buyer.', 'Refunds within 14 days are always granted (our refund policy). A full refund ends their Premium.', 'Answer disputes before the deadline: the form is pre-filled from Nibble’s records.', 'Every action asks why and is saved in Activity → Admin actions.', 'Bank details, payout schedule, Radar rules and tax still live in the Stripe dashboard.']],
+    ['stripe', 'Stripe', '💳', 'Run payments without opening Stripe: balance and payouts, every payment, members and their subscriptions, invoices, refunds, disputes, fraud warnings, block lists and an audit log.', ['Search by @username, email or any Stripe id; “Open person” shows everything about one buyer.', 'Refunds within 14 days are always granted (our refund policy). A full refund of their latest payment ends their Premium.', 'Answer disputes before the deadline: the form is pre-filled from Nibble’s records.', 'Every action asks why and is saved in Activity → Admin actions.', 'Bank details, payout schedule, Radar rules and tax still live in the Stripe dashboard.']],
   ]],
   ['Grow', [
     ['seo', 'SEO', '🔎', 'How Nibble looks on Google and when shared: page titles, descriptions and share images.', ['Titles: 30–60 characters. Descriptions: 120–160.', 'After big changes, ask Google to re-crawl from Search Console → URL inspection.', 'Use Facebook’s Sharing Debugger to refresh old share previews.']],

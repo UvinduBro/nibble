@@ -4,7 +4,7 @@
 // - Every session carries fraud-prevention metadata (lib/billingRisk.js); the same fields are refreshed on the
 //   Stripe customer so Radar rules can use them. An open session for the same package is reused (double clicks).
 import { bearer } from '../../../../lib/adminAuth';
-import { accountOf, getPlan, getStripe, findCustomer, syncSubscription, ACTIVE, SITE } from '../../../../lib/billing';
+import { accountOf, getPlan, getStripe, findCustomer, saveCustomer, syncSubscription, refreshFromStripe, otherModePremium, isLive, ACTIVE, SITE } from '../../../../lib/billing';
 import { preCheck, riskMetadata, subMetadata, limitMeta } from '../../../../lib/billingRisk';
 import { fsGet, fsSet } from '../../../../lib/gcp';
 import { premiumActive, buyable } from '../../../../lib/premium';
@@ -39,7 +39,7 @@ export async function POST(req) {
   try { body = JSON.parse((await req.text()).slice(0, 4000) || '{}'); } catch {}
   // the package comes from the saved plan; the browser only says which one (default if unknown)
   const pkg = options.find((k) => k.id === String(body.packageId || '')) || options[0];
-  const [cur, profile, signup, wallet, map] = await Promise.all([
+  let [cur, profile, signup, wallet, map] = await Promise.all([
     fsGet('premium/' + me.uid).catch(() => null),
     fsGet('users/' + me.uid).catch(() => null),
     fsGet('signup/' + me.uid).catch(() => null),
@@ -47,19 +47,23 @@ export async function POST(req) {
     fsGet('billingCustomers/' + me.uid).catch(() => null),
   ]);
   if (!profile || !profile.username) return bad('Finish setting up your account first.', 403);
+  // Premium left over from a test purchase isn't real in live mode (and the other way round): clear it first
+  if (premiumActive(cur) && otherModePremium(cur)) cur = await refreshFromStripe(me.uid).catch(() => cur);
   if (premiumActive(cur)) return bad('You already have Premium. Use “Manage subscription” to change it.', 409);
   const stripe = (() => { try { return getStripe(); } catch { return null; } })();
   if (!stripe) return bad('Premium isn’t available right now.', 503);
 
   try {
     const now = Date.now();
+    const mode = isLive() ? 'live' : 'test';
     const recent = ((map && Array.isArray(map.recent)) ? map.recent : []).filter((t) => now - Number(t) < 86400_000).slice(-20);
     // still have an open payment page for this package? send them back to it instead of making another
-    if (map && map.openSession && map.openPkg === pkg.id && Number(map.openExp) > now + 5 * 60_000) {
+    if (map && map.openSession && map.openPkg === pkg.id && (map.openMode || 'test') === mode && Number(map.openExp) > now + 5 * 60_000) {
       const open = await stripe.checkout.sessions.retrieve(map.openSession).catch(() => null);
       if (open && open.status === 'open' && open.url && open.client_reference_id === me.uid) return Response.json({ url: open.url }, { headers: h });
     }
-    let customer = (map && map.customer) || await findCustomer(me.uid);
+    // checked with Stripe: a saved test-mode or deleted customer is replaced, never reused
+    let customer = await findCustomer(me.uid);
     if (customer) {
       // never sell a second subscription (two tabs, a double click, or Premium not synced yet)
       const subs = await stripe.subscriptions.list({ customer, status: 'all', limit: 10 });
@@ -70,7 +74,7 @@ export async function POST(req) {
       }
     }
     // free trial only for people who've never had Premium (no trial hopping)
-    const hadPremium = !!cur;
+    const hadPremium = !!cur && !otherModePremium(cur); // a test purchase doesn't use up the real free trial
     const trial = pkg.trialDays > 0 && !hadPremium ? pkg.trialDays : 0;
     const meta = riskMetadata({ me, req, profile, signup, wallet, pkg, trialDays: trial, promoCodes: plan.promoCodes, client: body.client, history: { recent, hadPremium, flag: checked.flag } });
     const custMeta = limitMeta({ ...meta, nb_last_checkout: new Date(now).toISOString() });
@@ -86,7 +90,7 @@ export async function POST(req) {
         return found.data[0];
       });
       customer = c.id;
-      await fsSet('billingCustomers/' + me.uid, { customer, updatedAt: now }, { merge: true }).catch(() => {});
+      await saveCustomer(me.uid, customer).catch(() => {});
     } else {
       // the latest picture of the account, where Radar rules can read it (::customer:nb_…::)
       await stripe.customers.update(customer, { email: me.email, metadata: custMeta }).catch((e) => console.error('customer update failed:', e && e.message));
@@ -117,7 +121,10 @@ export async function POST(req) {
       success_url: `${SITE}/app?premium=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${SITE}/app?premium=cancel`,
     };
-    // double submits reuse the open session above; network retries are made safe by the SDK's own idempotency keys
+    // only one payment page at a time: close any other open one (another package, another tab) so nobody can
+    // pay twice. The webhook also cancels and refunds a duplicate subscription if two get paid at the same moment.
+    if (map && map.openSession && (map.openMode || 'test') === mode) await stripe.checkout.sessions.expire(map.openSession).catch(() => {});
+    // network retries are made safe by the SDK's own idempotency keys
     let s;
     try {
       s = await stripe.checkout.sessions.create(params);
@@ -131,9 +138,7 @@ export async function POST(req) {
       delete params.custom_text.terms_of_service_acceptance;
       s = await stripe.checkout.sessions.create(params);
     }
-    await fsSet('billingCustomers/' + me.uid, {
-      customer, openSession: s.id, openPkg: pkg.id, openExp: (s.expires_at || 0) * 1000, recent: [...recent, now], updatedAt: now,
-    }, { merge: true }).catch(() => {});
+    await saveCustomer(me.uid, customer, { openSession: s.id, openPkg: pkg.id, openMode: mode, openExp: (s.expires_at || 0) * 1000, recent: [...recent, now] }).catch(() => {});
     return Response.json({ url: s.url }, { headers: h });
   } catch (e) {
     console.error('checkout failed:', e && e.message);

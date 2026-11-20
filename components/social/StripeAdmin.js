@@ -41,7 +41,10 @@ function Section({ title, sub, right, error, children }) {
   );
 }
 const Empty = ({ children }) => <p className="sa-empty">{children}</p>;
-const More = ({ v }) => (v.next ? <button className="btn small ghost" style={{ marginTop: 10 }} onClick={v.more}>Load more</button> : null);
+const More = ({ v }) => (<>
+  {v.hidden > 0 && <p className="ad-foot">Some rows from other products on this Stripe account are hidden (only Nibble accounts are shown).</p>}
+  {v.next ? <button className="btn small ghost" style={{ marginTop: 10 }} onClick={v.more}>Load more</button> : null}
+</>);
 const Loading = ({ v }) => (v.loading && !v.rows ? <Empty>Loading from Stripe…</Empty> : v.error ? <p className="sx-warn">⚠️ {v.error}</p> : null);
 
 export default function StripeAdmin({ social, state, users, toast, go, setOpenUid }) {
@@ -122,6 +125,7 @@ function Overview({ social, tick, setMode, setTab, openPerson, openDispute, name
         <Kpi n={s ? s.pastDue : '–'} label="Payment problems" sub={s ? `${s.cancelling} cancelling` : ''} color={COL.yellow} />
       </div>
       {['balance', 'subs', 'money30'].filter((k) => sec[k]).map((k) => <p key={k} className="sx-warn">⚠️ {sec[k]}</p>)}
+      {v.accountWide && <p className="ad-foot" style={{ marginTop: -6 }}>Balance, payouts and the 30-day money are for the whole Stripe account; members, MRR and “Needs you” are Nibble only.</p>}
       <div className="ad-grid2">
         <Section title="🙋 Needs you" sub={needs.length ? `${needs.length}` : 'all clear'}>
           {['disputes', 'fraud', 'invoices'].filter((k) => sec[k]).map((k) => <p key={k} className="sx-warn">⚠️ {sec[k]}</p>)}
@@ -562,8 +566,8 @@ function Sheet({ social, toast, sheet, onClose, onDone, plan }) {
             <label><span>Amount ({String(ch.currency).toUpperCase()}) <small>up to {(left / 100).toFixed(2)}</small></span><input type="number" step="0.01" min="0.01" max={(left / 100).toFixed(2)} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
             <label><span>Reason for Stripe</span><select value={stripeReason} onChange={(e) => setStripeReason(e.target.value)}>{REASONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
           </div>
-          {partial ? <label className="sa-toggle"><span><b>Also end their Premium now</b><small>A full refund always ends Premium; a partial one only if you tick this.</small></span><input type="checkbox" checked={endPremium} onChange={(e) => setEndPremium(e.target.checked)} /></label>
-            : <p className="ad-foot">A full refund ends their Premium.</p>}
+          {partial ? <label className="sa-toggle"><span><b>Also end their Premium now</b><small>A full refund of the latest payment ends Premium; a partial one only if you tick this.</small></span><input type="checkbox" checked={endPremium} onChange={(e) => setEndPremium(e.target.checked)} /></label>
+            : <p className="ad-foot">A full refund of their latest payment ends their Premium (an older payment doesn’t).</p>}
         </>}
         {sheet.kind === 'package' && <>
           <label><span>New package</span><select value={pkg} onChange={(e) => setPkg(e.target.value)}><option value="">Pick one…</option>{pkgs.map((k) => <option key={k.id} value={k.id}>{k.name}: {money(k.amount, k.currency)} / {k.interval}</option>)}</select></label>

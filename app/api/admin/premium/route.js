@@ -6,10 +6,11 @@
 //   POST { action: 'promo', code, percentOff | amountOff, currency, duration, months, maxRedemptions, expiresAt }
 //   POST { action: 'promoActive', id, active }
 //   POST { action: 'grant', uid, days } | { action: 'revoke', uid }
+//   POST { action: 'clearTestPremium' }           live mode: end Premium that came from test-mode purchases
 // Payments, subscribers, refunds, disputes, flags and the webhook log live in /api/admin/stripe (Admin → Stripe).
 import { adminUid, bearer } from '../../../../lib/adminAuth';
-import { getSecrets, getPlan, stripe, mask, subUntil, WEBHOOK_URL, WEBHOOK_EVENTS, STRIPE_VERSION } from '../../../../lib/billing';
-import { serviceKey, fsGet, fsSet } from '../../../../lib/gcp';
+import { getSecrets, getPlan, stripe, mask, subUntil, refreshFromStripe, otherModePremium, WEBHOOK_URL, WEBHOOK_EVENTS, STRIPE_VERSION } from '../../../../lib/billing';
+import { serviceKey, fsGet, fsSet, fsQuery } from '../../../../lib/gcp';
 import { CURRENCIES, INTERVALS, MAX_PACKAGES, cleanPackage } from '../../../../lib/premium';
 
 export const dynamic = 'force-dynamic';
@@ -76,7 +77,12 @@ export async function GET(req) {
   if (g.res) return g.res;
   const sec = getSecrets();
   const [plan, chk] = await Promise.all([getPlan(), health(sec)]);
-  const out = { health: chk, plan, webhookUrl: WEBHOOK_URL, webhookEvents: WEBHOOK_EVENTS, stats: null, promos: [] };
+  const out = { health: chk, plan, webhookUrl: WEBHOOK_URL, webhookEvents: WEBHOOK_EVENTS, stats: null, promos: [], testLeftovers: 0 };
+  // live mode: people who still have Premium from a test-mode purchase (it isn't real money)
+  if (sec.mode === 'live') {
+    const docs = await fsQuery('premium', { where: [['source', '==', 'stripe']], limit: 500 }).catch(() => []);
+    out.testLeftovers = docs.filter((d) => d.data.active && d.data.until > Date.now() && otherModePremium(d.data)).length;
+  }
   if (sec.secretKey && chk.key.ok) {
     try {
       const [list, promos] = await Promise.all([
@@ -168,6 +174,18 @@ export async function POST(req) {
       if (!/^promo_\w+$/.test(String(b.id || ''))) return bad('Unknown code.');
       await stripe('POST', '/promotion_codes/' + b.id, { active: b.active ? 'true' : 'false' });
       return Response.json({ ok: true }, { headers: h });
+    }
+    if (b.action === 'clearTestPremium') {
+      if (sec.mode !== 'live') return bad('Only needed once Stripe is in live mode.');
+      const docs = await fsQuery('premium', { where: [['source', '==', 'stripe']], limit: 500 });
+      let ended = 0;
+      // each one is re-checked with live Stripe first, so a real live subscriber keeps Premium
+      for (const d of docs) {
+        if (!(d.data.active && otherModePremium(d.data))) continue;
+        const p = await refreshFromStripe(d.id).catch(() => null);
+        if (p && !p.active) ended++;
+      }
+      return Response.json({ ok: true, ended }, { headers: h });
     }
     if (b.action === 'grant' || b.action === 'revoke') {
       const uid = String(b.uid || '');

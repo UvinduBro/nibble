@@ -5,8 +5,10 @@
 //        refund | subCancel | subResume | subPause | subUnpause | subChangePackage | subExtendTrial |
 //        invoiceRetry | invoiceVoid | disputeEvidence | disputeAccept | block | unblock | clearFlag | resync
 // Everything runs with the restricted key in STRIPE_SECRET_KEY; card numbers are never seen (only brand + last 4).
+// Only Nibble's own customers are listed or acted on (the Stripe account may also sell other things); balance,
+// payouts and the 30-day money totals are for the whole Stripe account.
 import { adminUid, bearer } from '../../../../lib/adminAuth';
-import { getStripe, getSecrets, getPlan, findCustomer, refreshFromStripe, syncSubscription, subUntil, ACTIVE, UID_RE } from '../../../../lib/billing';
+import { getStripe, getSecrets, getPlan, findCustomer, refreshFromStripe, syncSubscription, subUntil, subUid, uidOfCustomer, ACTIVE, UID_RE } from '../../../../lib/billing';
 import { fsGet, fsSet, fsQuery } from '../../../../lib/gcp';
 import { audit, recentAudit } from '../../../../lib/billingAudit';
 import { REFUND_DAYS, SELLER, SITE } from '../../../../lib/facts';
@@ -92,7 +94,12 @@ const dispRow = (d) => {
     ...(ch ? custInfo(ch.customer) : {}),
   };
 };
-const page = (list, map) => ({ rows: (list.data || []).map(map), next: list.has_more && list.data.length ? list.data[list.data.length - 1].id : '' });
+// one page of a Stripe list, keeping only rows that belong to a Nibble account (`hidden` = the others)
+const page = (list, map) => {
+  const all = (list.data || []).map(map);
+  const rows = all.filter((r) => r.uid);
+  return { rows, hidden: all.length - rows.length, next: list.has_more && list.data.length ? list.data[list.data.length - 1].id : '' };
+};
 
 // "@name", an email or a Stripe id → what it points at
 async function resolve(stripe, q) {
@@ -124,14 +131,15 @@ async function overview(stripe) {
     safe(stripe.balance.retrieve()),
     safe(stripe.payouts.list({ limit: 10 })),
     safe(stripe.balanceTransactions.list({ created: { gte: since }, limit: 100 }).autoPagingToArray({ limit: 1000 })),
-    safe(stripe.subscriptions.list({ status: 'all', limit: 100 }).autoPagingToArray({ limit: 1000 })),
-    safe(stripe.disputes.list({ limit: 30 })),
-    safe(stripe.radar.earlyFraudWarnings.list({ limit: 20 })),
-    safe(stripe.invoices.list({ status: 'open', limit: 30 })),
+    safe(stripe.subscriptions.list({ status: 'all', limit: 100 }).autoPagingToArray({ limit: 1000 }).then((l) => l.filter((x) => subUid(x)))),
+    safe(stripe.disputes.list({ limit: 30, expand: ['data.charge.customer'] })),
+    safe(stripe.radar.earlyFraudWarnings.list({ limit: 20, expand: ['data.charge.customer'] })),
+    safe(stripe.invoices.list({ status: 'open', limit: 30, expand: ['data.customer'] })),
     fsQuery('billingFlags', { where: [['open', '==', true]], limit: 20 }).catch(() => []),
     fsQuery('billingEvents', { where: [['status', '==', 'failed']], limit: 10 }).catch(() => []),
   ]);
-  const out = { sections: {} };
+  const out = { sections: {}, accountWide: true };
+  const nib = (c) => !!custInfo(c).uid;
   if (balance.data) out.balance = { available: balance.data.available.map((b) => ({ amount: b.amount, currency: b.currency })), pending: balance.data.pending.map((b) => ({ amount: b.amount, currency: b.currency })) };
   else out.sections.balance = balance.error;
   if (payouts.data) out.payouts = payouts.data.data.map((p) => ({ id: p.id, amount: p.amount, currency: p.currency, status: p.status, arrival: p.arrival_date * 1000, method: p.method }));
@@ -160,9 +168,9 @@ async function overview(stripe) {
     };
   } else out.sections.subs = subs.error;
   const needs = [];
-  if (disputes.data) for (const d of disputes.data.data) if (['needs_response', 'warning_needs_response'].includes(d.status)) needs.push({ kind: 'dispute', id: d.id, amount: d.amount, currency: d.currency, dueBy: ((d.evidence_details && d.evidence_details.due_by) || 0) * 1000 });
-  if (efw.data) for (const w of efw.data.data) if (w.actionable) needs.push({ kind: 'efw', id: w.id, charge: idOf(w.charge), at: w.created * 1000 });
-  if (invoices.data) for (const i of invoices.data.data) if (i.attempt_count > 0) needs.push({ kind: 'invoice', id: i.id, amount: i.amount_remaining, currency: i.currency, attempts: i.attempt_count });
+  if (disputes.data) for (const d of disputes.data.data) if (['needs_response', 'warning_needs_response'].includes(d.status) && d.charge && nib(d.charge.customer)) needs.push({ kind: 'dispute', id: d.id, amount: d.amount, currency: d.currency, dueBy: ((d.evidence_details && d.evidence_details.due_by) || 0) * 1000 });
+  if (efw.data) for (const w of efw.data.data) if (w.actionable && w.charge && nib(w.charge.customer)) needs.push({ kind: 'efw', id: w.id, charge: idOf(w.charge), at: w.created * 1000 });
+  if (invoices.data) for (const i of invoices.data.data) if (i.attempt_count > 0 && nib(i.customer)) needs.push({ kind: 'invoice', id: i.id, amount: i.amount_remaining, currency: i.currency, attempts: i.attempt_count });
   for (const f of flags) needs.push({ kind: 'flag', id: f.id, uid: f.id, reason: f.data.reason || '' });
   for (const e of failed) needs.push({ kind: 'webhook', id: e.id, type: e.data.type || '', error: e.data.error || '' });
   out.needs = needs;
@@ -178,7 +186,7 @@ async function view(stripe, v, p) {
   if (v === 'payments') {
     const r = q ? await resolve(stripe, q) : {};
     if (r.none) return { rows: [], next: '', note: r.none };
-    if (r.charge) return { rows: [chargeRow(await stripe.charges.retrieve(r.charge, { expand: ['customer'] }))], next: '' };
+    if (r.charge) { const row = chargeRow(await stripe.charges.retrieve(r.charge, { expand: ['customer'] })); return row.uid ? { rows: [row], next: '' } : { rows: [], next: '', note: 'That payment isn’t from a Nibble account.' }; }
     return page(await stripe.charges.list({ limit: PAGE, ...(r.customer ? { customer: r.customer } : {}), ...(cursor ? { starting_after: cursor } : {}), expand: ['data.customer'] }), chargeRow);
   }
   if (v === 'customer') {
@@ -249,7 +257,7 @@ async function view(stripe, v, p) {
   }
   if (v === 'fraud') {
     const [efw, lists] = await Promise.all([
-      safe(stripe.radar.earlyFraudWarnings.list({ limit: 25, expand: ['data.charge'] })),
+      safe(stripe.radar.earlyFraudWarnings.list({ limit: 25, expand: ['data.charge.customer'] })),
       safe(Promise.all(Object.entries(LISTS).map(async ([k, l]) => {
         const found = await stripe.radar.valueLists.list({ alias: l.alias, limit: 1 });
         const vl = found.data[0];
@@ -259,7 +267,7 @@ async function view(stripe, v, p) {
       }))),
     ]);
     return {
-      warnings: efw.data ? efw.data.data.map((w) => ({ id: w.id, at: w.created * 1000, actionable: w.actionable, type: w.fraud_type, charge: typeof w.charge === 'object' ? chargeRow(w.charge) : { id: idOf(w.charge) } })) : [],
+      warnings: efw.data ? efw.data.data.map((w) => ({ id: w.id, at: w.created * 1000, actionable: w.actionable, type: w.fraud_type, charge: typeof w.charge === 'object' ? chargeRow(w.charge) : { id: idOf(w.charge) } })).filter((w) => w.charge.uid) : [],
       lists: lists.data ? Object.fromEntries(lists.data) : null,
       sections: { ...(efw.error ? { warnings: efw.error } : {}), ...(lists.error ? { lists: lists.error } : {}) },
     };
@@ -312,7 +320,8 @@ async function act(stripe, b, by) {
   switch (b.action) {
     case 'refund': {
       if (!ID('ch|py').test(b.chargeId || '')) throw fail('Unknown payment.');
-      const ch = await stripe.charges.retrieve(b.chargeId);
+      const ch = await stripe.charges.retrieve(b.chargeId, { expand: ['customer'] });
+      if (!(await uidOfCustomer(ch.customer))) throw fail('That payment isn’t from a Nibble account.');
       const left = ch.amount - ch.amount_refunded;
       if (left <= 0) throw fail('This payment is already fully refunded.');
       const amount = b.amount == null || b.amount === '' ? left : Math.round(Number(b.amount));
@@ -327,6 +336,7 @@ async function act(stripe, b, by) {
     }
     case 'subCancel': case 'subResume': case 'subPause': case 'subUnpause': case 'subChangePackage': case 'subExtendTrial': {
       if (!ID('sub').test(b.subId || '')) throw fail('Unknown subscription.');
+      if (!subUid(await stripe.subscriptions.retrieve(b.subId))) throw fail('That subscription isn’t a Nibble one.');
       let s;
       if (b.action === 'subCancel') s = b.now ? await stripe.subscriptions.cancel(b.subId, {}, { idempotencyKey: key(b.subId, 'now') }) : await stripe.subscriptions.update(b.subId, { cancel_at_period_end: true });
       if (b.action === 'subResume') s = await stripe.subscriptions.update(b.subId, { cancel_at_period_end: false });
@@ -351,12 +361,15 @@ async function act(stripe, b, by) {
     }
     case 'invoiceRetry': case 'invoiceVoid': {
       if (!ID('in').test(b.invoiceId || '')) throw fail('Unknown invoice.');
+      if (!custInfo((await stripe.invoices.retrieve(b.invoiceId, { expand: ['customer'] })).customer).uid) throw fail('That invoice isn’t from a Nibble account.');
       const i = b.action === 'invoiceRetry' ? await stripe.invoices.pay(b.invoiceId, {}, { idempotencyKey: key(b.invoiceId) }) : await stripe.invoices.voidInvoice(b.invoiceId);
       if (i.parent && i.parent.subscription_details && i.parent.subscription_details.subscription) await syncSub(await stripe.subscriptions.retrieve(String(i.parent.subscription_details.subscription)));
       return { target: i.id, amount: i.amount_paid || i.amount_due, currency: i.currency, detail: i.status };
     }
     case 'disputeEvidence': case 'disputeAccept': {
       if (!ID('dp|du').test(b.disputeId || '')) throw fail('Unknown dispute.');
+      const dd = await stripe.disputes.retrieve(b.disputeId, { expand: ['charge.customer'] });
+      if (!(dd.charge && custInfo(dd.charge.customer).uid)) throw fail('That dispute isn’t about a Nibble payment.');
       if (b.action === 'disputeAccept') {
         const d = await stripe.disputes.close(b.disputeId);
         return { target: d.id, amount: d.amount, currency: d.currency, detail: 'accepted (lost)' };
