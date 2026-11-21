@@ -2,6 +2,7 @@
 import './social.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSocial } from './useSocial';
+import StripeAdmin from './StripeAdmin';
 import { AuthScreen } from './Auth';
 import PetFigure, { useNibble, PetSnap } from '../PetFigure';
 import Emo from '../Emo';
@@ -1375,7 +1376,6 @@ function SeoTab({ social, toast }) {
 
 // Sidebar: grouped pages, each with a one-line purpose and a short guide (shown under the title)
 // ---------- Premium: Stripe subscriptions (keys live in Vercel env, never here) ----------
-const SUB_COLOR = { active: C.mint, trialing: C.cyan, past_due: C.yellow, canceled: C.slate, unpaid: C.coral, incomplete: C.slate, incomplete_expired: C.slate };
 const blankPkg = () => ({ id: '', name: '', amount: '', currency: 'usd', interval: 'year', trialDays: 0, highlight: '', active: true });
 function Check({ ok, warn, children }) { return <li className={ok ? 'ok' : warn ? 'bad' : ''}>{ok ? '✓ ' : warn ? '⚠️ ' : '○ '}{children}</li>; }
 function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
@@ -1418,7 +1418,6 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
   const setF = (i, patch) => { setFeats(feats.map((f, j) => (j === i ? { ...f, ...patch } : f))); setFeatsDirty(true); };
   const giftUser = users.find((u) => u.username === gift.who.replace(/^@/, '').trim().toLowerCase() || u.uid === gift.who.trim());
   const stats = info && info.stats;
-  const subs = (info && info.subscribers) || [];
   const nameOf = (uid) => (users.find((u) => u.uid === uid) || {}).username;
   const dash = `https://dashboard.stripe.com/${hl.key && hl.key.mode === 'test' ? 'test/' : ''}`;
   return (
@@ -1451,6 +1450,10 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
               <Check ok={hl.portal && hl.portal.ok}>Customer portal turned on (Stripe → Settings → Billing → Customer portal)</Check>
               <Check ok={hl.serviceAccount && hl.serviceAccount.ok} warn={hl.serviceAccount && !hl.serviceAccount.ok}>Server can update Firestore{hl.serviceAccount && !hl.serviceAccount.ok ? <>: give <code>{hl.serviceAccount.email}</code> the <b>Cloud Datastore User</b> role</> : ''}</Check>
               <Check ok={live.length > 0}>At least one package below</Check>
+              <Check ok={hl.webhook && hl.webhook.found && hl.webhook.versionOk} warn={hl.webhook && hl.webhook.found && !hl.webhook.versionOk}>Webhook API version is the same release as the app (<code>{hl.apiVersion ? '….' + hl.apiVersion.split('.').pop() : '…'}</code>){hl.webhook && hl.webhook.apiVersion ? (hl.webhook.versionOk ? ` · endpoint uses ${hl.webhook.apiVersion}` : `: the endpoint uses ${hl.webhook.apiVersion}, pick a ${hl.apiVersion.split('.').pop()} version (never .preview)`) : ''}</Check>
+              <Check ok={hl.terms && hl.terms.ok} warn={hl.terms && !hl.terms.ok}>Terms of service URL set in Stripe (Settings → Public details){hl.terms && !hl.terms.ok ? ': checkout is running without the terms tick-box' : ''}</Check>
+              <Check ok={hl.radar && hl.radar.ok} warn={hl.radar && !hl.radar.ok}>Fraud warnings readable (Radar){hl.radar && !hl.radar.ok ? ': give the key Read access to Radar' : ''}</Check>
+              <Check ok={hl.restricted} warn={hl.key && hl.key.ok && hl.key.mode === 'live' && !hl.restricted}>Restricted key (<code>rk_…</code>) instead of the full secret key{hl.key && hl.key.ok && !hl.restricted ? ': safer if it ever leaks' : ''}</Check>
             </ul>
           )}
           <p className="ad-foot">Keys are added in Vercel → Settings → Environment Variables, then redeploy. They’re never shown or stored here. <a className="sa-link" href="https://github.com/UvinduBro/nibble/blob/main/docs/STRIPE_SETUP.md" target="_blank" rel="noreferrer">Set-up guide</a>{hl.key && hl.key.ok ? <> · <a className="sa-link" href={dash} target="_blank" rel="noreferrer">Open Stripe ↗</a></> : null}</p>
@@ -1574,29 +1577,14 @@ function PremiumTab({ social, state, users, toast, go, setOpenUid }) {
       </div>
 
       <div className="sa-card">
-        <h3>👥 Subscribers <small>{subs.length}{stats && stats.more ? '+' : ''}</small></h3>
-        {!subs.length && <p className="sa-empty">{hl.key && hl.key.ok ? 'No subscribers yet.' : 'Add the Stripe keys to see subscribers.'}</p>}
-        {subs.length > 0 && (
-          <table className="ad-mini">
-            <thead><tr><th>Who</th><th>Status</th><th>Renews / ends</th><th>Price</th><th /></tr></thead>
-            <tbody>{subs.map((x) => (
-              <tr key={x.id}>
-                <td>{nameOf(x.uid) ? <button className="sa-link" onClick={() => { go('users'); setOpenUid(x.uid); }}>@{nameOf(x.uid)}</button> : x.uid}<br /><small style={{ color: 'var(--muted)' }}>{x.email}{x.pkg ? ' · ' + x.pkg : ''}</small></td>
-                <td><b style={{ color: SUB_COLOR[x.status] || C.slate }}>{x.status.replace('_', ' ')}</b>{x.cancelAtEnd ? <small> · cancelling</small> : null}</td>
-                <td>{x.until ? new Date(x.until).toLocaleDateString() : '—'}</td>
-                <td>{money(x.amount, x.currency)}/{x.interval}</td>
-                <td className="ad-sub-btns">
-                  {['active', 'trialing', 'past_due'].includes(x.status) && (x.cancelAtEnd
-                    ? <button className="btn small ghost" disabled={!!busy} onClick={() => act('sub', { action: 'resume', subId: x.id }, 'Subscription resumed')}>Resume</button>
-                    : <button className="btn small ghost" disabled={!!busy} onClick={() => { if (window.confirm('Cancel at the end of the period they paid for? They keep Premium until then.')) act('sub', { action: 'cancel', subId: x.id }, 'Will cancel at period end'); }}>Cancel</button>)}
-                  {['active', 'trialing', 'past_due'].includes(x.status) && <button className="btn small ghost" disabled={!!busy} onClick={() => { if (window.confirm('Cancel NOW? Premium ends immediately. (Refunds are done in Stripe.)')) act('sub', { action: 'cancel', subId: x.id, now: true }, 'Cancelled now'); }}>End now</button>}
-                  <button className="btn small ghost" disabled={!!busy} onClick={() => act('sub', { action: 'resync', uid: x.uid }, 'Synced')}>Sync</button>
-                  <a className="btn small ghost" href={`${dash}subscriptions/${x.id}`} target="_blank" rel="noreferrer">Stripe ↗</a>
-                </td>
-              </tr>
-            ))}</tbody>
-          </table>
+        {info && info.testLeftovers > 0 && (
+          <p className="sa-sub" style={{ color: C.yellow }}>⚠️ {info.testLeftovers} {info.testLeftovers === 1 ? 'account still has' : 'accounts still have'} Premium from a test-mode purchase (no real money).{' '}
+            <button className="btn small" disabled={!!busy} onClick={() => { if (window.confirm('End Premium that came from test purchases? Each account is checked with live Stripe first, so real subscribers keep theirs.')) act('test', { action: 'clearTestPremium' }, 'Test-mode Premium cleared'); }}>Clear test Premium</button>
+          </p>
         )}
+        <h3>💳 Payments, subscribers and disputes</h3>
+        <p className="sa-sub">Members, payments, refunds, invoices, disputes, fraud warnings, payouts and the webhook log are on their own page now.</p>
+        <button className="btn small" onClick={() => go('stripe')}>Open Money → Stripe →</button>
       </div>
     </>
   );
@@ -1826,7 +1814,8 @@ const NAV = [
     ['marketing', 'Marketing', '📢', 'Bulk email: import contacts, pick a designed template, preview it, test it and send it to a list.', ['Import only people who agreed to hear from you; keep them in “Imported contacts”.', 'Always send yourself a test first, and check the phone preview.', 'Free plan: 3,000 emails a month, 100 a day. Bigger lists need a paid Resend plan.', 'Every email gets an unsubscribe link automatically.']],
   ]],
   ['Money', [
-    ['premium', 'Premium', '💎', 'Nibble Premium: switch it on or off, manage packages, prices, free trials, promo codes and features, check the Stripe set-up and manage subscribers.', ['Stripe keys go in Vercel environment variables (see the set-up guide); this page never shows them.', 'Test with a sk_test_ key and card 4242 4242 4242 4242 before switching to live keys.', 'A new price only applies to new subscribers; people already subscribed keep theirs.', 'Built-in features change the app (badge, double bonus, bigger rooms); custom ones are just listed.']],
+    ['premium', 'Premium', '💎', 'Nibble Premium, the product: switch it on or off, packages, prices, free trials, promo codes, features, gifts and the Stripe set-up checklist. Payments and members are on Stripe.', ['Stripe keys go in Vercel environment variables (see the set-up guide); this page never shows them.', 'Test with a sk_test_ key and card 4242 4242 4242 4242 before switching to live keys.', 'A new price only applies to new subscribers; people already subscribed keep theirs.', 'Built-in features change the app (badge, double bonus, bigger rooms); custom ones are just listed.']],
+    ['stripe', 'Stripe', '💳', 'Run payments without opening Stripe: balance and payouts, every payment, members and their subscriptions, invoices, refunds, disputes, fraud warnings, block lists and an audit log.', ['Search by @username, email or any Stripe id; “Open person” shows everything about one buyer.', 'Refunds within 14 days are always granted (our refund policy). A full refund of their latest payment ends their Premium.', 'Answer disputes before the deadline: the form is pre-filled from Nibble’s records.', 'Every action asks why and is saved in Activity → Admin actions.', 'Bank details, payout schedule, Radar rules and tax still live in the Stripe dashboard.']],
   ]],
   ['Grow', [
     ['seo', 'SEO', '🔎', 'How Nibble looks on Google and when shared: page titles, descriptions and share images.', ['Titles: 30–60 characters. Descriptions: 120–160.', 'After big changes, ask Google to re-crawl from Search Console → URL inspection.', 'Use Facebook’s Sharing Debugger to refresh old share previews.']],
@@ -1945,6 +1934,7 @@ function Dashboard({ social, state }) {
         {tab === 'email' && <EmailTab social={social} toast={toast} draft={draft} setDraft={setDraft} />}
         {tab === 'marketing' && <MarketingTab social={social} state={state} toast={toast} />}
         {tab === 'seo' && <SeoTab social={social} toast={toast} />}
+        {users && tab === 'stripe' && <StripeAdmin social={social} state={state} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'premium' && <PremiumTab social={social} state={state} users={list} toast={toast} go={go} setOpenUid={setOpenUid} />}
         {users && tab === 'usage' && <UsageTab social={social} state={state} users={list} toast={toast} />}
         {tab === 'announce' && <Announce social={social} state={state} history={history} toast={toast} />}

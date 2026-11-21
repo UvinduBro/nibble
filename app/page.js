@@ -10,7 +10,9 @@ import { Reveal, ThemeToggle } from '../components/landing/LandingFx';
 import SiteFeedback from '../components/landing/SiteFeedback';
 import ContactForm from '../components/landing/ContactForm';
 import release from '../public/version.json';
-import { orgLd, appLd, siteLd, faqLd, howToLd, ldJson } from '../lib/facts';
+import { orgLd, appLd, siteLd, faqLd, howToLd, ldJson, SELLER, REFUND_DAYS } from '../lib/facts';
+import { getPlan } from '../lib/billing';
+import { buyable } from '../lib/premium';
 import './landing.css';
 
 // Headline that rises in word by word on load.
@@ -58,7 +60,8 @@ const CONTROLS = [
 
 const FAQ = [
   ['What is Nibble?', 'Nibble is a free desktop pet app for Windows and Mac: a small animated pet that walks along the top of your windows, naps when you’re away, reacts to the apps you use, and visits your friends’ screens.'],
-  ['Is Nibble free?', 'Yes. Every pet, every game and every feature is free. There are no ads and nothing to buy with real money. Points are earned by playing.'],
+  ['Is Nibble free?', 'Yes. Every pet, every game and every social feature is free, with no ads. There’s an optional Nibble Premium subscription with a few extras (see Pricing). Points are earned by playing and can’t be bought.'],
+  ['What is Nibble Premium?', `An optional subscription with a few extras, like a Premium badge, a bigger daily bonus and bigger music rooms. It renews automatically until you cancel, you can cancel any time in the app, and you get a full refund within ${REFUND_DAYS} days of any payment. See Pricing for the current price.`],
   ['Will it slow my computer down?', 'No. The pets sleep when you’re away and step aside in full-screen apps and games. Nibble uses about as much as a browser tab.'],
   ['Which computers does it run on?', 'Windows 10 and 11, and macOS 12 or newer on Apple silicon and Intel. You can also open the Hub in any browser at meetnibble.com/app.'],
   ['My Mac says it can’t check the app. What do I do?', 'Open System Settings, then Privacy & Security, and click Open Anyway next to Nibble. Or install with the one Terminal line on the download panel, which never shows that prompt.'],
@@ -126,8 +129,8 @@ function HubMock() {
 }
 
 // structured data for search engines and AI assistants (facts live in lib/facts.js)
-function jsonLd(reviews) {
-  return [orgLd(), siteLd(), appLd(reviews), howToLd(), faqLd(FAQ)];
+function jsonLd(reviews, premium) {
+  return [orgLd(), siteLd(), appLd(reviews, premium), howToLd(), faqLd(FAQ)];
 }
 
 // "What people say": real reviews from Nibble users, approved by the team (lib/reviews.js)
@@ -160,10 +163,12 @@ function Reviews({ list }) {
 }
 
 export default async function Home() {
-  const reviews = await approvedReviews();
+  const [reviews, plan] = await Promise.all([approvedReviews(), getPlan({ revalidate: 300 })]);
+  // Premium prices go in the structured data only while Premium is really on sale
+  const premium = plan.enabled ? buyable(plan) : [];
   return (
     <div className="lp" data-theme="dark">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd(reviews)) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd(reviews, premium)) }} />
       <Reveal />
       <header className="lp-nav">
         <a href="#" className="lp-brand"><img src="/logo.svg" alt="" width={34} height={34} />nibble</a>
@@ -186,7 +191,7 @@ export default async function Home() {
               <a href="#download" className="lp-btn">Download for Windows or Mac</a>
               <a href="/app" className="lp-btn ghost">Open in your browser</a>
             </div>
-            <p className="lp-note rise-sub">Free for everyone. No ads. Windows 10/11 and macOS 12+.</p>
+            <p className="lp-note rise-sub">Free for everyone. No ads. Optional <a href="/pricing">Premium</a>. Windows 10/11 and macOS 12+.</p>
           </div>
           <div className="lp-wrap lp-mock" data-reveal>
             <div className="lp-perch p1" aria-hidden><PetFigure skin="mint" mood="wave" w={110} h={100} size={0.95} /></div>
@@ -405,10 +410,10 @@ export default async function Home() {
           </div>
           <nav aria-label="Product"><b>Product</b><a href="#download">Download</a><a href="/desktop-pet">Desktop pet app</a><a href="/app">Web app</a><a href="#features">Features</a><a href="#crew">Pets</a></nav>
           <nav aria-label="Help"><b>Help</b><a href="#faq">FAQ</a><a href="#feedback">Report a bug</a><a href="#feedback">Suggest a feature</a><a href="/install-help">Install help</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
-          <nav aria-label="Nibble"><b>Nibble</b><a href="/about">About</a><a href="#contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+          <nav aria-label="Nibble"><b>Nibble</b><a href="/about">About</a><a href="/pricing">Pricing</a><a href="#contact">Contact</a><a href="/refunds">Refunds</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
           <NewsletterForm />
         </div>
-        <div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · Version {release.version} · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
+        <div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · Version {release.version} · Operated by {SELLER.name} · <a href="/pricing">Pricing</a> · <a href="/refunds">Refunds</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
       </footer>
     </div>
   );

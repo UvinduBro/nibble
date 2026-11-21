@@ -1,6 +1,6 @@
 // "Manage subscription": Stripe's customer portal (cancel, change card, invoices) for the caller.
 import { bearer } from '../../../../lib/adminAuth';
-import { accountOf, stripe, findCustomer, SITE } from '../../../../lib/billing';
+import { accountOf, getStripe, findCustomer, SITE } from '../../../../lib/billing';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -12,7 +12,7 @@ export async function POST(req) {
   try {
     const customer = await findCustomer(me.uid);
     if (!customer) return Response.json({ error: 'No subscription found for this account.' }, { status: 404, headers: h });
-    const s = await stripe('POST', '/billing_portal/sessions', { customer, return_url: `${SITE}/app?premium=manage` });
+    const s = await getStripe().billingPortal.sessions.create({ customer, return_url: `${SITE}/app?premium=manage` });
     return Response.json({ url: s.url }, { headers: h });
   } catch (e) {
     console.error('portal failed:', e && e.message);

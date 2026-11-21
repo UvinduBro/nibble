@@ -8,7 +8,7 @@ export function generateMetadata() {
 }
 
 const GLANCE = [
-  ['Price', 'Free, no ads'],
+  ['Price', 'Free, no ads · optional Premium subscription (see /pricing)'],
   ['Windows', 'Windows 10 and 11'],
   ['Mac', 'macOS 12 or newer, Apple silicon and Intel'],
   ['Browser', 'Nibble Hub at meetnibble.com/app'],
@@ -101,7 +101,7 @@ export default function DesktopPetPage() {
         </section>
       </main>
 
-      <footer className="lp-foot"><div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · <a href="/desktop-pet">Desktop pet app</a> · <a href="/about">About</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div></footer>
+      <footer className="lp-foot"><div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · <a href="/desktop-pet">Desktop pet app</a> · <a href="/about">About</a> · <a href="/pricing">Pricing</a> · <a href="/refunds">Refunds</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div></footer>
     </div>
   );
 }

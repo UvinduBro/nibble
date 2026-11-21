@@ -102,6 +102,8 @@ service cloud.firestore {
     // Written and read only by the server (service account); admins see them through /api/admin/premium.
     match /billingEvents/{id} { allow read, write: if false; }
     match /billingFlags/{uid} { allow read, write: if false; }
+    // Admin → Stripe audit log: every refund / cancel / dispute answer / block, who did it and why (server only)
+    match /billingAudit/{id} { allow read, write: if false; }
 
     // ---------- reviews ----------
     // One review per account (id = your uid). You write rating + text; every change goes back to
