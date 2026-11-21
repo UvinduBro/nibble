@@ -255,6 +255,11 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 
 Newest first. Add an entry for every piece of work.
 
+- **2026-11-21** Fix: Premium stayed "Launching soon" although packages were live in Stripe: the
+  Admin → Premium on/off switch (and name / promo codes / features) was saved from the browser and the
+  write never landed, so `config/premium.enabled` was missing. It now saves through
+  `/api/admin/premium` (`action: 'plan'`, service account) and refreshes `/pricing` right away.
+
 - **2026-11-21** Payment flow security audit fixes. (1) Test and live Stripe customers are kept apart
   (`billingCustomers.customerLive` / `customerTest`; saved ids are checked with Stripe, so a test-mode or deleted
   customer is replaced instead of breaking checkout); `premium/{uid}` records `live`, test-mode Premium is ended in

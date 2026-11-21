@@ -11,7 +11,8 @@
 import { adminUid, bearer } from '../../../../lib/adminAuth';
 import { getSecrets, getPlan, stripe, mask, subUntil, refreshFromStripe, otherModePremium, WEBHOOK_URL, WEBHOOK_EVENTS, STRIPE_VERSION } from '../../../../lib/billing';
 import { serviceKey, fsGet, fsSet, fsQuery } from '../../../../lib/gcp';
-import { CURRENCIES, INTERVALS, MAX_PACKAGES, cleanPackage } from '../../../../lib/premium';
+import { CURRENCIES, INTERVALS, MAX_PACKAGES, cleanPackage, cleanPlan, buyable } from '../../../../lib/premium';
+import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -117,10 +118,21 @@ export async function POST(req) {
   let b;
   try { b = await req.json(); } catch { return bad('Bad request.'); }
   const sec = getSecrets();
-  const needStripe = !['grant', 'revoke'].includes(b.action);
+  const needStripe = !['grant', 'revoke', 'plan'].includes(b.action);
   if (needStripe && !sec.secretKey) return bad('Add STRIPE_SECRET_KEY in Vercel first (see the set-up guide).', 503);
 
   try {
+    // the on/off switch, name, promo-code toggle, default package and features. Saved here with the
+    // service account (not from the browser) so an out-of-date rules file can't silently block it.
+    if (b.action === 'plan') {
+      const cur = await getPlan();
+      const next = cleanPlan({ ...cur, ...(b.plan || {}), packages: cur.packages, productId: cur.productId });
+      if (next.enabled && !buyable(next).length) return bad('Add a package first (saved in Stripe): that’s what people buy.');
+      const out = { enabled: !!next.enabled, name: next.name, promoCodes: next.promoCodes, defaultPackage: next.defaultPackage, features: next.features, by: String(b.by || '').slice(0, 20) };
+      await savePlanPart(out);
+      try { revalidatePath('/pricing'); revalidatePath('/'); } catch {}
+      return Response.json({ ok: true, plan: out }, { headers: h });
+    }
     if (b.action === 'package') {
       const plan = await getPlan();
       const raw = b.pkg || {};
