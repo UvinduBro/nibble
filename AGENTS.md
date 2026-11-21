@@ -259,6 +259,8 @@ Newest first. Add an entry for every piece of work.
   Admin → Premium on/off switch (and name / promo codes / features) was saved from the browser and the
   write never landed, so `config/premium.enabled` was missing. It now saves through
   `/api/admin/premium` (`action: 'plan'`, service account) and refreshes `/pricing` right away.
+  Also `cleanPlan`: when `enabled` was never saved, Premium is on as soon as a package is live in
+  Stripe (an explicit `false` from the admin switch still turns it off).
 
 - **2026-11-21** Payment flow security audit fixes. (1) Test and live Stripe customers are kept apart
   (`billingCustomers.customerLive` / `customerTest`; saved ids are checked with Stripe, so a test-mode or deleted
