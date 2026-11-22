@@ -20,13 +20,13 @@ Upload `Nibble.msix` in Partner Center → your app → Packages. The Store sign
 
 ## Mac: Mac App Store
 
-Version **2.0.23** · build 4 · 2026-11-22 18:39 UTC · from `mobile-and-stores` ([`25c708a`](https://github.com/UvinduBro/nibble/commit/25c708a7c2732322062cb745c579e4aba4b9bdda), [build log](https://github.com/UvinduBro/nibble/actions/runs/45056210578))
+Version **2.0.23** · build 6 · 2026-11-22 18:55 UTC · from `main` ([`84f3719`](https://github.com/UvinduBro/nibble/commit/84f3719b878c770061fd2856b1273de74480ff19), [build log](https://github.com/UvinduBro/nibble/actions/runs/45057657092))
 
 Ready to upload to the store: not yet: add the MAS_* and APPLE_* secrets (Apple certificates + provisioning profile) (docs/STORE_PUBLISHING.md)
 
 | File | Size | SHA-256 |
 |---|---|---|
-| [Nibble-MAS.pkg](https://github.com/UvinduBro/nibble/releases/download/app-files/Nibble-MAS.pkg) | 210.8 MB | `498fc640a699e365…` |
+| [Nibble-MAS.pkg](https://github.com/UvinduBro/nibble/releases/download/app-files/Nibble-MAS.pkg) | 210.8 MB | `0c0243e87a7a225d…` |
 
 Upload `Nibble-MAS.pkg` with Apple's Transporter app (or set MAS_UPLOAD=1 to send it automatically).
 

@@ -1,17 +1,17 @@
 {
   "platform": "mac",
   "version": "2.0.23",
-  "build": "4",
+  "build": "6",
   "signed": false,
-  "commit": "25c708a7c2732322062cb745c579e4aba4b9bdda",
-  "branch": "mobile-and-stores",
-  "run": "https://github.com/UvinduBro/nibble/actions/runs/45056210578",
-  "date": "2026-11-22 18:39 UTC",
+  "commit": "84f3719b878c770061fd2856b1273de74480ff19",
+  "branch": "main",
+  "run": "https://github.com/UvinduBro/nibble/actions/runs/45057657092",
+  "date": "2026-11-22 18:55 UTC",
   "files": [
     {
       "name": "Nibble-MAS.pkg",
-      "size": 220996584,
-      "sha256": "498fc640a699e36564d0cba923295733a6a15369014f402f1f43dbfc82ab3534",
+      "size": 220996556,
+      "sha256": "0c0243e87a7a225dc0f48f0d48eadbd153efe90007687345e8129287d58f1eb3",
       "url": "https://github.com/UvinduBro/nibble/releases/download/app-files/Nibble-MAS.pkg"
     }
   ]
