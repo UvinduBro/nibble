@@ -1,17 +1,13 @@
-# nibble
+# Nibble for Android and iPhone
 
-A new Flutter project.
+A Flutter app around the live Nibble web app at `https://meetnibble.com/m` (see `lib/main.dart` and the website's
+`lib/mobileBridge.js`). Tab bar, badges, notifications, Google sign-in (phone browser → `nibble://auth`),
+Sign in with Apple (iPhone), offline screen and Android back are native; the pages come from the website, so
+website updates reach the app straight away.
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- Build: GitHub Actions → "Phone app (Android + iPhone)" (`.github/workflows/mobile.yml`): `.apk`, `.aab`, iOS.
+- Locally: `flutter pub get`, then `flutter run` (add `--dart-define=NIBBLE_SITE=https://…` to test another site).
+- Native project settings (ids, permissions, entitlements) are set by `tools/mobile/patch_native.py`; re-run it
+  after `flutter create` or plugin upgrades.
+- App ids: `com.meetnibble.app` (Android + iOS). Version: `version:` in `pubspec.yaml`.
+- Publishing: `docs/STORE_PUBLISHING.md`.
