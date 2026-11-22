@@ -69,12 +69,8 @@ jobs:
         with:
           name: nibble-mac-app-store
           path: dist-mas/Nibble-MAS.pkg
-      - name: Publish (release "mas", main only, signed builds only)
-        if: github.ref == 'refs/heads/main' && env.MAS_SIGNED == 'yes'
+      - name: Publish to the apps release + index (main, or when run by hand)
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="mas"
-          NOTE="Nibble $MAS_VER (build $MAS_BUILD) for the Mac App Store, signed. Upload with Transporter, or set MAS_UPLOAD=1."
-          if gh release view "$TAG" >/dev/null 2>&1; then gh release edit "$TAG" --notes "$NOTE" --latest=false; else gh release create "$TAG" --title "Nibble for the Mac App Store" --notes "$NOTE" --latest=false; fi
-          gh release upload "$TAG" dist-mas/Nibble-MAS.pkg --clobber
+        run: tools/apps/publish.sh mac "$MAS_VER" "$MAS_BUILD" "$([ "$MAS_SIGNED" = yes ] && echo yes || echo no)" dist-mas/Nibble-MAS.pkg

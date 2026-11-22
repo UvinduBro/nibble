@@ -54,13 +54,9 @@ jobs:
           path: |
             dist-win/Nibble.msix
             dist-win/msix-info.txt
-      - name: Publish (release "msstore", main only)
-        if: github.ref == 'refs/heads/main'
+      - name: Publish to the apps release + index (main, or when run by hand)
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
-        run: |
-          TAG="msstore"
-          NOTE="Nibble for the Microsoft Store: $(tr '\n' ' ' < dist-win/msix-info.txt). Upload Nibble.msix in Partner Center → Packages."
-          if gh release view "$TAG" >/dev/null 2>&1; then gh release edit "$TAG" --notes "$NOTE" --latest=false; else gh release create "$TAG" --title "Nibble for the Microsoft Store" --notes "$NOTE" --latest=false; fi
-          gh release upload "$TAG" dist-win/Nibble.msix --clobber
+        run: tools/apps/publish.sh windows "$(node -p "require('./public/app/package.json').version")" "${{ github.run_number }}" "$([ -n "$MSSTORE_IDENTITY_NAME" ] && echo yes || echo no)" dist-win/Nibble.msix

@@ -74,11 +74,18 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk ../dist-mobile/Nibble.apk
           cp build/app/outputs/bundle/release/app-release.aab ../dist-mobile/Nibble.aab
           echo "signed for Google Play: $([ -f android/key.properties ] && echo yes || echo 'no (debug key, for testing only)')" > ../dist-mobile/README.txt
+          echo "ANDROID_SIGNED=$([ -f android/key.properties ] && echo yes || echo no)" >> "$GITHUB_ENV"
+          echo "APP_VERSION=$(grep '^version:' pubspec.yaml | sed -E 's/version: *//; s/\+.*//')" >> "$GITHUB_ENV"
           rm -f android/app/upload.jks android/key.properties
       - uses: actions/upload-artifact@v4
         with:
           name: nibble-android
           path: dist-mobile
+      - name: Publish to the apps release + index (main, or when run by hand)
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ../tools/apps/publish.sh android "$APP_VERSION" "$BUILD_NUMBER" "$ANDROID_SIGNED" ../dist-mobile/Nibble.apk ../dist-mobile/Nibble.aab
       - name: Native project files (so they can be committed)
         run: tar --exclude='*/build' --exclude='*/.gradle' --exclude='*/Pods' --exclude='*/.symlinks' --exclude='*/Flutter/ephemeral' --exclude='*/local.properties' --exclude='*/Generated.xcconfig' --exclude='*/flutter_export_environment.sh' -czf ../native.tgz android ios .metadata
       - uses: actions/upload-artifact@v4
@@ -158,3 +165,11 @@ jobs:
         with:
           name: nibble-ios
           path: Nibble.ipa
+      - name: Publish to the apps release + index (main, or when run by hand)
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="$(grep '^version:' pubspec.yaml | sed -E 's/version: *//; s/\+.*//')"
+          if [ -f ../Nibble.ipa ]; then ../tools/apps/publish.sh ios "$VER" "$BUILD_NUMBER" yes ../Nibble.ipa
+          else ../tools/apps/publish.sh ios "$VER" "$BUILD_NUMBER" no; fi

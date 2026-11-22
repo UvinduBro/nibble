@@ -9,7 +9,7 @@ Four store apps come out of this repository. The normal downloads on meetnibble.
 | Google Play | `Nibble.aab` (and `Nibble.apk` to try on a phone) | GitHub Actions → "Phone app (Android + iPhone)" | `com.meetnibble.app` |
 | Apple App Store (iPhone) | `Nibble.ipa` (sent straight to TestFlight) | same workflow | `com.meetnibble.app` |
 
-To get a file: GitHub → **Actions** → the workflow → the latest green run → **Artifacts** at the bottom. On `main`, the desktop store files are also attached to the releases called `msstore` and `mas`.
+**Where the files are:** the [`apps` branch](https://github.com/UvinduBro/nibble/tree/apps) shows the latest of each (version, build, signed or not) with download links. The files themselves are in the [`apps` release](https://github.com/UvinduBro/nibble/releases/tag/apps); a git branch can't hold files over 100 MB. Builds on `main`, and any workflow you run by hand, update both. Every run also keeps its files under **Actions → the run → Artifacts**.
 
 ## What's different in the store versions
 
