@@ -1,0 +1,151 @@
+# Builds the Nibble phone app (Flutter, mobile/) for Android and iPhone.
+#
+# Always: checks the code (flutter analyze), builds an Android .apk (to try on a phone) and .aab
+# (for Google Play), and an iPhone build (unsigned, proves it compiles). Results are attached to the run.
+#
+# Store-ready signing switches on by itself once these repository secrets exist:
+#   Android (Google Play upload key):  ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+#   iPhone (App Store Connect):        APPLE_API_KEY_P8_BASE64, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID, APPLE_TEAM_ID
+#     → a signed .ipa, uploaded to App Store Connect (TestFlight) when IOS_UPLOAD=1 is set as a repository variable.
+name: Phone app (Android + iPhone)
+on:
+  workflow_dispatch:
+  push:
+    paths: ['mobile/**', 'tools/mobile/**', '.github/workflows/mobile.yml']
+permissions:
+  contents: write
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  BUILD_NUMBER: ${{ github.run_number }}
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Native projects (first run only) + Nibble settings
+        run: |
+          flutter --version
+          if [ ! -d android ] || [ ! -d ios ]; then
+            flutter create --platforms=android,ios --org com.meetnibble --project-name nibble --no-pub .
+            rm -f test/widget_test.dart
+          fi
+          python3 ../tools/mobile/patch_native.py
+      - run: flutter pub get
+      - name: App icons
+        run: dart run flutter_launcher_icons
+      - run: flutter analyze --no-fatal-infos
+      - name: Upload key (when the secrets are set)
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload.jks
+          printf 'storeFile=upload.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" > android/key.properties
+      - name: Build
+        run: |
+          flutter build apk --release --build-number=$BUILD_NUMBER
+          flutter build appbundle --release --build-number=$BUILD_NUMBER
+          mkdir -p ../dist-mobile
+          cp build/app/outputs/flutter-apk/app-release.apk ../dist-mobile/Nibble.apk
+          cp build/app/outputs/bundle/release/app-release.aab ../dist-mobile/Nibble.aab
+          echo "signed for Google Play: $([ -f android/key.properties ] && echo yes || echo 'no (debug key, for testing only)')" > ../dist-mobile/README.txt
+          rm -f android/app/upload.jks android/key.properties
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nibble-android
+          path: dist-mobile
+      - name: Native project files (so they can be committed)
+        run: tar --exclude='*/build' --exclude='*/.gradle' --exclude='*/Pods' --exclude='*/.symlinks' --exclude='*/Flutter/ephemeral' --exclude='*/local.properties' --exclude='*/Generated.xcconfig' --exclude='*/flutter_export_environment.sh' -czf ../native.tgz android ios .metadata
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-projects
+          path: native.tgz
+
+  ios:
+    runs-on: macos-latest
+    env:
+      APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      IOS_UPLOAD: ${{ vars.IOS_UPLOAD }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Native projects (first run only) + Nibble settings
+        run: |
+          if [ ! -d android ] || [ ! -d ios ]; then
+            flutter create --platforms=android,ios --org com.meetnibble --project-name nibble --no-pub .
+            rm -f test/widget_test.dart
+          fi
+          python3 ../tools/mobile/patch_native.py
+      - run: flutter pub get
+      - name: App icons
+        run: dart run flutter_launcher_icons
+      - name: Build (unsigned: proves it compiles)
+        if: env.APPLE_TEAM_ID == ''
+        run: |
+          flutter build ios --release --no-codesign --build-number=$BUILD_NUMBER
+          cd build/ios/iphoneos && zip -qry ../../../../Nibble-ios-unsigned.zip Runner.app
+      - uses: actions/upload-artifact@v4
+        if: env.APPLE_TEAM_ID == ''
+        with:
+          name: nibble-ios-unsigned
+          path: Nibble-ios-unsigned.zip
+      - name: Signed .ipa for the App Store
+        if: env.APPLE_TEAM_ID != ''
+        run: |
+          KEY="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8"
+          echo "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$KEY"
+          flutter build ios --release --no-codesign --build-number=$BUILD_NUMBER
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/Nibble.xcarchive" archive \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            -allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$APPLE_API_KEY_ID" -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID"
+          cat > "$RUNNER_TEMP/export.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>destination</key><string>export</string>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Nibble.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -exportPath "$RUNNER_TEMP/ipa" -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY" -authenticationKeyID "$APPLE_API_KEY_ID" -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID"
+          cp "$RUNNER_TEMP"/ipa/*.ipa ../../Nibble.ipa
+          if [ "$IOS_UPLOAD" = "1" ]; then
+            mkdir -p ~/.appstoreconnect/private_keys && cp "$KEY" ~/.appstoreconnect/private_keys/
+            xcrun altool --upload-app -f ../../Nibble.ipa -t ios --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER_ID"
+          fi
+          rm -f "$KEY"
+      - uses: actions/upload-artifact@v4
+        if: env.APPLE_TEAM_ID != ''
+        with:
+          name: nibble-ios
+          path: Nibble.ipa

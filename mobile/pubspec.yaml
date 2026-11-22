@@ -1,0 +1,42 @@
+name: nibble
+description: Nibble for Android and iPhone. Your pet, friends, messages, groups, games and music rooms.
+publish_to: 'none'
+
+# version: <name>+<build number>. Bump the build number for every store upload
+# (CI adds the GitHub run number on top, see .github/workflows/mobile.yml).
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: ^4.10.0
+  webview_flutter_android: ^4.3.0
+  webview_flutter_wkwebview: ^3.18.0
+  flutter_web_auth_2: ^4.1.0
+  url_launcher: ^6.3.1
+  flutter_local_notifications: ^19.4.0
+  package_info_plus: ^8.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+
+# app icons: `dart run flutter_launcher_icons` (already run; re-run after changing assets/icon*.png)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icon.png
+  remove_alpha_ios: true
+  adaptive_icon_background: "#0E1417"
+  adaptive_icon_foreground: assets/icon_fg.png
+  min_sdk_android: 24
