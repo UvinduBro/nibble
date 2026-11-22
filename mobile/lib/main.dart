@@ -20,7 +20,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
-/// Where the app lives. Override for testing: --dart-define=NIBBLE_SITE=https://<preview>.vercel.app
+/// Where the app lives. Override for testing: `--dart-define=NIBBLE_SITE=https://preview-url.vercel.app`
 const String kSite = String.fromEnvironment('NIBBLE_SITE', defaultValue: 'https://meetnibble.com');
 
 /// Google sign-in page. It runs in the phone's browser (Google blocks sign-in inside app WebViews)
@@ -422,7 +422,10 @@ class _NibbleShellState extends State<NibbleShell> with WidgetsBindingObserver {
   Future<void> _back() async {
     if (_offline) return SystemNavigator.pop();
     try {
-      if (await _web.canGoBack()) return _web.goBack();
+      if (await _web.canGoBack()) {
+        await _web.goBack();
+        return;
+      }
     } catch (_) {}
     if (_signedIn && _current != 'home') return _openTab('home');
     await SystemNavigator.pop();
