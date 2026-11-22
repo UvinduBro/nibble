@@ -1,0 +1,11 @@
+{
+  "platform": "ios",
+  "version": "1.0.0",
+  "build": "11",
+  "signed": false,
+  "commit": "25c708a7c2732322062cb745c579e4aba4b9bdda",
+  "branch": "mobile-and-stores",
+  "run": "https://github.com/UvinduBro/nibble/actions/runs/45056210555",
+  "date": "2026-11-22 18:42 UTC",
+  "files": []
+}

@@ -36,7 +36,13 @@ Not built yet.
 
 ## iPhone: App Store
 
-Not built yet.
+Version **1.0.0** · build 11 · 2026-11-22 18:42 UTC · from `mobile-and-stores` ([`25c708a`](https://github.com/UvinduBro/nibble/commit/25c708a7c2732322062cb745c579e4aba4b9bdda), [build log](https://github.com/UvinduBro/nibble/actions/runs/45056210555))
+
+Ready to upload to the store: not yet: add APPLE_TEAM_ID and the APPLE_API_KEY_* secrets (docs/STORE_PUBLISHING.md)
+
+No file yet: this one appears once it can be signed.
+
+Signed builds go straight to TestFlight (IOS_UPLOAD=1); the .ipa is kept here too.
 
 ---
 How to publish each one: `docs/STORE_PUBLISHING.md` on `main`.
