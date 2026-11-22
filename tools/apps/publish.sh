@@ -5,6 +5,7 @@
 #   - an index → branch "apps" (README.md + data/<platform>.json): what's there, version, build, signed or not.
 # usage: tools/apps/publish.sh <windows|mac|android|ios> <version> <build> <signed: yes|no> [files...]
 set -euo pipefail
+export PYTHONUTF8=1  # Windows runners default to cp1252
 PLATFORM="$1"; VERSION="$2"; BUILD="$3"; SIGNED="$4"; shift 4
 REPO="${GITHUB_REPOSITORY:-UvinduBro/nibble}"
 TAG="apps"
@@ -53,7 +54,7 @@ import json, sys, datetime
 path, platform, version, build, signed, commit, branch, run, files = sys.argv[1:]
 json.dump({'platform': platform, 'version': version, 'build': build, 'signed': signed == 'yes', 'commit': commit,
            'branch': branch, 'run': run, 'date': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
-           'files': json.loads(files)}, open(path, 'w'), indent=2)
+           'files': json.loads(files)}, open(path, 'w', encoding='utf-8'), indent=2)
 PYEOF
   "$PY" "$HERE/index.py" "$WORK"
   git -C "$WORK" add -A
@@ -62,7 +63,7 @@ PYEOF
   # someone else pushed first: take theirs, then write ours again
   sleep $((attempt * 3))
   git -C "$WORK" fetch --quiet origin "$TAG"
-  git -C "$WORK" reset --quiet --hard "origin/$TAG"
+  git -C "$WORK" reset --quiet --hard FETCH_HEAD
 done
 gh release edit "$TAG" -R "$REPO" --notes-file "$WORK/README.md" --latest=false >/dev/null || true
 rm -rf "$WORK"

@@ -7,6 +7,7 @@ Sets the store ids (com.meetnibble.app), the app name, permissions, the nibble:/
 notification set-up, release signing (Android, from mobile/android/key.properties) and dark launch screens.
 """
 import os
+import plistlib
 import re
 import sys
 
@@ -158,18 +159,17 @@ def ios():
 ''')
 
     ip = path('ios', 'Runner', 'Info.plist')
-    p = read(ip)
-
-    def setkey(p, key, xml):
-        if f'<key>{key}</key>' in p:
-            return re.sub(rf'<key>{key}</key>\s*<[^>]+>[^<]*</[^>]+>|<key>{key}</key>\s*<(true|false)/>', f'<key>{key}</key>\n\t{xml}', p, count=1)
-        return p.replace('</dict>\n</plist>', f'\t<key>{key}</key>\n\t{xml}\n</dict>\n</plist>', 1)
-    p = setkey(p, 'CFBundleDisplayName', '<string>Nibble</string>')
-    p = setkey(p, 'CFBundleName', '<string>Nibble</string>')
-    p = setkey(p, 'ITSAppUsesNonExemptEncryption', '<false/>')  # only standard HTTPS: no export paperwork
-    p = setkey(p, 'UIStatusBarStyle', '<string>UIStatusBarStyleLightContent</string>')
-    p = setkey(p, 'UIViewControllerBasedStatusBarAppearance', '<false/>')
-    write(ip, p)
+    with open(ip, 'rb') as f:
+        info = plistlib.load(f)
+    info.update({
+        'CFBundleDisplayName': 'Nibble',
+        'CFBundleName': 'Nibble',
+        'ITSAppUsesNonExemptEncryption': False,  # only standard HTTPS: no export paperwork
+        'UIStatusBarStyle': 'UIStatusBarStyleLightContent',
+        'UIViewControllerBasedStatusBarAppearance': False,
+    })
+    with open(ip, 'wb') as f:
+        plistlib.dump(info, f)
 
     po = path('ios', 'Podfile')
     if os.path.exists(po):

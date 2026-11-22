@@ -25,7 +25,7 @@ for key, title, how in ORDER:
     if not os.path.exists(p):
         lines += ['', 'Not built yet.', '']
         continue
-    d = json.load(open(p))
+    d = json.load(open(p, encoding='utf-8'))
     need = {'windows': 'add the three MSSTORE_* repository variables from Partner Center',
             'mac': 'add the MAS_* and APPLE_* secrets (Apple certificates + provisioning profile)',
             'android': 'add the ANDROID_* upload-key secrets; the .apk still installs for testing',
@@ -42,4 +42,4 @@ for key, title, how in ORDER:
         lines.append('No file yet: this one appears once it can be signed.')
     lines += ['', how, '']
 lines += ['---', 'How to publish each one: `docs/STORE_PUBLISHING.md` on `main`.', '']
-open(os.path.join(root, 'README.md'), 'w').write('\n'.join(lines))
+open(os.path.join(root, 'README.md'), 'w', encoding='utf-8', newline='\n').write('\n'.join(lines))
