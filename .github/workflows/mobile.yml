@@ -82,7 +82,7 @@ jobs:
           name: nibble-android
           path: dist-mobile
       - name: Publish to the apps release + index (main, or when run by hand)
-        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish]')
         env:
           GH_TOKEN: ${{ github.token }}
         run: ../tools/apps/publish.sh android "$APP_VERSION" "$BUILD_NUMBER" "$ANDROID_SIGNED" ../dist-mobile/Nibble.apk ../dist-mobile/Nibble.aab
@@ -166,7 +166,7 @@ jobs:
           name: nibble-ios
           path: Nibble.ipa
       - name: Publish to the apps release + index (main, or when run by hand)
-        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish]')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

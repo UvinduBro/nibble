@@ -70,7 +70,7 @@ jobs:
           name: nibble-mac-app-store
           path: dist-mas/Nibble-MAS.pkg
       - name: Publish to the apps release + index (main, or when run by hand)
-        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish]')
         env:
           GH_TOKEN: ${{ github.token }}
         run: tools/apps/publish.sh mac "$MAS_VER" "$MAS_BUILD" "$([ "$MAS_SIGNED" = yes ] && echo yes || echo no)" dist-mas/Nibble-MAS.pkg

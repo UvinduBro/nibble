@@ -79,7 +79,7 @@ database. No custom backend server besides Next.js route handlers.
 | `public/email/` | Email art cut from the flyer (logo, icons, peeking Nibble, flyer.jpg) |
 | `public/version.json` | **Release notes + version** shown on the site and checked by the desktop app |
 | `tools/` | `windows-setup/Setup.cs` (Get-Nibble.exe), `windows-runtime/build.ps1`, `mac/build.mjs` (dmg), `mac/build-mas.mjs` (Mac App Store pkg), `msstore/` (MSIX manifest, icons, build.ps1), `mobile/patch_native.py`, `brand.src.mjs` |
-| `.github/workflows/` | `mac-dmg.yml`, `win-runtime.yml`, `win-setup.yml` (push to `main`); `msstore.yml`, `mas.yml`, `mobile.yml` (any branch; on `main` or a manual run they publish via `tools/apps/publish.sh`: files → release `apps`, index → branch `apps`, never marked latest) |
+| `.github/workflows/` | `mac-dmg.yml`, `win-runtime.yml`, `win-setup.yml` (push to `main`); `msstore.yml`, `mas.yml`, `mobile.yml` (any branch; on `main`, a manual run or a commit message with `[publish]` they publish via `tools/apps/publish.sh`: files → release `apps`, index → branch `apps`, never marked latest) |
 | `docs/` | `STRIPE_SETUP.md`, `STORE_PUBLISHING.md` (step-by-step for all four stores) |
 | `firestore.rules` | **Security rules. Not deployed automatically**: the owner pastes them into the Firebase console → Firestore → Rules → Publish |
 

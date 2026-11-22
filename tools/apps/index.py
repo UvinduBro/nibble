@@ -17,7 +17,7 @@ def size(n):
 lines = ['# Nibble app files', '',
          'The latest store and phone builds, all in one place. This branch only holds this index; the files live in the',
          f'[**apps** release]({GH}/releases/tag/apps) (GitHub doesn\'t allow files over 100 MB in a branch).',
-         'Updated automatically by the build workflows on `main` (or when a workflow is run by hand).', '',
+         'Updated automatically by the build workflows on `main`, when a workflow is run by hand, or by any commit whose message contains `[publish]`.', '',
          'Normal website downloads (Get-Nibble.exe, Nibble.dmg) are separate and update themselves.', '']
 for key, title, how in ORDER:
     p = os.path.join(root, 'data', key + '.json')
