@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publishes finished app files to one place, used by the store/phone workflows:
-#   - the files → GitHub release "apps" (stable links: .../releases/download/apps/<file>; never marked "latest",
+#   - the files → GitHub release "app-files" (stable links: .../releases/download/app-files/<file>; never marked "latest",
 #     because the website's Mac download reads the latest release)
 #   - an index → branch "apps" (README.md + data/<platform>.json): what's there, version, build, signed or not.
 # usage: tools/apps/publish.sh <windows|mac|android|ios> <version> <build> <signed: yes|no> [files...]
@@ -8,12 +8,16 @@ set -euo pipefail
 export PYTHONUTF8=1  # Windows runners default to cp1252
 PLATFORM="$1"; VERSION="$2"; BUILD="$3"; SIGNED="$4"; shift 4
 REPO="${GITHUB_REPOSITORY:-UvinduBro/nibble}"
-TAG="apps"
+TAG="app-files"   # release tag (must differ from the branch name, or git confuses the two)
+BRANCH_OUT="apps" # index branch
 PY="$(command -v python3 || command -v python)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 COMMIT="${GITHUB_SHA:-$(git rev-parse HEAD)}"
 BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
 RUN_URL="${GITHUB_SERVER_URL:-https://github.com}/${REPO}/actions/runs/${GITHUB_RUN_ID:-0}"
+
+# the first version used a release tag called "apps", the same name as the index branch (git mixed them up)
+if gh release view apps -R "$REPO" >/dev/null 2>&1; then gh release delete apps -R "$REPO" --cleanup-tag -y || true; fi
 
 # 1. files → release
 if ! gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
@@ -41,12 +45,16 @@ fi
 
 # 2. index → branch "apps" (retries: the four workflows can finish at the same moment)
 WORK="$(mktemp -d)"
-git -c advice.detachedHead=false clone --quiet --no-tags --depth 1 --branch "$TAG" "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$WORK" 2>/dev/null || {
-  git init --quiet -b "$TAG" "$WORK"
-  git -C "$WORK" remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
-}
+git init --quiet "$WORK"
+git -C "$WORK" remote add origin "${PUBLISH_REMOTE:-https://x-access-token:${GH_TOKEN:-}@github.com/${REPO}.git}"
 git -C "$WORK" config user.name "github-actions[bot]"
 git -C "$WORK" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+# always the branch (refs/heads/...), never a tag of the same name
+if git -C "$WORK" fetch --quiet --depth 1 origin "refs/heads/$BRANCH_OUT" 2>/dev/null; then
+  git -C "$WORK" checkout --quiet -B "$BRANCH_OUT" FETCH_HEAD
+else
+  git -C "$WORK" checkout --quiet --orphan "$BRANCH_OUT"  # first run: a branch with only the index
+fi
 for attempt in 1 2 3 4 5 6; do
   mkdir -p "$WORK/data"
   "$PY" - "$WORK/data/$PLATFORM.json" "$PLATFORM" "$VERSION" "$BUILD" "$SIGNED" "$COMMIT" "$BRANCH" "$RUN_URL" "$FILES_JSON" <<'PYEOF'
@@ -59,10 +67,10 @@ PYEOF
   "$PY" "$HERE/index.py" "$WORK"
   git -C "$WORK" add -A
   git -C "$WORK" commit --quiet -m "apps: $PLATFORM $VERSION (build $BUILD)" || { echo "index unchanged"; break; }
-  if git -C "$WORK" push --quiet origin "HEAD:$TAG"; then echo "index updated"; break; fi
+  if git -C "$WORK" push --quiet origin "HEAD:refs/heads/$BRANCH_OUT"; then echo "index updated"; break; fi
   # someone else pushed first: take theirs, then write ours again
   sleep $((attempt * 3))
-  git -C "$WORK" fetch --quiet origin "$TAG"
+  git -C "$WORK" fetch --quiet --depth 1 origin "refs/heads/$BRANCH_OUT"
   git -C "$WORK" reset --quiet --hard FETCH_HEAD
 done
 gh release edit "$TAG" -R "$REPO" --notes-file "$WORK/README.md" --latest=false >/dev/null || true

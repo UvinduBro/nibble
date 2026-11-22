@@ -11,7 +11,7 @@ name: Phone app (Android + iPhone)
 on:
   workflow_dispatch:
   push:
-    paths: ['mobile/**', 'tools/mobile/**', '.github/workflows/mobile.yml']
+    paths: ['mobile/**', 'tools/mobile/**', 'tools/apps/**', '.github/workflows/mobile.yml']
 permissions:
   contents: write
 concurrency:

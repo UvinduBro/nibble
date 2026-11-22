@@ -9,7 +9,7 @@ name: Microsoft Store (.msix)
 on:
   workflow_dispatch:
   push:
-    paths: ['public/app/package.json', 'public/app/src/**', 'public/nibble/**', 'lib/installer.js', 'tools/msstore/**', 'tools/windows-runtime/**', '.github/workflows/msstore.yml']
+    paths: ['public/app/package.json', 'public/app/src/**', 'public/nibble/**', 'lib/installer.js', 'tools/msstore/**', 'tools/windows-runtime/**', '.github/workflows/msstore.yml', 'tools/apps/**']
 permissions:
   contents: write
 concurrency:

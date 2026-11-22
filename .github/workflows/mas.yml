@@ -11,7 +11,7 @@ name: Mac App Store (.pkg)
 on:
   workflow_dispatch:
   push:
-    paths: ['public/app/package.json', 'public/app/src/**', 'public/nibble/**', 'public/nibble.icns', 'lib/installer.js', 'tools/mac/build-mas.mjs', 'tools/mac/entitlements.mas*', '.github/workflows/mas.yml']
+    paths: ['public/app/package.json', 'public/app/src/**', 'public/nibble/**', 'public/nibble.icns', 'lib/installer.js', 'tools/mac/build-mas.mjs', 'tools/mac/entitlements.mas*', '.github/workflows/mas.yml', 'tools/apps/**']
 permissions:
   contents: write
 concurrency:
