@@ -45,7 +45,7 @@ Ready to upload to the store: not yet: add the ANDROID_* upload-key secrets; the
 
 ## iPhone: App Store
 
-Version **1.0.0** · build 11 · 2026-11-22 18:42 UTC · from `mobile-and-stores` ([`25c708a`](https://github.com/UvinduBro/nibble/commit/25c708a7c2732322062cb745c579e4aba4b9bdda), [build log](https://github.com/UvinduBro/nibble/actions/runs/45056210555))
+Version **1.0.0** · build 13 · 2026-11-22 18:58 UTC · from `main` ([`84f3719`](https://github.com/UvinduBro/nibble/commit/84f3719b878c770061fd2856b1273de74480ff19), [build log](https://github.com/UvinduBro/nibble/actions/runs/45057657098))
 
 Ready to upload to the store: not yet: add APPLE_TEAM_ID and the APPLE_API_KEY_* secrets (docs/STORE_PUBLISHING.md)
 
