@@ -449,7 +449,7 @@ function Settings({ social, state, desktop, local, toast, go }) {
       <NewsletterCard social={social} toast={toast} />
       <div className="sa-card">
         <h3>Account</h3>
-        <p className="sa-sub">@{state.profile.username} · {state.user.email || 'signed in'} · {state.user.provider === 'google.com' ? 'Google' : 'Email'}</p>
+        <p className="sa-sub">@{state.profile.username} · {state.user.email || 'signed in'} · {state.user.provider === 'google.com' ? 'Google' : state.user.provider === 'apple.com' ? 'Apple' : 'Email'}</p>
         <button className="btn small ghost" onClick={() => social.signOut()}>Sign out</button>
       </div>
       <DeleteAccount social={social} state={state} toast={toast} />
@@ -1449,7 +1449,7 @@ export default function SocialApp({ mode = 'web' }) {
         )}
       </div>
     );
-  } else if (!state.user) body = <AuthScreen social={social} desktop={desktop || (mobile && { googleSignIn: mobile.googleSignIn, phone: true })} />;
+  } else if (!state.user) body = <AuthScreen social={social} desktop={desktop || (mobile && { googleSignIn: mobile.googleSignIn, appleSignIn: mobile.appleSignIn, phone: true })} />;
   else if (state.banned) {
     body = (
       <div className="sa-center sa-suspended">

@@ -9,12 +9,14 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -294,6 +296,9 @@ class _NibbleShellState extends State<NibbleShell> with WidgetsBindingObserver {
       case 'google':
         _googleSignIn('${m['id'] ?? ''}');
         break;
+      case 'apple':
+        _appleSignIn('${m['id'] ?? ''}');
+        break;
       case 'open':
         _openExternal('${m['url'] ?? ''}');
         break;
@@ -350,6 +355,29 @@ class _NibbleShellState extends State<NibbleShell> with WidgetsBindingObserver {
       await _js({'id': id, 'error': cancelled ? 'Google sign-in was cancelled.' : 'Google sign-in didn’t work. Try again, or use email.'});
     } catch (_) {
       await _js({'id': id, 'error': 'Google sign-in didn’t work. Try again, or use email.'});
+    }
+  }
+
+  // ---------- Sign in with Apple (iPhone; Apple asks for it when an app offers Google sign-in) ----------
+  Future<void> _appleSignIn(String id) async {
+    final rnd = Random.secure();
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final raw = List.generate(32, (_) => chars[rnd.nextInt(chars.length)]).join();
+    try {
+      final cred = await SignInWithApple.getAppleIDCredential(
+        scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
+        nonce: sha256.convert(utf8.encode(raw)).toString(),
+      );
+      final token = cred.identityToken ?? '';
+      if (token.isEmpty) {
+        await _js({'id': id, 'error': 'Apple didn’t return a sign-in token. Try again.'});
+        return;
+      }
+      await _js({'id': id, 'result': {'idToken': token, 'nonce': raw}});
+    } on SignInWithAppleAuthorizationException catch (e) {
+      await _js({'id': id, 'error': e.code == AuthorizationErrorCode.canceled ? 'Apple sign-in was cancelled.' : 'Apple sign-in didn’t work. Try again, or use email.'});
+    } catch (_) {
+      await _js({'id': id, 'error': 'Apple sign-in didn’t work. Try again, or use email.'});
     }
   }
 

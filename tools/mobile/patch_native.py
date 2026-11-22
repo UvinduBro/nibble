@@ -141,7 +141,21 @@ def ios():
     s = re.sub(r'PRODUCT_BUNDLE_IDENTIFIER = (?![^;]*RunnerTests)[A-Za-z0-9.\-]+;', f'PRODUCT_BUNDLE_IDENTIFIER = {APP_ID};', s)
     s = re.sub(r'IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;', 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;', s)
     must(f'PRODUCT_BUNDLE_IDENTIFIER = {APP_ID};' in s, 'set the iOS bundle id')
+    # Sign in with Apple needs an entitlement (Apple asks for it because the app offers Google sign-in)
+    if 'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;' not in s:
+        s = s.replace(f'PRODUCT_BUNDLE_IDENTIFIER = {APP_ID};', f'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = {APP_ID};')
     write(pb, s)
+    write(path('ios', 'Runner', 'Runner.entitlements'), '''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+</dict>
+</plist>
+''')
 
     ip = path('ios', 'Runner', 'Info.plist')
     p = read(ip)

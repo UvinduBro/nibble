@@ -6,6 +6,9 @@ import { NAME_RE, niceError } from '../../lib/social/social';
 import { SOURCES, USES, countries, guessCountry, flag } from '../../lib/signup';
 import { track } from '../landing/Analytics';
 
+const AppleA = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden><path fill="currentColor" d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.1zM13.9 4.9c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.2.1 2.4-.6 3.1-1.5z"/></svg>
+);
 const GoogleG = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
     <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
@@ -42,6 +45,11 @@ export function AuthScreen({ social, desktop }) {
       await social.googleWithToken(token);
     } else await social.google();
   });
+  const apple = () => run(async () => {
+    const r = await desktop.appleSignIn();
+    if (!r) throw Object.assign(new Error('Apple sign-in was cancelled.'), { friendly: 'Apple sign-in was cancelled.' });
+    await social.appleWithToken(r.idToken, r.nonce);
+  });
   const reset = () => {
     if (!email) return setMsg({ err: true, text: 'Type your email above first.' });
     run(async () => { await social.resetPassword(email); setMsg({ text: 'Reset link sent. Check your inbox.' }); });
@@ -57,6 +65,7 @@ export function AuthScreen({ social, desktop }) {
       <h1>{mode === 'up' ? 'Make your Nibble account' : 'Welcome back'}</h1>
       <p className="sa-sub">Pick a username, add friends, and your pets visit each other’s desktops. Hold a pet to say hi.</p>
       {inApp && !desktop && <p className="sa-msg">You’re in an app’s built-in browser, where Google sign-in often doesn’t work. Tap ⋯ and choose <b>Open in browser</b> (Safari or Chrome), or sign in with email below.</p>}
+      {desktop && desktop.appleSignIn && <button className="sa-google sa-apple" onClick={apple} disabled={busy}><AppleA /> Continue with Apple</button>}
       <button className="sa-google" onClick={google} disabled={busy}><GoogleG /> Continue with Google</button>
       <div className="sa-or"><span>or with email</span></div>
       <form onSubmit={submit} className="sa-form">

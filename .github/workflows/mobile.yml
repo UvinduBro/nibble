@@ -46,11 +46,20 @@ jobs:
           if [ ! -d android ] || [ ! -d ios ]; then
             flutter create --platforms=android,ios --org com.meetnibble --project-name nibble --no-pub .
             rm -f test/widget_test.dart
+            echo "SCAFFOLDED=1" >> "$GITHUB_ENV"
           fi
           python3 ../tools/mobile/patch_native.py
       - run: flutter pub get
       - name: App icons
         run: dart run flutter_launcher_icons
+      - name: Save the generated native projects to the repo (first run only)
+        if: env.SCAFFOLDED == '1'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android ios .metadata .gitignore
+          git commit -m "mobile: generated Android + iOS projects (flutter create + tools/mobile/patch_native.py + icons)" || true
+          git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
       - run: flutter analyze --no-fatal-infos
       - name: Upload key (when the secrets are set)
         if: env.ANDROID_KEYSTORE_BASE64 != ''
