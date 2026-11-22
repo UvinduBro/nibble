@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nibble launch screen: dark background, the app icon in the middle -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/nibble_bg" />
+    <item android:width="120dp" android:height="120dp" android:gravity="center">
+        <bitmap android:gravity="fill" android:src="@mipmap/ic_launcher" />
+    </item>
+</layer-list>

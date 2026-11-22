@@ -4,6 +4,10 @@ analyzer:
   errors:
     # Flutter 3.47+ suggests package:material_ui; material.dart still works and is what the plugins use
     deprecated_member_use: ignore
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
 
 linter:
   rules:
