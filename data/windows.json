@@ -1,0 +1,18 @@
+{
+  "platform": "windows",
+  "version": "2.0.23",
+  "build": "4",
+  "signed": false,
+  "commit": "25c708a7c2732322062cb745c579e4aba4b9bdda",
+  "branch": "mobile-and-stores",
+  "run": "https://github.com/UvinduBro/nibble/actions/runs/45056210562",
+  "date": "2026-11-22 18:39 UTC",
+  "files": [
+    {
+      "name": "Nibble.msix",
+      "size": 163088124,
+      "sha256": "8c8660f9e75b699cd0fae4749244602161f5ea46d99b5a90a70367dc5c45089c",
+      "url": "https://github.com/UvinduBro/nibble/releases/download/app-files/Nibble.msix"
+    }
+  ]
+}

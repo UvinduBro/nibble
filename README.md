@@ -8,7 +8,15 @@ Normal website downloads (Get-Nibble.exe, Nibble.dmg) are separate and update th
 
 ## Windows: Microsoft Store
 
-Not built yet.
+Version **2.0.23** · build 4 · 2026-11-22 18:39 UTC · from `mobile-and-stores` ([`25c708a`](https://github.com/UvinduBro/nibble/commit/25c708a7c2732322062cb745c579e4aba4b9bdda), [build log](https://github.com/UvinduBro/nibble/actions/runs/45056210562))
+
+Ready to upload to the store: not yet: add the three MSSTORE_* repository variables from Partner Center (docs/STORE_PUBLISHING.md)
+
+| File | Size | SHA-256 |
+|---|---|---|
+| [Nibble.msix](https://github.com/UvinduBro/nibble/releases/download/app-files/Nibble.msix) | 155.5 MB | `8c8660f9e75b699c…` |
+
+Upload `Nibble.msix` in Partner Center → your app → Packages. The Store signs it.
 
 ## Mac: Mac App Store
 
