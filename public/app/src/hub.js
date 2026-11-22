@@ -48,7 +48,7 @@ function setupHub(ctx) {
   const siteOrigin = new URL(SITE).origin;
 
   function localInfo() {
-    return { version: appVersion, latest: getLatest(), settings: settings.get(), skins: Object.keys(SKINS), platform: process.platform, health: getHealth ? getHealth() : null };
+    return { version: appVersion, latest: getLatest(), settings: settings.get(), skins: Object.keys(SKINS), platform: process.platform, health: getHealth ? getHealth() : null, store: ctx.STORE || '' };
   }
   function pushLocal() { if (hub && !hub.isDestroyed()) hub.webContents.send('hub:local', localInfo()); }
 

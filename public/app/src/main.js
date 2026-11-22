@@ -12,13 +12,21 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0);
 }
 
+// Store builds: the Microsoft Store (.msix) and Mac App Store (.pkg) packages carry a store.json
+// ({ "store": "msstore" | "mas" }). The store installs and updates the app there, so Nibble's own
+// updater, self-repair and Windows name/registry fixes are switched off. Normal downloads have no file.
+const STORE = (() => {
+  try { const s = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'store.json'), 'utf8')).store; return s === 'msstore' || s === 'mas' ? s : ''; } catch { return ''; }
+})();
+
 app.setName('Nibble');
-app.setAppUserModelId('lk.uvi.nibble');
+// the Microsoft Store package has its own app identity (a custom id would break its notifications)
+if (STORE !== 'msstore') app.setAppUserModelId('lk.uvi.nibble');
 
 // Tag the Start-menu / desktop shortcuts with Nibble's app id, so the taskbar groups the windows
 // under "Nibble" with its own icon (and Windows notifications are labelled Nibble, not Electron).
 function brandShortcuts() {
-  if (process.platform !== 'win32') return;
+  if (process.platform !== 'win32' || STORE) return;
   const fresh = settings.get().brandedFor === app.getVersion();
   const ico = path.join(path.dirname(process.execPath), 'nibble.ico');
   const links = [
@@ -45,7 +53,7 @@ function brandShortcuts() {
 // installs cached "Electron" there (from before Nibble.exe was branded), so write Nibble's name in
 // all of them. Runs once per version; no admin rights needed (HKCU only).
 function registerAppIdentity() {
-  if (process.platform !== 'win32' || !app.isPackaged) return;
+  if (process.platform !== 'win32' || !app.isPackaged || STORE) return;
   if (settings.get().brandedFor === app.getVersion()) return;
   const exe = process.execPath, dir = path.dirname(exe), ico = path.join(dir, 'nibble.ico');
   const add = (key, name, value) => new Promise((resolve) => {
@@ -74,11 +82,11 @@ function registerAppIdentity() {
 // still the vercel.app address: Google sign-in (/link) needs the domain in Firebase's authorized list
 const SITE = 'https://nibblex.vercel.app';
 const IS_MAC = process.platform === 'darwin';
-const health = { files: 'checking', name: process.platform === 'win32' ? 'checking' : 'ok' };
+const health = { files: 'checking', name: process.platform === 'win32' && !STORE ? 'checking' : 'ok' };
 
 // ---------- self-repair: an install that missed an app file (older setups did) fetches it ----------
 async function repairFiles() {
-  if (!app.isPackaged) { health.files = 'ok'; return; }
+  if (!app.isPackaged || STORE) { health.files = 'ok'; return; }
   try {
     const res = await net.fetch(SITE + '/install-files.txt', { cache: 'no-store' });
     if (!res.ok) throw new Error('list ' + res.status);
@@ -114,7 +122,7 @@ function exeDescription(file) {
   });
 }
 async function selfBrand() {
-  if (process.platform !== 'win32' || !app.isPackaged) return;
+  if (process.platform !== 'win32' || !app.isPackaged || STORE) return;
   const exe = process.execPath, dir = path.dirname(exe);
   try { fs.unlinkSync(path.join(dir, 'Nibble-old.exe')); } catch {}
   if (path.basename(exe).toLowerCase() !== 'nibble.exe') { health.name = 'ok'; return; }
@@ -432,7 +440,13 @@ function loginExe() {
 }
 
 function setStartup(on) {
-  if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: on, path: loginExe() });
+  if (STORE === 'msstore') {
+    // Store apps can't add themselves to start-up: Windows lists Nibble under Settings → Apps → Startup
+    // (declared in the package), and the person switches it on there.
+    shell.openExternal('ms-settings:startupapps');
+  } else if (STORE === 'mas') {
+    try { app.setLoginItemSettings({ openAtLogin: on, type: 'mainAppService' }); } catch {}
+  } else if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: on, path: loginExe() });
   applySettings({ startWithWindows: on });
 }
 
@@ -457,6 +471,9 @@ function skinMenu(onPick, current, type = 'radio') {
 
 // ---------- updates (re-runs the installer from the website; settings are kept) ----------
 async function runUpdate() {
+  // store builds are updated by the store: open its updates page
+  if (STORE === 'msstore') return shell.openExternal('ms-windows-store://downloadsandupdates');
+  if (STORE === 'mas') return shell.openExternal('macappstore://showUpdatesPage');
   if (IS_MAC) {
     // the same one-line installer as the website, run in the background (it restarts Nibble)
     // the latest Nibble.dmg (signed + notarized when available), copied over this app; else the Terminal installer
@@ -496,6 +513,7 @@ const newer = (a, b) => {
 };
 
 async function checkForUpdate() {
+  if (STORE) return; // the store tells people about updates itself
   try {
     const res = await net.fetch(SITE + '/version.json', { cache: 'no-store' });
     const info = await res.json();
@@ -565,10 +583,14 @@ function trayTemplate() {
         }]
       : []),
     { type: 'separator' },
-    { label: 'Start with Windows', type: 'checkbox', checked: s.startWithWindows, click: (m) => setStartup(m.checked) },
-    { label: 'Open settings file', click: () => shell.openPath(settings.filePath()) },
+    STORE === 'msstore'
+      ? { label: 'Start with Windows…', click: () => setStartup(true) }
+      : { label: IS_MAC ? 'Open at login' : 'Start with Windows', type: 'checkbox', checked: s.startWithWindows, click: (m) => setStartup(m.checked) },
+    ...(STORE === 'mas' ? [] : [{ label: 'Open settings file', click: () => shell.openPath(settings.filePath()) }]),
     { type: 'separator' },
-    { label: latest ? `⬆ Update to v${latest}` : `Update Nibble (v${app.getVersion()})`, click: runUpdate },
+    STORE
+      ? { label: `Check for updates (v${app.getVersion()})`, click: runUpdate }
+      : { label: latest ? `⬆ Update to v${latest}` : `Update Nibble (v${app.getVersion()})`, click: runUpdate },
     { label: 'Nibble website', click: () => shell.openExternal(SITE) },
     { label: 'Quit Nibble', click: () => app.quit() },
   ];
@@ -675,7 +697,7 @@ app.whenReady().then(() => {
   createWindow();
 
   hubCtl = setupHub({
-    SITE, settings, SKINS, appVersion: app.getVersion(), overlay: () => win,
+    SITE, STORE, settings, SKINS, appVersion: app.getVersion(), overlay: () => win,
     applySettings, addPet, removePet, setStartup, setPaused, runUpdate, getLatest: () => latest, getHealth: () => ({ ...health }),
     iconPath: path.join(__dirname, '..', '..', '..', 'nibble.ico'),
     onSocialChange: (st) => {

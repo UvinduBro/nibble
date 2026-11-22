@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Mac App Store: the app runs in Apple's sandbox. __TEAM_ID__ is filled in by tools/mac/build-mas.mjs. -->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key><true/>
+  <!-- must match the provisioning profile -->
+  <key>com.apple.application-identifier</key><string>__TEAM_ID__.lk.uvi.nibble</string>
+  <key>com.apple.developer.team-identifier</key><string>__TEAM_ID__</string>
+  <!-- Electron's processes talk through a shared group container -->
+  <key>com.apple.security.application-groups</key>
+  <array><string>__TEAM_ID__.lk.uvi.nibble</string></array>
+  <!-- Nibble Social, music rooms, the Hub -->
+  <key>com.apple.security.network.client</key><true/>
+  <!-- Google sign-in hands the token back to the app on 127.0.0.1 (hub.js) -->
+  <key>com.apple.security.network.server</key><true/>
+  <!-- attach a screenshot to a bug report -->
+  <key>com.apple.security.files.user-selected.read-only</key><true/>
+</dict>
+</plist>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nibble for the Microsoft Store. __TOKENS__ are filled in by tools/msstore/build.ps1. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap desktop rescap">
+  <Identity Name="__IDENTITY_NAME__" Publisher="__PUBLISHER__" Version="__VERSION__" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>Nibble</DisplayName>
+    <PublisherDisplayName>__PUBLISHER_NAME__</PublisherDisplayName>
+    <Logo>assets\StoreLogo.png</Logo>
+    <Description>A cute desktop pet that walks on your windows, plus friends, messages and mini games.</Description>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <Application Id="Nibble" Executable="Nibble.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Nibble" Description="Your desktop pet"
+        BackgroundColor="transparent" Square150x150Logo="assets\Square150x150Logo.png" Square44x44Logo="assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="assets\Wide310x150Logo.png" ShortName="Nibble">
+          <uap:ShowNameOnTiles><uap:ShowOn Tile="square150x150Logo" /><uap:ShowOn Tile="wide310x150Logo" /></uap:ShowNameOnTiles>
+        </uap:DefaultTile>
+      </uap:VisualElements>
+      <Extensions>
+        <!-- shows Nibble in Settings → Apps → Startup, where people switch "start with Windows" on -->
+        <desktop:Extension Category="windows.startupTask" Executable="Nibble.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="NibbleStartup" Enabled="false" DisplayName="Nibble" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <!-- a desktop app (Electron): needed to run as a normal Windows program -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

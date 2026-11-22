@@ -1,0 +1,66 @@
+# Builds Nibble.msix for the Microsoft Store and checks it installs and starts on Windows.
+# Before the first Store upload, copy three values from Partner Center → your app → Product identity
+# into repository variables (Settings → Secrets and variables → Actions → Variables):
+#   MSSTORE_IDENTITY_NAME   "Package/Identity/Name"            e.g. 12345UvinduRajapakshe.Nibble
+#   MSSTORE_PUBLISHER       "Package/Identity/Publisher"       e.g. CN=1A2B3C4D-....
+#   MSSTORE_PUBLISHER_NAME  "Package/Properties/PublisherDisplayName"
+# then run this workflow again. The .msix is unsigned: the Store signs it.
+name: Microsoft Store (.msix)
+on:
+  workflow_dispatch:
+  push:
+    paths: ['public/app/package.json', 'public/app/src/**', 'public/nibble/**', 'lib/installer.js', 'tools/msstore/**', 'tools/windows-runtime/**', '.github/workflows/msstore.yml']
+permissions:
+  contents: write
+concurrency:
+  group: msstore-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  msix:
+    runs-on: windows-latest
+    env:
+      MSSTORE_IDENTITY_NAME: ${{ vars.MSSTORE_IDENTITY_NAME }}
+      MSSTORE_PUBLISHER: ${{ vars.MSSTORE_PUBLISHER }}
+      MSSTORE_PUBLISHER_NAME: ${{ vars.MSSTORE_PUBLISHER_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Branded runtime (Nibble.exe)
+        shell: pwsh
+        run: ./tools/windows-runtime/build.ps1
+      - name: Pack Nibble.msix
+        shell: pwsh
+        run: ./tools/msstore/build.ps1
+      - name: Check it installs and starts (developer-mode install of the same files)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v AllowDevelopmentWithoutDevLicense /d 1 | Out-Null
+          Add-AppxPackage -Register dist-win\msix\AppxManifest.xml
+          $p = Get-AppxPackage | Where-Object { $_.Name -eq $(if ($env:MSSTORE_IDENTITY_NAME) { $env:MSSTORE_IDENTITY_NAME } else { 'Nibble.DesktopPet' }) }
+          Write-Host "installed: $($p.PackageFullName)"
+          Start-Process "shell:AppsFolder\$($p.PackageFamilyName)!Nibble"
+          Start-Sleep 20
+          $n = Get-Process Nibble -ErrorAction SilentlyContinue
+          if (-not $n) { throw 'Nibble did not start from the package' }
+          Write-Host "running: $($n.Count) Nibble process(es)"
+          $n | Stop-Process -Force
+          Remove-AppxPackage $p.PackageFullName
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nibble-msstore
+          path: |
+            dist-win/Nibble.msix
+            dist-win/msix-info.txt
+      - name: Publish (release "msstore", main only)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="msstore"
+          NOTE="Nibble for the Microsoft Store: $(tr '\n' ' ' < dist-win/msix-info.txt). Upload Nibble.msix in Partner Center → Packages."
+          if gh release view "$TAG" >/dev/null 2>&1; then gh release edit "$TAG" --notes "$NOTE" --latest=false; else gh release create "$TAG" --title "Nibble for the Microsoft Store" --notes "$NOTE" --latest=false; fi
+          gh release upload "$TAG" dist-win/Nibble.msix --clobber

@@ -456,7 +456,7 @@ function Settings({ social, state, desktop, local, toast, go }) {
       {desktop && local && (
         <div className="sa-card">
           <h3>Nibble {local.version}</h3>
-          {local.health && (
+          {local.health && !local.store && (
             <p className="sa-sub">
               {local.health.name === 'fixing' ? '🔧 Giving the app its Nibble name and icon… it restarts by itself in a moment.'
                 : local.health.name === 'failed' ? '⚠️ Windows still shows this app as “Electron”. Click Reinstall / update below to fix it.'
@@ -464,8 +464,17 @@ function Settings({ social, state, desktop, local, toast, go }) {
               {local.health.files && local.health.files.startsWith('repaired') ? ' · ✓ Missing pet files were added (outfits and animals show now)' : ''}
             </p>
           )}
-          <p className="sa-sub">{local.latest ? `Version ${local.latest} is available.` : 'Updates install over the top and keep your pets and settings.'}</p>
-          <button className="btn small" onClick={() => desktop.update()}>{local.latest ? `Update to ${local.latest}` : 'Reinstall / update'}</button>
+          {local.store ? (
+            <>
+              <p className="sa-sub">Updates come from the {local.store === 'mas' ? 'Mac App Store' : 'Microsoft Store'} and keep your pets and settings.</p>
+              <button className="btn small" onClick={() => desktop.update()}>Check for updates</button>
+            </>
+          ) : (
+            <>
+              <p className="sa-sub">{local.latest ? `Version ${local.latest} is available.` : 'Updates install over the top and keep your pets and settings.'}</p>
+              <button className="btn small" onClick={() => desktop.update()}>{local.latest ? `Update to ${local.latest}` : 'Reinstall / update'}</button>
+            </>
+          )}
         </div>
       )}
     </div>
