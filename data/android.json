@@ -1,0 +1,24 @@
+{
+  "platform": "android",
+  "version": "1.0.0",
+  "build": "11",
+  "signed": false,
+  "commit": "25c708a7c2732322062cb745c579e4aba4b9bdda",
+  "branch": "mobile-and-stores",
+  "run": "https://github.com/UvinduBro/nibble/actions/runs/45056210555",
+  "date": "2026-11-22 18:43 UTC",
+  "files": [
+    {
+      "name": "Nibble.apk",
+      "size": 46717423,
+      "sha256": "b17e1cdb9368586b04b202bf1587b988432c98de5daa15b745226ef6eaf670b4",
+      "url": "https://github.com/UvinduBro/nibble/releases/download/app-files/Nibble.apk"
+    },
+    {
+      "name": "Nibble.aab",
+      "size": 47364273,
+      "sha256": "2ffd542ec1f9334ddce213956ef7a6c73b3eb8b5ce8d06bff03e228eb8c7d8f1",
+      "url": "https://github.com/UvinduBro/nibble/releases/download/app-files/Nibble.aab"
+    }
+  ]
+}

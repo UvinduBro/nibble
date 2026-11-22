@@ -32,7 +32,16 @@ Upload `Nibble-MAS.pkg` with Apple's Transporter app (or set MAS_UPLOAD=1 to sen
 
 ## Android: Google Play
 
-Not built yet.
+Version **1.0.0** · build 11 · 2026-11-22 18:43 UTC · from `mobile-and-stores` ([`25c708a`](https://github.com/UvinduBro/nibble/commit/25c708a7c2732322062cb745c579e4aba4b9bdda), [build log](https://github.com/UvinduBro/nibble/actions/runs/45056210555))
+
+Ready to upload to the store: not yet: add the ANDROID_* upload-key secrets; the .apk still installs for testing (docs/STORE_PUBLISHING.md)
+
+| File | Size | SHA-256 |
+|---|---|---|
+| [Nibble.apk](https://github.com/UvinduBro/nibble/releases/download/app-files/Nibble.apk) | 44.6 MB | `b17e1cdb9368586b…` |
+| [Nibble.aab](https://github.com/UvinduBro/nibble/releases/download/app-files/Nibble.aab) | 45.2 MB | `2ffd542ec1f9334d…` |
+
+`Nibble.apk` installs straight on a phone to try it. Upload `Nibble.aab` to Play Console.
 
 ## iPhone: App Store
 
