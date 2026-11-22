@@ -1287,6 +1287,8 @@ export default function SocialApp({ mode = 'web' }) {
   useEffect(() => {
     if (window.nibbleDesktop) setDesktop(window.nibbleDesktop);
     const mob = getMobileBridge();
+    // /m is only for inside the phone app (the app draws the menu); in a normal browser use /app
+    if (!mob && mode === 'mobile') { location.replace('/app' + location.search); return; }
     if (mob) {
       setMobile(mob);
       mob.onTab((t) => { if (typeof t === 'string' && /^[a-z]{2,12}$/.test(t)) setTab(t === 'pets' ? 'settings' : t); });
@@ -1317,7 +1319,7 @@ export default function SocialApp({ mode = 'web' }) {
   const toast = useMemo(() => (n) => setNote(n), []);
   const player = useRoomPlayer(social, state, toast);
   const isDesk = mode === 'desktop' || !!desktop;
-  const isMob = mode === 'mobile' || !!mobile;
+  const isMob = !!mobile;
   const iosApp = !!(mobile && mobile.platform === 'ios');
   // notifications: the desktop app or the phone app (browsers don't get any)
   const notifier = desktop || mobile;
