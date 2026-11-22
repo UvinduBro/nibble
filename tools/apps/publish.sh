@@ -65,6 +65,8 @@ json.dump({'platform': platform, 'version': version, 'build': build, 'signed': s
            'files': json.loads(files)}, open(path, 'w', encoding='utf-8'), indent=2)
 PYEOF
   "$PY" "$HERE/index.py" "$WORK"
+  # this branch is only an index: tell Vercel not to try to build it as the website
+  printf '{\n  "git": { "deploymentEnabled": false }\n}\n' > "$WORK/vercel.json"
   git -C "$WORK" add -A
   git -C "$WORK" commit --quiet -m "apps: $PLATFORM $VERSION (build $BUILD)" || { echo "index unchanged"; break; }
   if git -C "$WORK" push --quiet origin "HEAD:refs/heads/$BRANCH_OUT"; then echo "index updated"; break; fi
