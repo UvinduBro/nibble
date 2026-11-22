@@ -104,7 +104,7 @@ jobs:
       - run: flutter pub get
       - name: App icons
         run: dart run flutter_launcher_icons
-      - name: Build (unsigned: proves it compiles)
+      - name: "Build (unsigned, proves it compiles)"
         if: env.APPLE_TEAM_ID == ''
         run: |
           flutter build ios --release --no-codesign --build-number=$BUILD_NUMBER
