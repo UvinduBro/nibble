@@ -17,6 +17,23 @@ it to the **Changelog** at the bottom and update any section it touches.
 Owner: Uvindu Rajapakshe ("Uvi"). Co-creator and tester: Wageesha Ruvangi ("Wagee").
 Made in Colombo, Sri Lanka. Live at **https://meetnibble.com** (Vercel project `nibble`).
 
+### Start here (every session)
+
+1. **Sync first.** The owner works from more than one account and agent session (commits appear as
+   "Claude" and "Monster-ZeroX"). Run `git fetch origin && git log --oneline HEAD..FETCH_HEAD` and
+   fast-forward before editing, then read the newest **Changelog** entries below.
+2. Check what's live: `GET https://meetnibble.com/api/build` returns the deployed commit.
+3. Read §7 (rules) and §8 (owner to-dos) before changing anything that touches money, rules or the desktop app.
+4. Hard "don'ts": no multiplayer games (Firestore cost; games stay single-player unless the owner
+   agrees to the cost); never handle Stripe keys, service-account JSON or mailbox passwords in chat
+   or code (they live in Vercel env, which the owner edits by hand); never invent reviews/users/stats.
+5. Sandbox build tip: `next/font/google` can't download fonts in the cloud sandbox. For a local
+   `npx next build`, temporarily replace the font imports at the top of `app/layout.js` with stubs
+   (`const Figtree = () => ({ variable: '' })` etc.), build, then **restore the original file**. Never commit the stub.
+6. `Get-Nibble.exe` is built only by `.github/workflows/win-setup.yml` (Roslyn against .NET Framework
+   4.6.2, `--selftest`). Don't compile it with mono: that build crashed on users' PCs (`String.Split(Char, …)`).
+7. Finish by adding a Changelog entry here and, if rules changed, giving the owner the full `firestore.rules`.
+
 ---
 
 ## 1. What Nibble is
@@ -141,9 +158,9 @@ server-written), server-only `teaAuthors`, `teaLimits`, `teaReacts`, `teaReports
 
 ## 4. Website, admin and business features
 
-- **Admin dashboard** (`/admin`): left sidebar groups — Insights (Overview, Users, Games & points,
-  Firebase usage), Inbox (Reviews, Reports), Communicate (Announcements, Email, Marketing),
-  Money (Premium, Stripe), Grow (SEO), System (Settings). Each page has a description + Tips box.
+- **Admin dashboard** (`/admin`, menu = `NAV` in `AdminApp.js`): left sidebar groups — Insights (Overview,
+  Users, Games & points, Firebase usage), Inbox (Reviews, Tea Room, Reports), Communicate (Announcements,
+  Email, Marketing), Money (Premium, Stripe), Grow (SEO), System (Team, Settings). Each page has a description + Tips box.
   Admin = a doc at `admins/{uid}` created by hand in the Firebase console.
 - **Email** (Resend, domain `meetnibble.com` verified, DNS on Spaceship): sender
   `no-reply@meetnibble.com`; contact-form mails to `hello@meetnibble.com` (Spacemail inbox).
@@ -233,7 +250,7 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
   from the cloud sandbox, so say clearly what was not tested live.
 - Commit messages: summary line + bullet list of what changed and why.
 
-## 8. Owner to-do / open items (as of 2026-11-19)
+## 8. Owner to-do / open items (as of 2026-11-22)
 
 - Publish the latest `firestore.rules` (Premium, Reviews, SEO, Groups, Tea Room sections).
 - Give the service account (shown in Admin → Premium) the **Cloud Datastore User** role (Premium **and the
@@ -244,7 +261,9 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
   test cards, then live. Deploy `/pricing` + `/refunds` before live activation. Consider Stripe Tax.
 - Stripe key: add the Admin → Stripe permissions (Balance, Payouts, Events, PaymentIntents, Payment methods read;
   Payment Disputes, Invoices, Radar value lists write) and the two Radar block-list rules (`docs/STRIPE_SETUP.md`).
-- Publish `firestore.rules` again (adds `billingAudit`).
+- Publish `firestore.rules` again (adds `billingAudit`, `billingEvents`, `billingFlags`, 16 SEO pages).
+- Stripe live mode: confirm a real end-to-end purchase + refund once live keys and the webhook are in place
+  (nothing in Stripe has been tested from the cloud sandbox).
 - Google Search Console + Bing Webmaster Tools: verify, submit `sitemap.xml`, request indexing.
 - Add `meetnibble.com` to Firebase authorized domains, then switch desktop `SITE` to it.
 - Firebase App Check (stops direct-to-Firestore spam on `reports`).
@@ -254,6 +273,10 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 ## 9. Changelog
 
 Newest first. Add an entry for every piece of work.
+
+- **2026-11-22** AGENTS.md refresh after reviewing all 28 commits since `fc35ed9` (Stripe hardening PR #1,
+  Admin → Stripe, Groups, Tea Room v2, reactions, Team page, Premium switch fix): added "Start here"
+  checklist, fixed the admin menu list, sorted the changelog by date, updated owner to-dos. No code changes.
 
 - **2026-11-21** Fix: Premium stayed "Launching soon" although packages were live in Stripe: the
   Admin → Premium on/off switch (and name / promo codes / features) was saved from the browser and the
@@ -300,16 +323,6 @@ Newest first. Add an entry for every piece of work.
   longer says "nothing to buy with real money", llms.txt / JSON-LD mention Premium. Rules: `billingEvents`,
   `billingFlags` (server only), SEO pages map up to 16. Not tested against live Stripe.
 
-- **2026-11-19** Groups + Tea Room. Groups: create (name + icon), invite friends, accept / decline /
-  leave, owner rename / remove / delete, 24 h group chat with unread badges and desktop notifications,
-  pack walk, wave at all, listen together, group points. Tea Room: Everyone feed + a feed per group,
-  posts as yourself or masked (server-written, author hidden), reactions, comments, daily question,
-  reports with auto-hide at 3, 48 h expiry, daily limits, blocked words. Admin → Tea Room (switches,
-  blocked words, flags with real author, hide / restore / delete / suspend). New rules sections
-  (groups, msgs, teaRooms, config/app `tea` + `teaWords`). Adapters gained `list()` / `watchQuery()`;
-  `lib/gcp.js` gained `fsQuery()` / `fsIncrement()`. Hub notifications may open `groups` / `tea`
-  (ships with the next desktop build).
-
 - **2026-11-20** Fix: Tea Room posts vanished after a reaction or comment (counter write replaced the
   whole doc); posts are now permanent. Fix: duplicate social client could swallow messages. New:
   Facebook-style reactions (Tea Room, group chat, private messages), Admin → Team (add / remove admins),
@@ -324,6 +337,16 @@ Newest first. Add an entry for every piece of work.
 
 - **2026-11-20** Desktop 2.0.23 released (version bump + notes for Groups / Tea Room; Hub
   notifications can open the `groups` and `tea` tabs). Published to `main`.
+
+- **2026-11-19** Groups + Tea Room. Groups: create (name + icon), invite friends, accept / decline /
+  leave, owner rename / remove / delete, 24 h group chat with unread badges and desktop notifications,
+  pack walk, wave at all, listen together, group points. Tea Room: Everyone feed + a feed per group,
+  posts as yourself or masked (server-written, author hidden), reactions, comments, daily question,
+  reports with auto-hide at 3, 48 h expiry, daily limits, blocked words. Admin → Tea Room (switches,
+  blocked words, flags with real author, hide / restore / delete / suspend). New rules sections
+  (groups, msgs, teaRooms, config/app `tea` + `teaWords`). Adapters gained `list()` / `watchQuery()`;
+  `lib/gcp.js` gained `fsQuery()` / `fsIncrement()`. Hub notifications may open `groups` / `tea`
+  (ships with the next desktop build).
 
 - **2026-11-19** Fix: accepting a friend request failed ("Not allowed") because the friends rule
   compared the second write (adding you to the requester's list) with the wrong user's name; it
