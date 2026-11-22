@@ -20,6 +20,7 @@ import Leaderboard from './Leaderboard';
 import Groups from './Groups';
 import TeaRoom from './TeaRoom';
 import { teaConfig } from '../../lib/tea';
+import { getMobileBridge } from '../../lib/mobileBridge';
 import FeedbackForm, { systemName } from './Feedback';
 import { ChatReact } from './Reactions';
 import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
@@ -451,6 +452,7 @@ function Settings({ social, state, desktop, local, toast, go }) {
         <p className="sa-sub">@{state.profile.username} · {state.user.email || 'signed in'} · {state.user.provider === 'google.com' ? 'Google' : 'Email'}</p>
         <button className="btn small ghost" onClick={() => social.signOut()}>Sign out</button>
       </div>
+      <DeleteAccount social={social} state={state} toast={toast} />
       {desktop && local && (
         <div className="sa-card">
           <h3>Nibble {local.version}</h3>
@@ -470,6 +472,42 @@ function Settings({ social, state, desktop, local, toast, go }) {
   );
 }
 
+// Settings card: delete your account for good (Apple and Google Play require this inside the app)
+function DeleteAccount({ social, state, toast }) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const premium = social.premium && social.premium.active() && state.premium && state.premium.source === 'stripe';
+  const go = async () => {
+    setBusy(true); setErr('');
+    try { await social.deleteAccount(); toast({ text: 'Your account was deleted. Bye for now 👋' }); }
+    catch (e) { setErr(niceError(e)); }
+    setBusy(false);
+  };
+  return (
+    <div className="sa-card">
+      <h3>Delete account</h3>
+      {!open ? (
+        <>
+          <p className="sa-sub">Removes your account, profile, friends, messages, points, looks, groups you own and your Tea Room posts. This can’t be undone.</p>
+          <button className="btn small ghost danger" onClick={() => setOpen(true)}>Delete my account…</button>
+        </>
+      ) : (
+        <>
+          <p className="sa-sub"><b>This deletes @{state.profile.username} for good.</b>{premium ? ' Your Premium subscription is cancelled straight away, with no more charges.' : ''} Type <b>DELETE</b> to confirm.</p>
+          <form className="sa-inline" onSubmit={(e) => { e.preventDefault(); if (typed.trim().toUpperCase() === 'DELETE') go(); }}>
+            <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="DELETE" autoCapitalize="characters" aria-label="Type DELETE to confirm" />
+            <button className="btn small danger" disabled={busy || typed.trim().toUpperCase() !== 'DELETE'}>{busy ? 'Deleting…' : 'Delete for good'}</button>
+            <button type="button" className="btn small ghost" disabled={busy} onClick={() => { setOpen(false); setTyped(''); setErr(''); }}>Keep my account</button>
+          </form>
+          {err && <p className="sa-msg err">{err}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---------- Nibble Premium ----------
 // a few harmless facts about this device, sent with a checkout as extra fraud-check context
 function deviceInfo() {
@@ -477,7 +515,7 @@ function deviceInfo() {
     return { tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '', lang: (navigator.languages || [navigator.language]).slice(0, 3).join(','), screen: `${screen.width}x${screen.height}@${window.devicePixelRatio || 1}` };
   } catch { return {}; }
 }
-function PremiumPage({ social, state, toast, desktop }) {
+function PremiumPage({ social, state, toast, desktop, mobile }) {
   const plan = state.premiumPlan;
   const prem = state.premium;
   const active = social.premium.active();
@@ -542,8 +580,11 @@ function PremiumPage({ social, state, toast, desktop }) {
             <h3>⭐ Premium is on</h3>
             {prem.action === 'confirm_payment' && <p className="sa-sub" style={{ color: 'var(--coral, #ff7a7a)' }}>Your bank wants you to confirm the last payment. Open “Manage subscription” to confirm it and keep Premium.</p>}
             <p className="sa-sub">{prem.source === 'admin' ? `Gifted by the Nibble team until ${until}.` : prem.cancelAtEnd ? `Ends on ${until}. You won’t be charged again.` : `Renews on ${until}.`}{prem.status === 'past_due' ? ' Your last payment didn’t go through: update your card to keep Premium.' : ''}</p>
-            {prem.source !== 'admin' && <button className="btn small" disabled={!!busy} onClick={() => go('manage')}>{busy === 'manage' ? 'Opening…' : 'Manage subscription'}</button>}
+            {prem.source !== 'admin' && !mobile && <button className="btn small" disabled={!!busy} onClick={() => go('manage')}>{busy === 'manage' ? 'Opening…' : 'Manage subscription'}</button>}
           </>
+        ) : mobile ? (
+          // Apple and Google only allow their own in-app payments, so the phone app sells nothing
+          <p className="sa-empty">Premium isn’t available in the app.</p>
         ) : plan && plan.enabled && chosen ? (
           <>
             <h3>Get Premium</h3>
@@ -568,7 +609,7 @@ function PremiumPage({ social, state, toast, desktop }) {
             {(desktop || waiting) && <button className="btn small ghost" style={{ marginLeft: 8 }} onClick={() => check(false)}>I’ve paid: check again</button>}
           </>
         ) : <p className="sa-empty">Premium isn’t available right now. Check back soon!</p>}
-        {prem && !active && prem.source === 'stripe' && <p className="ad-foot">Your Premium ended{until ? ' on ' + until : ''}. Get it again any time.</p>}
+        {prem && !active && prem.source === 'stripe' && !mobile && <p className="ad-foot">Your Premium ended{until ? ' on ' + until : ''}. Get it again any time.</p>}
       </div>
     </div>
   );
@@ -1092,6 +1133,7 @@ function Home({ social, state, desktop, local, toast, go, chatWith, setChatWith 
 // ---------- desktop bridge (only inside the Nibble app's Hub window) ----------
 // friend games waiting on you: invites to accept + your turn
 // group invites + groups with unread chat
+const signedInNow = (state) => !!(state.user && state.profile && !state.banned);
 const groupBadge = (state) => (state.groupInvites || []).length + (state.groups || []).filter((g) => g.unreadChat).length;
 const myTurns = (state) => (state.matches || []).filter((m) => (m.status === 'invite' && m.players[1] === state.user.uid) || (m.status === 'live' && m.turn === state.user.uid)).length;
 
@@ -1223,6 +1265,8 @@ export default function SocialApp({ mode = 'web' }) {
   const toggleNav = (v) => { setNavPref(v); try { localStorage.setItem('nibble-nav-mini', v ? '1' : '0'); } catch {} };
   const [note, setNote] = useState(null);
   const [desktop, setDesktop] = useState(null);
+  // the Nibble phone app (Flutter WebView, lib/mobileBridge.js); null in browsers and on desktop
+  const [mobile, setMobile] = useState(null);
   // "Waking up…" for more than 12 s: show what might be wrong
   const [slow, setSlow] = useState(false);
   const waking = !state.ready || (state.user && state.profile === undefined);
@@ -1233,6 +1277,13 @@ export default function SocialApp({ mode = 'web' }) {
   const openTea = (feed) => { setTeaFeed(feed); setTab('tea'); };
   useEffect(() => {
     if (window.nibbleDesktop) setDesktop(window.nibbleDesktop);
+    const mob = getMobileBridge();
+    if (mob) {
+      setMobile(mob);
+      mob.onTab((t) => { if (typeof t === 'string' && /^[a-z]{2,12}$/.test(t)) setTab(t === 'pets' ? 'settings' : t); });
+      // phone app sent to the background → pause the little animated pets (battery)
+      mob.onVisible((v) => { window.__nibbleHidden = !v; window.dispatchEvent(new Event('nibble-visibility')); });
+    }
     const q = new URLSearchParams(location.search);
     if (q.get('add')) { setPresetAdd(q.get('add')); setTab('friends'); }
     const fixTab = (t) => (t === 'pets' ? 'settings' : t);
@@ -1257,6 +1308,10 @@ export default function SocialApp({ mode = 'web' }) {
   const toast = useMemo(() => (n) => setNote(n), []);
   const player = useRoomPlayer(social, state, toast);
   const isDesk = mode === 'desktop' || !!desktop;
+  const isMob = mode === 'mobile' || !!mobile;
+  const iosApp = !!(mobile && mobile.platform === 'ios');
+  // notifications: the desktop app or the phone app (browsers don't get any)
+  const notifier = desktop || mobile;
 
   // site-wide announcement from an admin: banner for everyone, Windows notification on desktop
   const bcId = state.broadcast && state.broadcast.id;
@@ -1267,8 +1322,8 @@ export default function SocialApp({ mode = 'web' }) {
   useEffect(() => {
     if (!bcId || !bcLive || notified.current === bcId) return;
     notified.current = bcId;
-    if (desktop && desktop.notify) desktop.notify({ title: state.broadcast.title || 'Nibble', body: state.broadcast.text });
-  }, [bcId, bcLive, desktop]);
+    if (notifier && notifier.notify) notifier.notify({ title: state.broadcast.title || 'Nibble', body: state.broadcast.text });
+  }, [bcId, bcLive, notifier]);
   const showBc = bcLive && bcId !== bcDismissed;
   const dismissBc = () => { try { localStorage.setItem('nibble-bc-seen', bcId); } catch {} setBcDismissed(bcId); };
 
@@ -1293,16 +1348,17 @@ export default function SocialApp({ mode = 'web' }) {
       const was = groupNotified.current[g.id];
       groupNotified.current[g.id] = g.chatAt;
       if (was === undefined || !g.unreadChat || g.chatAt <= was) continue;
-      if (desktop && desktop.notify && tab !== 'groups') desktop.notify({ title: `${g.emoji} ${g.name}`, body: `@${g.chatBy} wrote in the group chat`, tab: 'groups' });
+      if (notifier && notifier.notify && tab !== 'groups') notifier.notify({ title: `${g.emoji} ${g.name}`, body: `@${g.chatBy} wrote in the group chat`, tab: 'groups' });
     }
-  }, [state.groups, desktop, tab]);
+  }, [state.groups, notifier, tab]);
 
   // tell admins which app this is (desktop + version, or web)
   useEffect(() => {
     if (!social || !state.profile) return;
     if (isDesk) { if (local && local.version) social.setClient({ client: 'desktop', ver: local.version }); }
+    else if (mobile) social.setClient({ client: mobile.platform, ver: mobile.appVersion });
     else social.setClient({ client: 'web' });
-  }, [social, state.profile, isDesk, local && local.version]);
+  }, [social, state.profile, isDesk, mobile, local && local.version]);
 
   // admin-set site notice (dismissable per notice text) and "update needed" for old desktop builds
   const cfg = state.config || {};
@@ -1312,6 +1368,51 @@ export default function SocialApp({ mode = 'web' }) {
   const dismissNotice = () => { try { localStorage.setItem('nibble-notice-seen', cfg.notice); } catch {} setNoticeSeen(cfg.notice); };
   const [needHidden, setNeedHidden] = useState(false);
   const needUpdate = isDesk && local && local.version && cfg.minVersion && verLess(local.version, cfg.minVersion) && !needHidden;
+
+  // pages in the menu. Phone app: Premium only shows once you have it (it can't be bought in the app:
+  // Apple and Google only allow their own in-app payments), and the Tea Room is off on iPhone unless
+  // an admin switches it on (anonymous posting is a common App Store rejection).
+  const tcfg = teaConfig(cfg);
+  const teaVisible = tcfg.on && (!iosApp || tcfg.ios);
+  const premVisible = isMob ? social && social.premium && social.premium.active() : (state.premiumPlan && state.premiumPlan.enabled) || (social && social.premium && social.premium.active());
+  const navItems = NAV.filter(([k]) => (k !== 'premium' || premVisible) && (k !== 'tea' || teaVisible));
+
+  // phone app: native tab bar + "More" list, red badges, and notifications for new messages / requests
+  const tabsKey = signedInNow(state) ? navItems.map(([k]) => k).join(',') : '';
+  useEffect(() => {
+    if (!mobile) return;
+    if (!tabsKey) { mobile.setTabs([]); return; }
+    mobile.setTabs(navItems.map(([k, l, i]) => ({ id: k, label: l, icon: i })));
+  }, [mobile, tabsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (mobile) mobile.setCurrent(tab); }, [mobile, tab]);
+  const unreadMsgs = useRef({ seen: 0, n: 0 });
+  const msgs = state.messages || [];
+  useEffect(() => {
+    if (!mobile || !signedInNow(state)) return;
+    const theirs = msgs.filter((m) => !m.mine);
+    const newest = theirs.length ? Math.max(...theirs.map((m) => m.at || 0)) : 0;
+    const u = unreadMsgs.current;
+    if (!u.seen) u.seen = newest || Date.now(); // don't notify for what was already there on start
+    else if (tab !== 'messages') {
+      const fresh = theirs.filter((m) => (m.at || 0) > u.seen);
+      if (fresh.length) {
+        const m = fresh[fresh.length - 1];
+        mobile.notify({ title: '@' + (m.fromName || 'a friend'), body: m.text || (EMOTE_TEXT[m.kind] || 'sent you something'), tab: 'messages' });
+        u.n += fresh.length;
+      }
+    }
+    if (newest > u.seen) u.seen = newest;
+    if (tab === 'messages') u.n = 0;
+    mobile.setBadges({ friends: (state.incoming || []).length, messages: u.n, groups: groupBadge(state), music: state.music ? state.music.invites.length : 0 });
+  }, [mobile, signedInNow(state), msgs.length, (state.incoming || []).length, state.groups, state.groupInvites, state.music && state.music.invites.length, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reqSeen = useRef(-1);
+  useEffect(() => {
+    if (!mobile || !signedInNow(state)) return;
+    const n = (state.incoming || []).length;
+    if (reqSeen.current >= 0 && n > reqSeen.current) { const r = (state.incoming || [])[n - 1]; mobile.notify({ title: 'New friend request', body: `@${(r && (r.fromName || r.username)) || 'someone'} wants to be friends`, tab: 'friends' }); }
+    reqSeen.current = n;
+  }, [mobile, (state.incoming || []).length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (mobile && state.ready && !state.user) mobile.signedOut(); }, [mobile, state.ready, state.user]);
 
   let body;
   if (missing) {
@@ -1339,7 +1440,7 @@ export default function SocialApp({ mode = 'web' }) {
         )}
       </div>
     );
-  } else if (!state.user) body = <AuthScreen social={social} desktop={desktop} />;
+  } else if (!state.user) body = <AuthScreen social={social} desktop={desktop || (mobile && { googleSignIn: mobile.googleSignIn, phone: true })} />;
   else if (state.banned) {
     body = (
       <div className="sa-center sa-suspended">
@@ -1352,7 +1453,7 @@ export default function SocialApp({ mode = 'web' }) {
   }
   else if (!state.profile) body = <Onboard social={social} state={state} initialSkin={local?.settings?.pets?.[0]?.skin} />;
   else {
-    const props = { social, state, desktop, local, toast, go: setTab, chatWith, setChatWith, teaFeed, setTeaFeed, openTea };
+    const props = { social, state, desktop, mobile, local, toast, go: setTab, chatWith, setChatWith, teaFeed, setTeaFeed, openTea };
     body = (
       <>
         {tab === 'home' && <Home {...props} />}
@@ -1361,7 +1462,7 @@ export default function SocialApp({ mode = 'web' }) {
         {tab === 'friends' && <Friends {...props} presetAdd={presetAdd} />}
         {tab === 'messages' && <Messages {...props} />}
         {tab === 'groups' && <Groups {...props} />}
-        {tab === 'tea' && <TeaRoom {...props} />}
+        {tab === 'tea' && teaVisible && <TeaRoom {...props} />}
         {tab === 'music' && <Music {...props} player={player} />}
         {tab === 'style' && <Wardrobe {...props} />}
         {tab === 'games' && <Arcade {...props} />}
@@ -1377,7 +1478,7 @@ export default function SocialApp({ mode = 'web' }) {
   const phone = !isDesk && winW <= 640;
   const mini = !phone && (navPref !== null ? navPref : winW < 1000);
   return (
-    <div className={'sa' + (isDesk ? ' desk' : '') + (signedIn ? '' : ' solo') + (signedIn && mini ? ' mini' : '') + (phone ? ' phone' : '')}>
+    <div className={'sa' + (isDesk ? ' desk' : '') + (isMob ? ' mob' : '') + (signedIn ? '' : ' solo') + (signedIn && mini ? ' mini' : '') + (phone ? ' phone' : '')}>
       {signedIn && (
         <aside className="sa-side">
           <div className="sa-side-top">
@@ -1393,7 +1494,7 @@ export default function SocialApp({ mode = 'web' }) {
             {state.wallet && state.wallet.canDaily && <em>🎁 bonus</em>}
           </button>
           <nav>
-            {NAV.filter(([k]) => (k !== 'premium' || (state.premiumPlan && state.premiumPlan.enabled) || social.premium.active()) && (k !== 'tea' || teaConfig(state.config).on)).map(([k, l, i]) => (
+            {navItems.map(([k, l, i]) => (
               <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)} title={mini ? l : undefined}>
                 <span><Emo k={i} size={22} /></span><b className="sa-nl">{l}</b>
                 {k === 'friends' && state.incoming.length > 0 && <em className="sa-badge">{state.incoming.length}</em>}
@@ -1407,12 +1508,12 @@ export default function SocialApp({ mode = 'web' }) {
           </nav>
           <div className="sa-side-foot">
             {state.admin && <a href="/admin" style={{ display: 'block', marginBottom: 6 }}>⚙️ Admin panel</a>}
-            {isDesk ? `Nibble ${local?.version || ''}` : <a href="/#download">Get the desktop app →</a>}
+            {isDesk ? `Nibble ${local?.version || ''}` : isMob ? `Nibble app ${mobile ? mobile.appVersion : ''}` : <a href="/#download">Get the desktop app →</a>}
           </div>
         </aside>
       )}
       <main className="sa-main">
-        {!signedIn && !isDesk && <a className="sa-back" href="/">← nibble</a>}
+        {!signedIn && !isDesk && !isMob && <a className="sa-back" href="/">← nibble</a>}
         {signedIn && needUpdate && (
           <Banner level="need" title={`Update needed — you're on v${local.version}, v${cfg.minVersion}+ is required.`} text={cfg.updateMsg || 'Some features may not work until you update.'} link="/Nibble-Reinstall-Guide.pdf" linkLabel="How to" onClose={() => setNeedHidden(true)}>
             {desktop && desktop.update && <button className="btn small" onClick={() => desktop.update()}>Update now</button>}

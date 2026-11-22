@@ -62,7 +62,8 @@ export default function Privacy() {
       <h2>Your choices</h2>
       <ul>
         <li>Use “Appear offline” or “Do not disturb” in Settings to stop sharing that you’re online.</li>
-        <li>To get a copy of your data or delete your account, write to us using the <a href="/#contact">contact form</a>. We’ll do it within 30 days.</li>
+        <li>Delete your account any time in the app: Settings → Delete account. It removes your profile, friends, messages, points and posts straight away (<a href="/delete-account">more about deleting</a>).</li>
+        <li>To get a copy of your data, write to us using the <a href="/#contact">contact form</a>. We’ll do it within 30 days.</li>
       </ul>
 
       <h2>Children</h2>

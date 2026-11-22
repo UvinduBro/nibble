@@ -1703,6 +1703,7 @@ function TeaTab({ social, state, users, toast, go, setOpenUid }) {
           <label><Sw on={cfg.everyone} onChange={() => sw('everyone', !cfg.everyone)} /><span><b>Everyone feed</b><small>One feed for all Nibble users (group feeds always work)</small></span></label>
           <label><Sw on={cfg.anon} onChange={() => sw('anon', !cfg.anon)} /><span><b>Anonymous in groups</b><small>People can post anonymously in their group feeds</small></span></label>
           <label><Sw on={cfg.anonAll} onChange={() => sw('anonAll', !cfg.anonAll)} /><span><b>Anonymous in Everyone</b><small>People can post anonymously in the Everyone feed</small></span></label>
+          <label><Sw on={cfg.ios} onChange={() => sw('ios', !cfg.ios)} /><span><b>Show in the iPhone app</b><small>Off by default: Apple often rejects apps with anonymous posting. Turn on after the app is approved, at your own risk</small></span></label>
         </div>
         <form className="sa-form" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); save({ teaWords: words.split(/[,\n]/).map((w) => w.trim()).filter(Boolean) }, 'Blocked words saved'); }}>
           <label>Blocked words and phrases <small>(comma separated, up to 100; whole words; on top of the built-in list)</small>

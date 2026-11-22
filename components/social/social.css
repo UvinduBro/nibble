@@ -1428,3 +1428,13 @@ td.sx-btns { justify-content: flex-end; }
   .sx-needs li { flex-wrap: wrap; }
   .sx-search, .sx-search .ad-search { flex: 1 1 100%; }
 }
+
+/* ---------- inside the Nibble phone app (/m): the app has its own tab bar, so no menu row here ---------- */
+.sa.mob .sa-side nav, .sa.mob .sa-side-foot, .sa.mob .sa-collapse { display: none; }
+.sa.mob .sa-side { padding-top: max(10px, env(safe-area-inset-top)); }
+.sa.mob.solo .sa-main { padding-top: max(16px, env(safe-area-inset-top)); }
+.sa.mob .sa-side-top .logo { pointer-events: none; }
+.sa.mob { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; overscroll-behavior-y: none; }
+.sa.mob input, .sa.mob textarea { font-size: 16px; } /* iOS zooms into smaller inputs */
+.sa-card .btn.danger { border-color: rgba(255, 122, 122, 0.45); color: #ff9a9a; }
+.sa-card .btn.danger:not(.ghost) { background: #e0566b; color: #fff; border-color: transparent; }
