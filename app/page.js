@@ -13,6 +13,8 @@ import release from '../public/version.json';
 import { orgLd, appLd, siteLd, faqLd, howToLd, ldJson, SELLER, REFUND_DAYS } from '../lib/facts';
 import { getPlan } from '../lib/billing';
 import { buyable } from '../lib/premium';
+import PriceCards from '../components/landing/PriceCards';
+import { POSTS, readingMinutes } from '../lib/blog';
 import './landing.css';
 
 // Headline that rises in word by word on load.
@@ -77,7 +79,7 @@ const STEPS = [
   ['Bring your friends', 'Add friends by username. Their pets visit your screen, and you can message, play and listen to music together.'],
 ];
 
-const NAV = [['#try', 'Demo'], ['#features', 'Features'], ['#crew', 'Pets'], ['#download', 'Download'], ['#faq', 'FAQ'], ['/about', 'About'], ['#contact', 'Contact']];
+const NAV = [['#try', 'Demo'], ['#features', 'Features'], ['#crew', 'Pets'], ['#pricing', 'Pricing'], ['/blog', 'Blog'], ['#download', 'Download'], ['#faq', 'FAQ'], ['#contact', 'Contact']];
 
 function HubMock() {
   return (
@@ -333,6 +335,32 @@ export default async function Home() {
 
         {reviews.length > 0 && <Reviews list={reviews} />}
 
+        <section className="lp-sec" id="pricing">
+          <div className="lp-wrap">
+            <Head kicker="Pricing" title="Free for everyone. Premium if you want extras." sub="Every pet, game and social feature is free, with no ads. Premium is optional and helps keep Nibble free for everyone." center />
+            <div data-reveal><PriceCards plan={plan} /></div>
+            <p className="lp-price-note" data-reveal>Points are earned by playing and can’t be bought. Cancel Premium any time, with a full refund within {REFUND_DAYS} days of any payment. <a href="/pricing">Billing details</a></p>
+          </div>
+        </section>
+
+        <section className="lp-sec" id="blog">
+          <div className="lp-wrap">
+            <Head kicker="From the blog" title="Get more out of your pet." sub="Guides to everything Nibble does, from your first pet to music rooms with friends." />
+            <ul className="lp-posts">
+              {POSTS.slice(0, 3).map((p, i) => (
+                <li key={p.slug} data-reveal style={{ '--d': `${i * 0.08}s` }}>
+                  <a href={`/blog/${p.slug}`}>
+                    <img src={p.hero} alt={p.heroAlt} loading="lazy" />
+                    <span>{p.tag} · {readingMinutes(p)} min read</span>
+                    <h3>{p.title}</h3>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <a href="/blog" className="lp-btn ghost lp-posts-all">All articles</a>
+          </div>
+        </section>
+
         <section className="lp-sec" id="faq">
           <div className="lp-wrap lp-faq-wrap">
             <Head title="Frequently asked questions" sub="Can’t find your answer? Send us a message in the feedback form below." />
@@ -408,12 +436,12 @@ export default async function Home() {
             <a href="#" className="lp-brand"><img src="/logo.svg" alt="" width={30} height={30} />nibble</a>
             <p>A desktop pet that walks on your windows, visits your friends and plays music with you. Developed by Uvindu Rajapakshe in Sri Lanka.</p>
           </div>
-          <nav aria-label="Product"><b>Product</b><a href="#download">Download</a><a href="/desktop-pet">Desktop pet app</a><a href="/app">Web app</a><a href="#features">Features</a><a href="#crew">Pets</a></nav>
+          <nav aria-label="Product"><b>Product</b><a href="#download">Download</a><a href="/blog">Blog</a><a href="/desktop-pet">Desktop pet app</a><a href="/app">Web app</a><a href="#features">Features</a><a href="#crew">Pets</a></nav>
           <nav aria-label="Help"><b>Help</b><a href="#faq">FAQ</a><a href="#feedback">Report a bug</a><a href="#feedback">Suggest a feature</a><a href="/install-help">Install help</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
           <nav aria-label="Nibble"><b>Nibble</b><a href="/about">About</a><a href="/pricing">Pricing</a><a href="#contact">Contact</a><a href="/refunds">Refunds</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
           <NewsletterForm />
         </div>
-        <div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · Version {release.version} · Operated by {SELLER.name} · <a href="/pricing">Pricing</a> · <a href="/refunds">Refunds</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
+        <div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · Version {release.version} · Operated by {SELLER.name} · <a href="/pricing">Pricing</a> · <a href="/blog">Blog</a> · <a href="/refunds">Refunds</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
       </footer>
     </div>
   );

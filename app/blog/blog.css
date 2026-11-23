@@ -1,0 +1,77 @@
+/* The Nibble blog (/blog). Built on the landing page's tokens (.lp in landing.css). */
+.bl main { padding: 0 20px; }
+.bl .bl-tag { display: inline-block; font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em; color: var(--accent); background: var(--accent-soft); padding: 4px 10px; border-radius: 99px; }
+
+/* index */
+.bl-index { max-width: 1120px; margin: 0 auto; padding-bottom: 72px !important; }
+.bl-head { max-width: 720px; padding: 64px 0 32px; }
+.bl-head h1 { font: 700 clamp(38px, 6vw, 64px)/1.02 var(--display); letter-spacing: -0.04em; margin: 10px 0 14px; color: var(--ink); }
+.bl-head p { color: var(--ink-2); font-size: 18px; line-height: 1.55; margin: 0; }
+.bl-feature { display: grid; grid-template-columns: 1.25fr 1fr; gap: 28px; align-items: center; padding: 18px; border-radius: 24px; background: var(--surface); border: 1px solid var(--line-2); color: inherit; text-decoration: none; transition: border-color 0.2s, transform 0.2s; }
+.bl-feature:hover { border-color: var(--accent); transform: translateY(-2px); }
+.bl-feature img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; border-radius: 16px; background: var(--bg-2); }
+.bl-feature h2 { font: 700 clamp(24px, 3vw, 34px)/1.12 var(--display); letter-spacing: -0.03em; color: var(--ink); margin: 12px 0 10px; }
+.bl-feature p { color: var(--ink-2); line-height: 1.55; margin: 0 0 14px; }
+.bl small { color: var(--ink-3); font-size: 13.5px; }
+.bl-grid { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+.bl-grid a { display: flex; flex-direction: column; gap: 10px; height: 100%; padding: 14px 14px 18px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line-2); color: inherit; text-decoration: none; transition: border-color 0.2s, transform 0.2s; }
+.bl-grid a:hover { border-color: var(--accent); transform: translateY(-2px); }
+.bl-grid img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; border-radius: 12px; background: var(--bg-2); }
+.bl-grid .bl-tag { align-self: flex-start; }
+.bl-grid h2, .bl-grid h3 { font: 700 20px/1.25 var(--display); letter-spacing: -0.02em; color: var(--ink); margin: 0; }
+.bl-grid p { color: var(--ink-2); line-height: 1.5; margin: 0; font-size: 15px; flex: 1; }
+.bl-grid.small { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.bl-grid.small h3 { font-size: 17px; }
+
+/* article */
+.bl-post { max-width: 1120px; margin: 0 auto; padding-bottom: 80px !important; }
+.bl-crumbs { display: flex; flex-wrap: wrap; gap: 8px; padding: 28px 0 0; font-size: 14px; color: var(--ink-3); }
+.bl-crumbs a { color: var(--ink-2); text-decoration: none; }
+.bl-crumbs a:hover { color: var(--accent); }
+.bl-post-head { max-width: 780px; padding: 26px 0 24px; }
+.bl-post-head h1 { font: 700 clamp(34px, 5.4vw, 58px)/1.04 var(--display); letter-spacing: -0.04em; color: var(--ink); margin: 14px 0 14px; }
+.bl-lede { font-size: 19px; line-height: 1.55; color: var(--ink-2); margin: 0 0 14px; }
+.bl-meta { color: var(--ink-3); font-size: 14.5px; margin: 0; }
+.bl-meta a { color: var(--ink-2); }
+.bl-hero { margin: 0 0 36px; }
+.bl-hero img { width: 100%; max-height: 560px; object-fit: cover; object-position: top; border-radius: 22px; border: 1px solid var(--line-2); background: var(--bg-2); }
+.bl-body-wrap { display: grid; grid-template-columns: 220px minmax(0, 720px); gap: 48px; justify-content: center; }
+.bl-toc { position: sticky; top: 92px; align-self: start; font-size: 14px; }
+.bl-toc b { display: block; color: var(--ink); margin-bottom: 10px; }
+.bl-toc ol { list-style: none; margin: 0; padding: 0 0 0 12px; border-left: 1px solid var(--line-2); display: grid; gap: 9px; }
+.bl-toc a { color: var(--ink-2); text-decoration: none; line-height: 1.35; }
+.bl-toc a:hover { color: var(--accent); }
+.bl-body { font-size: 18px; line-height: 1.7; color: var(--ink-2); min-width: 0; }
+.bl-body p { margin: 0 0 20px; }
+.bl-body h2 { font: 700 clamp(24px, 3vw, 30px)/1.2 var(--display); letter-spacing: -0.025em; color: var(--ink); margin: 44px 0 14px; scroll-margin-top: 90px; }
+.bl-body h3 { font: 700 20px/1.3 var(--display); color: var(--ink); margin: 28px 0 10px; }
+.bl-body strong { color: var(--ink); }
+.bl-body a { color: var(--accent); text-underline-offset: 3px; }
+.bl-body ul, .bl-body ol { margin: 0 0 22px; padding-left: 24px; }
+.bl-body li { margin: 8px 0; }
+.bl-body li::marker { color: var(--accent); }
+.bl-fig { margin: 28px 0 30px; }
+.bl-fig img { display: block; max-width: 100%; height: auto; margin: 0 auto; border-radius: 16px; border: 1px solid var(--line-2); background: var(--bg-2); }
+.bl-fig:not(.wide) img { max-width: min(100%, 460px); }
+.bl-fig figcaption { text-align: center; color: var(--ink-3); font-size: 14.5px; margin-top: 10px; line-height: 1.45; }
+.bl-tip { display: flex; gap: 12px; align-items: flex-start; margin: 26px 0; padding: 16px 18px; border-radius: 16px; background: var(--accent-soft); border: 1px solid rgba(126, 232, 198, 0.25); }
+.bl-tip span { font-size: 20px; line-height: 1.5; }
+.bl-tip p { margin: 0; color: var(--ink); font-size: 16.5px; line-height: 1.6; }
+.bl-qa { margin: 40px 0 10px; }
+.bl-qa details { padding: 16px 18px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line-2); margin-bottom: 10px; }
+.bl-qa summary { font-weight: 700; color: var(--ink); cursor: pointer; font-size: 17px; }
+.bl-qa details p { margin: 10px 0 0; font-size: 16.5px; }
+.bl-cta { display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: center; justify-content: space-between; margin: 44px 0 0; padding: 26px; border-radius: 22px; background: linear-gradient(135deg, rgba(126, 232, 198, 0.16), rgba(167, 139, 250, 0.12)); border: 1px solid var(--line-2); }
+.bl-cta h2 { margin: 0 0 6px !important; font-size: 26px !important; }
+.bl-cta p { margin: 0; font-size: 16px; max-width: 420px; }
+.bl-cta-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.bl-cta .lp-btn { text-decoration: none; }
+.bl-more { margin-top: 64px; padding-top: 32px; border-top: 1px solid var(--line); }
+.bl-more h2 { font: 700 26px/1.2 var(--display); color: var(--ink); margin: 0; }
+
+@media (max-width: 900px) {
+  .bl-feature { grid-template-columns: 1fr; }
+  .bl-body-wrap { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .bl-toc { position: static; margin-bottom: 26px; padding: 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line-2); }
+  .bl-body { font-size: 17px; }
+}

@@ -2,6 +2,7 @@ import PetFigure from '../../components/PetFigure';
 import { pageMetadata } from '../../lib/seo';
 import { ONE_LINER, PLATFORMS, FEATURES, STEPS, QA, VERSION, appLd, faqLd, howToLd, crumbsLd, ldJson } from '../../lib/facts';
 import '../landing.css';
+import { POSTS } from '../../lib/blog';
 
 export function generateMetadata() {
   return pageMetadata('desktopPet', '/desktop-pet');
@@ -80,6 +81,17 @@ export default function DesktopPetPage() {
             <header className="lp-head center"><span className="lp-kicker">Get started</span><h2>How to install Nibble</h2><p>Works on {PLATFORMS}.</p></header>
             <ol className="lp-dp-steps">{STEPS.map(([t, d]) => <li key={t}><b>{t}</b><span>{d}</span></li>)}</ol>
             <p className="lp-dp-note">Windows or your Mac blocked the installer? See the <a href="/install-help">step-by-step install help</a>.</p>
+          </div>
+        </section>
+
+        <section className="lp-sec">
+          <div className="lp-wrap">
+            <header className="lp-head"><span className="lp-kicker">Guides</span><h2>Learn more about desktop pets</h2></header>
+            <ul className="lp-posts">
+              {POSTS.map((p) => (
+                <li key={p.slug}><a href={`/blog/${p.slug}`}><img src={p.hero} alt={p.heroAlt} loading="lazy" /><span>{p.tag}</span><h3>{p.title}</h3></a></li>
+              ))}
+            </ul>
           </div>
         </section>
 

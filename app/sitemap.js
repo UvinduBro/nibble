@@ -1,5 +1,6 @@
 import { SITE } from './layout';
 import release from '../public/version.json';
+import { POSTS, BLOG_UPDATED } from '../lib/blog';
 
 export default function sitemap() {
   const updated = new Date(release.date || Date.now());
@@ -13,6 +14,9 @@ export default function sitemap() {
     { url: `${SITE}/desktop-pet`, lastModified: updated, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${SITE}/about`, lastModified: updated, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE}/install-help`, lastModified: updated, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${SITE}/blog`, lastModified: new Date(BLOG_UPDATED), changeFrequency: 'weekly', priority: 0.8 },
+    ...POSTS.map((p) => ({ url: `${SITE}/blog/${p.slug}`, lastModified: new Date(p.updated || p.date), changeFrequency: 'monthly', priority: 0.7, images: [SITE + p.hero] })),
+    { url: `${SITE}/delete-account`, lastModified: new Date('2026-11-22'), changeFrequency: 'yearly', priority: 0.2 },
     { url: `${SITE}/Nibble-Reinstall-Guide.pdf`, lastModified: updated, changeFrequency: 'yearly', priority: 0.3 },
   ];
 }

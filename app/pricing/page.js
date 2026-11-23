@@ -2,7 +2,7 @@ import LegalPage from '../../components/landing/LegalPage';
 import Seller from '../../components/landing/Seller';
 import { pageMetadata } from '../../lib/seo';
 import { getPlan } from '../../lib/billing';
-import { buyable, money } from '../../lib/premium';
+import PriceCards, { planView } from '../../components/landing/PriceCards';
 import { REFUND_DAYS, SELLER, ldJson, crumbsLd } from '../../lib/facts';
 
 // the plan comes from config/premium; cached for 5 minutes so the page stays fast and cheap
@@ -12,42 +12,16 @@ export function generateMetadata() {
   return pageMetadata('pricing', '/pricing');
 }
 
-const FREE = ['Every pet, animal and character', 'Friends, messages, pokes and hugs', 'Groups and the Tea Room', 'Listen Together music rooms (up to 10 people)', 'All mini games and points', 'Deadlines and shared reminders', 'No ads, ever'];
-const EVERY = { year: 'year', month: 'month', week: 'week' };
 
 export default async function Pricing() {
   const plan = await getPlan({ revalidate: 300 });
-  const onSale = plan.enabled ? buyable(plan) : [];
-  // before Premium is switched on, still show the planned prices (marked "launching soon")
-  const shown = onSale.length ? onSale : plan.packages.filter((k) => k.active);
-  const feats = (plan.features || []).filter((f) => f.on !== false);
-  const live = onSale.length > 0;
+  const { shown } = planView(plan);
   return (
     <LegalPage title="Pricing" wide>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(crumbsLd([['Pricing', 'https://meetnibble.com/pricing']])) }} />
       <p>Nibble is free, with no ads. {plan.name} is an optional subscription that adds a few extras and helps keep Nibble free for everyone.</p>
 
-      <div className="lp-price-grid">
-        <div className="lp-price">
-          <h3>Nibble</h3>
-          <div className="lp-amt">Free <small>forever</small></div>
-          <ul>{FREE.map((t) => <li key={t}>{t}</li>)}</ul>
-          <a className="lp-btn sm" href="/#download">Download Nibble</a>
-        </div>
-        {shown.map((k) => (
-          <div key={k.id} className={'lp-price' + (k.id === plan.defaultPackage ? ' hi' : '')}>
-            {k.highlight && <span className="lp-tag">{k.highlight}</span>}
-            <h3>{plan.name} · {k.name}</h3>
-            <div className="lp-amt">{money(k.amount, k.currency)} <small>/ {EVERY[k.interval] || k.interval}</small></div>
-            {k.trialDays > 0 && <p className="lp-fine">{k.trialDays}-day free trial for first-time members (a card is needed; cancel before it ends and you pay nothing).</p>}
-            <ul>
-              <li>Everything in the free version</li>
-              {feats.map((f) => <li key={f.id}>{f.icon} {f.title}{f.desc ? `: ${f.desc}` : ''}</li>)}
-            </ul>
-            {live ? <a className="lp-btn sm" href="/app?tab=premium">Get Premium in the app</a> : <span className="lp-soon">Launching soon</span>}
-          </div>
-        ))}
-      </div>
+      <PriceCards plan={plan} />
       <p className="lp-fine">Prices are in {shown[0] ? String(shown[0].currency).toUpperCase() : 'USD'}. Sales tax or VAT may be added at checkout where the law requires it.</p>
 
       <h2>How billing works</h2>
