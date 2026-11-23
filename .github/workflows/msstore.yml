@@ -39,7 +39,7 @@ jobs:
         run: |
           reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v AllowDevelopmentWithoutDevLicense /d 1 | Out-Null
           Add-AppxPackage -Register dist-win\msix\AppxManifest.xml
-          $p = Get-AppxPackage | Where-Object { $_.Name -eq $(if ($env:MSSTORE_IDENTITY_NAME) { $env:MSSTORE_IDENTITY_NAME } else { 'Nibble.DesktopPet' }) }
+          $p = Get-AppxPackage | Where-Object { $_.Name -eq $(if ($env:MSSTORE_IDENTITY_NAME) { $env:MSSTORE_IDENTITY_NAME } else { 'Webackzer.MeetNibble' }) }
           Write-Host "installed: $($p.PackageFullName)"
           Start-Process "shell:AppsFolder\$($p.PackageFamilyName)!Nibble"
           Start-Sleep 20
@@ -59,4 +59,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
-        run: tools/apps/publish.sh windows "$(node -p "require('./public/app/package.json').version")" "${{ github.run_number }}" "$([ -n "$MSSTORE_IDENTITY_NAME" ] && echo yes || echo no)" dist-win/Nibble.msix
+        run: tools/apps/publish.sh windows "$(node -p "require('./public/app/package.json').version")" "${{ github.run_number }}" yes dist-win/Nibble.msix

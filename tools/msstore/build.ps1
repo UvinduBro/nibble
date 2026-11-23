@@ -3,9 +3,10 @@
 # store.json (switches off Nibble's own updater), then packs with the Windows SDK (makepri + makeappx).
 # The package is unsigned on purpose: the Microsoft Store signs it when you submit it.
 $ErrorActionPreference = 'Stop'
-$id = if ($env:MSSTORE_IDENTITY_NAME) { $env:MSSTORE_IDENTITY_NAME } else { 'Nibble.DesktopPet' }
-$pub = if ($env:MSSTORE_PUBLISHER) { $env:MSSTORE_PUBLISHER } else { 'CN=Nibble' }
-$pubName = if ($env:MSSTORE_PUBLISHER_NAME) { $env:MSSTORE_PUBLISHER_NAME } else { 'Uvindu Rajapakshe' }
+# Partner Center → Meet Nibble → Product identity (public values; repo variables can override them)
+$id = if ($env:MSSTORE_IDENTITY_NAME) { $env:MSSTORE_IDENTITY_NAME } else { 'Webackzer.MeetNibble' }
+$pub = if ($env:MSSTORE_PUBLISHER) { $env:MSSTORE_PUBLISHER } else { 'CN=4306567C-2FC3-4ADA-9AD0-A25BFE520029' }
+$pubName = if ($env:MSSTORE_PUBLISHER_NAME) { $env:MSSTORE_PUBLISHER_NAME } else { 'Webackzer' }
 $app = (Get-Content public/app/package.json -Raw | ConvertFrom-Json).version
 $ver = "$app.0"  # the Store wants 4 numbers and the last one 0
 Write-Host "Nibble $ver as $id ($pub)"
