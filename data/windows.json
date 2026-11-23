@@ -1,17 +1,17 @@
 {
   "platform": "windows",
   "version": "2.0.23",
-  "build": "6",
-  "signed": false,
-  "commit": "84f3719b878c770061fd2856b1273de74480ff19",
+  "build": "8",
+  "signed": true,
+  "commit": "f8fef8b0e2334bf0d47a002c6303c68e97208250",
   "branch": "main",
-  "run": "https://github.com/UvinduBro/nibble/actions/runs/45057657107",
-  "date": "2026-11-22 18:55 UTC",
+  "run": "https://github.com/UvinduBro/nibble/actions/runs/45131261379",
+  "date": "2026-11-23 07:29 UTC",
   "files": [
     {
       "name": "Nibble.msix",
-      "size": 163088120,
-      "sha256": "d915d61eda3b88ed7a94d61b3687676c8dcba3e85134c2233dca5a82a533d964",
+      "size": 163088185,
+      "sha256": "f62aa7534f2f962b6f22e0375168715aa654d88d59a740cb284bc902958f97d0",
       "url": "https://github.com/UvinduBro/nibble/releases/download/app-files/Nibble.msix"
     }
   ]
