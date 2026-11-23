@@ -6,6 +6,8 @@ $ErrorActionPreference = 'Stop'
 # Partner Center → Meet Nibble → Product identity (public values; repo variables can override them)
 $id = if ($env:MSSTORE_IDENTITY_NAME) { $env:MSSTORE_IDENTITY_NAME } else { 'Webackzer.MeetNibble' }
 $pub = if ($env:MSSTORE_PUBLISHER) { $env:MSSTORE_PUBLISHER } else { 'CN=4306567C-2FC3-4ADA-9AD0-A25BFE520029' }
+# the app name reserved in Partner Center (Start menu tiles still say "Nibble" via ShortName)
+$display = if ($env:MSSTORE_DISPLAY_NAME) { $env:MSSTORE_DISPLAY_NAME } else { 'Meet Nibble' }
 $pubName = if ($env:MSSTORE_PUBLISHER_NAME) { $env:MSSTORE_PUBLISHER_NAME } else { 'Webackzer' }
 $app = (Get-Content public/app/package.json -Raw | ConvertFrom-Json).version
 $ver = "$app.0"  # the Store wants 4 numbers and the last one 0
@@ -37,6 +39,7 @@ $xml = (Get-Content tools/msstore/AppxManifest.xml -Raw).
   Replace('__IDENTITY_NAME__', [Security.SecurityElement]::Escape($id)).
   Replace('__PUBLISHER__', [Security.SecurityElement]::Escape($pub)).
   Replace('__PUBLISHER_NAME__', [Security.SecurityElement]::Escape($pubName)).
+  Replace('__DISPLAY_NAME__', [Security.SecurityElement]::Escape($display)).
   Replace('__VERSION__', $ver)
 Set-Content (Join-Path $layout 'AppxManifest.xml') $xml -Encoding utf8
 

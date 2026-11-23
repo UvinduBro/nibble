@@ -8,7 +8,7 @@
   IgnorableNamespaces="uap desktop rescap">
   <Identity Name="__IDENTITY_NAME__" Publisher="__PUBLISHER__" Version="__VERSION__" ProcessorArchitecture="x64" />
   <Properties>
-    <DisplayName>Nibble</DisplayName>
+    <DisplayName>__DISPLAY_NAME__</DisplayName>
     <PublisherDisplayName>__PUBLISHER_NAME__</PublisherDisplayName>
     <Logo>assets\StoreLogo.png</Logo>
     <Description>A cute desktop pet that walks on your windows, plus friends, messages and mini games.</Description>
@@ -21,7 +21,7 @@
   </Resources>
   <Applications>
     <Application Id="Nibble" Executable="Nibble.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="Nibble" Description="Your desktop pet"
+      <uap:VisualElements DisplayName="__DISPLAY_NAME__" Description="Your desktop pet"
         BackgroundColor="transparent" Square150x150Logo="assets\Square150x150Logo.png" Square44x44Logo="assets\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="assets\Wide310x150Logo.png" ShortName="Nibble">
           <uap:ShowNameOnTiles><uap:ShowOn Tile="square150x150Logo" /><uap:ShowOn Tile="wide310x150Logo" /></uap:ShowNameOnTiles>
