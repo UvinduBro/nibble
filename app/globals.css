@@ -412,3 +412,11 @@ kbd { font-size: 12.5px; background: var(--card2); border: 1px solid rgba(255, 2
 .consent div { display: flex; gap: 8px; }
 .consent button { font: inherit; font-weight: 700; border-radius: 10px; padding: 9px 16px; cursor: pointer; border: 1px solid rgba(214, 255, 238, 0.2); background: transparent; color: #e9f3ef; }
 .consent .consent-yes { background: #7ee8c6; color: #062a1f; border-color: #7ee8c6; }
+
+/* download panel: Microsoft Store first */
+.dl-store { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 14px; background: rgba(126, 232, 198, 0.08); border: 1px solid rgba(126, 232, 198, 0.3); text-decoration: none; color: inherit; transition: border-color 0.2s; }
+.dl-store:hover { border-color: rgba(126, 232, 198, 0.7); }
+.dl-store img { height: 48px; width: auto; flex: none; }
+.dl-store span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; color: #a5bab2; line-height: 1.4; }
+.dl-store b { color: #7ee8c6; font-size: 14.5px; }
+.dl-or { margin: 4px 0 -2px; font-size: 13.5px; color: #6f857c; }

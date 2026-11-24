@@ -1209,7 +1209,7 @@ function MarketingTab({ social, state, toast }) {
             {show('bullets') && <label><span>What’s new <small>one per line</small></span><textarea rows={4} value={fields.bullets} maxLength={2000} onChange={set('bullets')} /></label>}
             <div className="ad-two">
               <label><span>Button text <small>{tpl === 'letter' ? 'optional' : ''}</small></span><input value={fields.cta} maxLength={40} onChange={set('cta')} /></label>
-              <label><span>Button link</span><input value={fields.ctaUrl} maxLength={300} onChange={set('ctaUrl')} placeholder="https://meetnibble.com/#download" /></label>
+              <label><span>Button link</span><input value={fields.ctaUrl} maxLength={300} onChange={set('ctaUrl')} placeholder="https://meetnibble.com/download" /></label>
             </div>
             <div className="ad-two">
               <label><span>Send a test to</span><input value={testTo} onChange={(e) => setTestTo(e.target.value)} inputMode="email" /></label>

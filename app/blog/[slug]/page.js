@@ -38,7 +38,7 @@ function Cta() {
         <p>A desktop pet for Windows 10/11 and macOS 12+. No ads. Your pet lands on your desktop about a minute after you download.</p>
       </div>
       <div className="bl-cta-btns">
-        <a className="lp-btn" href="/#download">Download for Windows or Mac</a>
+        <a className="lp-btn" href="/download">Download for Windows or Mac</a>
         <a className="lp-btn ghost" href="/app">Open in your browser</a>
       </div>
     </div>

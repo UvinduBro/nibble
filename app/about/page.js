@@ -18,8 +18,8 @@ export default function AboutPage() {
       ]) }} />
       <header className="lp-nav">
         <a href="/" className="lp-brand"><img src="/logo.svg" alt="" width={34} height={34} />nibble</a>
-        <nav className="lp-links" aria-label="Site"><a href="/">Home</a><a href="/#features">Features</a><a href="/#download">Download</a><a href="/about" aria-current="page">About</a><a href="/#contact">Contact</a></nav>
-        <div className="lp-nav-end"><a href="/app" className="lp-link">Sign in</a><a href="/#download" className="lp-btn sm">Download</a></div>
+        <nav className="lp-links" aria-label="Site"><a href="/">Home</a><a href="/features">Features</a><a href="/download">Download</a><a href="/about" aria-current="page">About</a><a href="/contact">Contact</a></nav>
+        <div className="lp-nav-end"><a href="/app" className="lp-link">Sign in</a><a href="/download" className="lp-btn sm">Download</a></div>
       </header>
 
       <main className="lp-aboutpage">
@@ -63,14 +63,14 @@ export default function AboutPage() {
             <h2>Say hi to Nibble.</h2>
             <p>Free for Windows and Mac. A pet lands on your desktop about a minute after you download it.</p>
             <div className="lp-cta center">
-              <a href="/#download" className="lp-btn">Download Nibble</a>
-              <a href="/#contact" className="lp-btn ghost">Contact us</a>
+              <a href="/download" className="lp-btn">Download Nibble</a>
+              <a href="/contact" className="lp-btn ghost">Contact us</a>
             </div>
           </div>
         </section>
       </main>
 
-      <footer className="lp-foot"><div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · Operated by Entryly Solutions LLC · <a href="/about">About</a> · <a href="/pricing">Pricing</a> · <a href="/refunds">Refunds</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/#contact">Contact</a></div></footer>
+      <footer className="lp-foot"><div className="lp-wrap lp-foot-base">© {new Date().getFullYear()} Nibble · Made in Colombo, Sri Lanka · Operated by Entryly Solutions LLC · <a href="/about">About</a> · <a href="/pricing">Pricing</a> · <a href="/refunds">Refunds</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/contact">Contact</a></div></footer>
     </div>
   );
 }

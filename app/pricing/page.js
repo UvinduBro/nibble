@@ -35,7 +35,7 @@ export default async function Pricing() {
       </ul>
 
       <h2>Questions</h2>
-      <p>Write to <a href={'mailto:' + SELLER.email}>{SELLER.email}</a> or use the <a href="/#contact">contact form</a>. We usually reply within 2 business days. See also the <a href="/terms">terms of use</a> and <a href="/privacy">privacy policy</a>.</p>
+      <p>Write to <a href={'mailto:' + SELLER.email}>{SELLER.email}</a> or use the <a href="/contact">contact form</a>. We usually reply within 2 business days. See also the <a href="/terms">terms of use</a> and <a href="/privacy">privacy policy</a>.</p>
       <Seller />
     </LegalPage>
   );

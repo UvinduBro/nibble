@@ -106,7 +106,7 @@ export default function InstallHelp() {
       </ul>
 
       <h2>Still stuck?</h2>
-      <p>Send us a message from the <a href="/#contact">contact form</a> or <a href="/#feedback">report a bug</a> with a screenshot of the message you see. You can also follow the <a href="/Nibble-Reinstall-Guide.pdf">reinstall guide (PDF)</a>.</p>
+      <p>Send us a message from the <a href="/contact">contact form</a> or <a href="/contact#feedback">report a bug</a> with a screenshot of the message you see. You can also follow the <a href="/Nibble-Reinstall-Guide.pdf">reinstall guide (PDF)</a>.</p>
     </LegalPage>
   );
 }

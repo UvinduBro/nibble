@@ -6,6 +6,11 @@ export default function sitemap() {
   const updated = new Date(release.date || Date.now());
   return [
     { url: `${SITE}/`, lastModified: updated, changeFrequency: 'weekly', priority: 1 },
+    { url: `${SITE}/download`, lastModified: updated, changeFrequency: 'weekly', priority: 0.95 },
+    { url: `${SITE}/features`, lastModified: updated, changeFrequency: 'monthly', priority: 0.85 },
+    { url: `${SITE}/pets`, lastModified: updated, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${SITE}/faq`, lastModified: updated, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${SITE}/contact`, lastModified: updated, changeFrequency: 'yearly', priority: 0.5 },
     { url: `${SITE}/app`, lastModified: updated, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${SITE}/pricing`, lastModified: new Date('2026-11-21'), changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE}/refunds`, lastModified: new Date('2026-11-21'), changeFrequency: 'yearly', priority: 0.3 },

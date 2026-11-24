@@ -28,8 +28,8 @@ export default function DesktopPetPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson([appLd(), howToLd(), faqLd(PAGE_QA), crumbsLd([['Desktop pet app', 'https://meetnibble.com/desktop-pet']])]) }} />
       <header className="lp-nav">
         <a href="/" className="lp-brand"><img src="/logo.svg" alt="" width={34} height={34} />nibble</a>
-        <nav className="lp-links" aria-label="Site"><a href="/">Home</a><a href="/#features">Features</a><a href="/#download">Download</a><a href="/about">About</a><a href="/#contact">Contact</a></nav>
-        <div className="lp-nav-end"><a href="/app" className="lp-link">Sign in</a><a href="/#download" className="lp-btn sm">Download</a></div>
+        <nav className="lp-links" aria-label="Site"><a href="/">Home</a><a href="/features">Features</a><a href="/download">Download</a><a href="/about">About</a><a href="/contact">Contact</a></nav>
+        <div className="lp-nav-end"><a href="/app" className="lp-link">Sign in</a><a href="/download" className="lp-btn sm">Download</a></div>
       </header>
 
       <main className="lp-aboutpage lp-dp">
@@ -42,7 +42,7 @@ export default function DesktopPetPage() {
               <p>{ONE_LINER}</p>
             </header>
             <div className="lp-cta center">
-              <a href="/#download" className="lp-btn">Download Nibble free</a>
+              <a href="/download" className="lp-btn">Download Nibble free</a>
               <a href="/app" className="lp-btn ghost">Try it in your browser</a>
             </div>
             <div className="lp-dp-pets" aria-hidden>
@@ -108,7 +108,7 @@ export default function DesktopPetPage() {
           <div className="lp-wrap">
             <h2>Get your desktop pet.</h2>
             <p>Free for Windows and Mac. A pet lands on your desktop about a minute after you download it.</p>
-            <div className="lp-cta center"><a href="/#download" className="lp-btn">Download Nibble</a><a href="/about" className="lp-btn ghost">Who makes Nibble</a></div>
+            <div className="lp-cta center"><a href="/download" className="lp-btn">Download Nibble</a><a href="/about" className="lp-btn ghost">Who makes Nibble</a></div>
           </div>
         </section>
       </main>

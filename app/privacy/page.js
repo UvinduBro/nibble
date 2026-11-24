@@ -63,7 +63,7 @@ export default function Privacy() {
       <ul>
         <li>Use “Appear offline” or “Do not disturb” in Settings to stop sharing that you’re online.</li>
         <li>Delete your account any time in the app: Settings → Delete account. It removes your profile, friends, messages, points and posts straight away (<a href="/delete-account">more about deleting</a>).</li>
-        <li>To get a copy of your data, write to us using the <a href="/#contact">contact form</a>. We’ll do it within 30 days.</li>
+        <li>To get a copy of your data, write to us using the <a href="/contact">contact form</a>. We’ll do it within 30 days.</li>
       </ul>
 
       <h2>Children</h2>
@@ -73,7 +73,7 @@ export default function Privacy() {
       <p>If we change this policy we’ll update the date at the top, and tell signed-in users about big changes in the app.</p>
 
       <h2>Contact</h2>
-      <p>Questions about privacy? Use the <a href="/#contact">contact form</a> or email <a href={'mailto:' + SELLER.email}>{SELLER.email}</a>. {SELLER.name}, {SELLER.address}.</p>
+      <p>Questions about privacy? Use the <a href="/contact">contact form</a> or email <a href={'mailto:' + SELLER.email}>{SELLER.email}</a>. {SELLER.name}, {SELLER.address}.</p>
     </LegalPage>
   );
 }

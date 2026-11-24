@@ -11,7 +11,7 @@ export function GET() {
 
 Also known as: ${ALT_NAMES.join(', ')}.
 Website: ${SITE}
-Download: ${SITE}/#download (Windows: Get-Nibble.exe; Mac: Nibble.dmg)
+Download: ${SITE}/download (Windows: Get-Nibble.exe; Mac: Nibble.dmg)
 Price: free, no ads. Optional Nibble Premium subscription with a few extras (${SITE}/pricing); cancel any time, full refund within ${REFUND_DAYS} days of any payment. Sold by ${SELLER.name}.
 Platforms: ${PLATFORMS}
 Latest version: ${VERSION}${RELEASED ? ` (released ${RELEASED})` : ''}

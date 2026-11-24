@@ -56,7 +56,7 @@ database. No custom backend server besides Next.js route handlers.
 
 | Path | What it is |
 |---|---|
-| `app/page.js` | Home / landing page (server component; fetches approved reviews) |
+| `app/page.js` | Home: keyword hero (`Free desktop pet for Windows and Mac`), Microsoft Store + Mac badges, tour cards, pillars, reviews, pricing, blog, CTA. Sections live in `components/landing/HomeParts.js` (shared with `/features`, `/pets`, `/download`, `/faq`, `/contact`); old `/#section` links redirect (`OldAnchors.js`) |
 | `app/app/` | Web app: Nibble Social in the browser (`SocialApp mode="web"`) |
 | `app/hub/` | Same app loaded inside the desktop Hub window (`mode="desktop"`) |
 | `app/m/` | Same app inside the **phone app** (`mode="mobile"`, `window.nibbleMobile` bridge from `lib/mobileBridge.js`) |
@@ -312,6 +312,12 @@ caller's Firebase ID token with `lib/adminAuth.js` (reads `admins/{uid}` with th
 ## 9. Changelog
 
 Newest first. Add an entry for every piece of work.
+
+- **2026-11-24** Nibble is live on the **Microsoft Store** (`MS_STORE` in `lib/facts.js`, listed as "Meet Nibble" by Webackzer;
+  package identity in `tools/msstore/build.ps1`). Official Store badge + a Mac badge (`StoreBadges.js`) in the hero, on
+  `/download`, in the final CTA, and "Recommended" in the download panel's Windows tab. Home split into pages:
+  `/features`, `/pets`, `/download`, `/faq` (FAQPage JSON-LD), `/contact`; home keeps a short tour. Nav links pages,
+  `/#…` links site-wide now point at the pages, old anchors redirect. SEO entries for the new pages + sitemap.
 
 - **2026-11-23** Blog + home pricing + SEO. `/blog` with 7 articles (what is a desktop pet, Shimeji alternative,
   walks on windows, friends/groups/Tea Room, Listen Together, 14 mini games + points, customize) illustrated with real

@@ -55,7 +55,7 @@ export default function Terms() {
       <p>These terms are governed by the laws of the State of Missouri, USA. This doesn’t take away any rights you have under the consumer laws of the country you live in.</p>
 
       <h2>Contact</h2>
-      <p>Questions? Use the <a href="/#contact">contact form</a> or email <a href={'mailto:' + SELLER.email}>{SELLER.email}</a>.</p>
+      <p>Questions? Use the <a href="/contact">contact form</a> or email <a href={'mailto:' + SELLER.email}>{SELLER.email}</a>.</p>
       <Seller />
     </LegalPage>
   );

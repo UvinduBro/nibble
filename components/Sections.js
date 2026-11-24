@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import PetFigure, { useNibble } from './PetFigure';
 import release from '../public/version.json';
+import { MS_STORE } from '../lib/facts';
 
 const FEATURES = [
   { mood: 'walk', skin: 'ocean', t: 'Walks on every window', d: 'Window tops become platforms. It only uses the visible parts, skips anything covered by another window, and hops between them.' },
@@ -99,6 +100,11 @@ export function Download() {
         </div>
         {os === 'win' ? (
           <div className="dl-cta">
+            <a className="dl-store" href={MS_STORE} target="_blank" rel="noopener">
+              <img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" width={176} height={52} />
+              <span><b>Recommended</b>Installs and updates through the Microsoft Store. No security warnings.</span>
+            </a>
+            <p className="dl-or">or download the installer directly</p>
             <a className="btn big" href="/Get-Nibble.exe" download="Get-Nibble.exe">⬇ Download Nibble {release.version} (.exe)</a>
             <p className="dl-meta">Windows 10 / 11 · 64-bit · installer + ~110 MB runtime · free</p>
             <div className="cmd">

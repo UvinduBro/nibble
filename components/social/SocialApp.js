@@ -1519,7 +1519,7 @@ export default function SocialApp({ mode = 'web' }) {
           </nav>
           <div className="sa-side-foot">
             {state.admin && <a href="/admin" style={{ display: 'block', marginBottom: 6 }}>⚙️ Admin panel</a>}
-            {isDesk ? `Nibble ${local?.version || ''}` : isMob ? `Nibble app ${mobile ? mobile.appVersion : ''}` : <a href="/#download">Get the desktop app →</a>}
+            {isDesk ? `Nibble ${local?.version || ''}` : isMob ? `Nibble app ${mobile ? mobile.appVersion : ''}` : <a href="/download">Get the desktop app →</a>}
           </div>
         </aside>
       )}

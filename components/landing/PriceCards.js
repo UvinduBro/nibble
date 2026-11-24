@@ -12,7 +12,7 @@ export function planView(plan) {
   return { shown, live: onSale.length > 0, feats: (plan.features || []).filter((f) => f.on !== false) };
 }
 
-export default function PriceCards({ plan, freeCta = '/#download', buyCta = '/app?tab=premium' }) {
+export default function PriceCards({ plan, freeCta = '/download', buyCta = '/app?tab=premium' }) {
   const { shown, live, feats } = planView(plan);
   return (
     <div className="lp-price-grid">

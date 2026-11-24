@@ -16,7 +16,7 @@ export default function Refunds() {
       <p>If you’re not happy, you get a <b>full refund within {REFUND_DAYS} days of any Premium payment</b>, the first one or a renewal. You don’t need to give a reason.</p>
       <h3>How to ask</h3>
       <ol>
-        <li>Email <a href={'mailto:' + SELLER.email}>{SELLER.email}</a> or use the <a href="/#contact">contact form</a>.</li>
+        <li>Email <a href={'mailto:' + SELLER.email}>{SELLER.email}</a> or use the <a href="/contact">contact form</a>.</li>
         <li>Include your Nibble <b>@username</b> and the email address you paid with.</li>
         <li>We reply within 2 business days. The money goes back to the card or wallet you paid with, usually within 5–10 business days (your bank decides the exact timing).</li>
       </ol>
