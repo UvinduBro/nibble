@@ -8,7 +8,7 @@ export default function BlogFrame({ children }) {
     <div className="lp bl" data-theme="dark">
       <header className="lp-nav">
         <a href="/" className="lp-brand"><img src="/logo.svg" alt="" width={34} height={34} />nibble</a>
-        <nav className="lp-links" aria-label="Site"><a href="/">Home</a><a href="/features">Features</a><a href="/blog" aria-current="page">Blog</a><a href="/pricing">Pricing</a><a href="/download">Download</a></nav>
+        <nav className="lp-links" aria-label="Site"><a href="/">Home</a><a href="/features">Features</a><a href="/blog" aria-current="page">Blog</a><a href="/pricing">Pricing</a><a href="/about">About</a><a href="/download">Download</a></nav>
         <div className="lp-nav-end"><a href="/app" className="lp-link">Sign in</a><a href="/download" className="lp-btn sm">Download</a></div>
       </header>
       {children}

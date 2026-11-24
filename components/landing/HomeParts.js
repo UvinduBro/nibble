@@ -82,7 +82,7 @@ export const STEPS = [
   ['Bring your friends', 'Add friends by username. Their pets visit your screen, and you can message, play and listen to music together.'],
 ];
 
-export const NAV = [['/features', 'Features'], ['/pets', 'Pets'], ['/pricing', 'Pricing'], ['/blog', 'Blog'], ['/download', 'Download'], ['/faq', 'FAQ'], ['/contact', 'Contact']];
+export const NAV = [['/features', 'Features'], ['/pets', 'Pets'], ['/pricing', 'Pricing'], ['/blog', 'Blog'], ['/about', 'About'], ['/faq', 'FAQ'], ['/contact', 'Contact']];
 
 export function HubMock() {
   return (

@@ -445,3 +445,8 @@ Newest first. Add an entry for every piece of work.
   shop/gifts, people on your network, Mac app + dmg CI, branded Windows runtime, leaderboard,
   music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
   tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
+
+### 2026-11-24 Cute home, About in nav, Google Tag Manager
+- Home (app/page.js) redesigned: pastel blobs + a little desktop stage with pets on window title bars, a crew row, pastel sticker tour cards, a "Meet the makers" card linking /about. Blog section removed from home (tour already links the posts). Styles: hc-* at the end of app/landing.css.
+- About added to NAV (HomeParts) and BlogFrame nav.
+- Analytics.js now loads GTM-MD7276HC (env NEXT_PUBLIC_GTM_ID overrides) after the cookie banner OK; track() pushes {event,...} to dataLayer; SPA page_view pushed on route change. Skips /hub /admin /link /m. GA4 itself is configured inside the GTM container (owner adds a Google tag with the G- id and publishes).
