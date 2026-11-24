@@ -446,6 +446,11 @@ Newest first. Add an entry for every piece of work.
   music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
   tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
 
+### 2026-11-24 Home v3: pets around the hero, one scene per feature
+- app/page.js rebuilt: hero ringed by 8 animated pets (RING; on phones a row of 4 above the headline), direct lead copy + facts chips.
+- Feature rows (Row component), each with a live HTML scene: desktop (pet walking a window, one napping), friends (two mini screens with a chat log, visiting pet with name tag, wave/hug/poke/whisper/high-five chips), music room player with dancing pets, games grid with +20 points, reminders list with a pet saying "time to stretch", looks (LOOKS outfits + colour swatches). Then makers card → /about, reviews, pricing, final.
+- Styles: hx-* in app/landing.css (replaced hc-* tour/stage/crew). Copy rule: plain, direct sentences; only claims that are true in the app.
+
 ### 2026-11-24 Cute home, About in nav, Google Tag Manager
 - Home (app/page.js) redesigned: pastel blobs + a little desktop stage with pets on window title bars, a crew row, pastel sticker tour cards, a "Meet the makers" card linking /about. Blog section removed from home (tour already links the posts). Styles: hc-* at the end of app/landing.css.
 - About added to NAV (HomeParts) and BlogFrame nav.
