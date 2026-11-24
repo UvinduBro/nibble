@@ -100,7 +100,7 @@ export function Download() {
         </div>
         {os === 'win' ? (
           <div className="dl-cta">
-            <a className="dl-store" href={MS_STORE} target="_blank" rel="noopener">
+            <a className="dl-store" href={MS_STORE + "?mode=direct"} target="_blank" rel="noopener">
               <img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" width={176} height={52} />
               <span><b>Recommended</b>Installs and updates through the Microsoft Store. No security warnings.</span>
             </a>

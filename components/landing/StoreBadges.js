@@ -7,7 +7,7 @@ export default function StoreBadges({ center, direct = true }) {
   return (
     <div className={'lp-badges' + (center ? ' center' : '')}>
       <div className="lp-badge-row">
-        <a className="lp-badge ms" href={MS_STORE} target="_blank" rel="noopener" aria-label="Get Nibble from the Microsoft Store">
+        <a className="lp-badge ms" href={MS_STORE + "?mode=direct"} target="_blank" rel="noopener" aria-label="Get Nibble from the Microsoft Store">
           <img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" width={176} height={52} />
         </a>
         <a className="lp-badge mac" href="/Nibble.dmg" aria-label="Download Nibble for Mac">
