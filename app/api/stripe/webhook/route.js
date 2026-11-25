@@ -9,6 +9,7 @@
 // 6. Two subscriptions for one person (paid in two tabs at once): the newer one is cancelled and refunded.
 import { verifyEvent, getStripe, syncSubscription, uidOfCustomer, subOfCharge, isLive, ACTIVE, subUid, UID_RE } from '../../../../lib/billing';
 import { fsCreate, fsGet, fsSet, fsDelete, fsQuery } from '../../../../lib/gcp';
+import { alertPremium, alertRenewal } from '../../../../lib/teamAlerts';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -100,6 +101,11 @@ async function handle(ev) {
       if (o.mode !== 'subscription') return uid;
       await syncById(idOf(o.subscription));
       if (o.customer) await dropDuplicates(uid, idOf(o.customer));
+      await tellTeam(async () => {
+        // a duplicate that was just cancelled + refunded isn't a sale
+        const sub = await stripe.subscriptions.retrieve(idOf(o.subscription));
+        if (ACTIVE.includes(sub.status)) await alertPremium({ session: o, sub, uid });
+      });
       return uid;
     }
     case 'checkout.session.expired': {
@@ -112,8 +118,14 @@ async function handle(ev) {
     case 'customer.subscription.created': case 'customer.subscription.updated': case 'customer.subscription.deleted':
     case 'customer.subscription.paused': case 'customer.subscription.resumed': case 'customer.subscription.trial_will_end':
       return syncById(o.id);
-    case 'invoice.paid':
-      return syncById(subOfInvoice(o), { action: '' });
+    case 'invoice.paid': {
+      const uid = await syncById(subOfInvoice(o), { action: '' });
+      // renewals only (the first payment is announced by checkout.session.completed)
+      if (uid && o.billing_reason === 'subscription_cycle') {
+        await tellTeam(async () => alertRenewal({ invoice: o, sub: await stripe.subscriptions.retrieve(subOfInvoice(o)), uid }));
+      }
+      return uid;
+    }
     case 'invoice.payment_failed':
       return syncById(subOfInvoice(o));
     case 'invoice.payment_action_required': // 3-D Secure on a renewal: the app asks them to confirm
@@ -167,6 +179,11 @@ async function handle(ev) {
     default:
       return '';
   }
+}
+
+// email the team (lib/teamAlerts.js); never lets an alert fail the webhook
+async function tellTeam(fn) {
+  try { await fn(); } catch (e) { console.error('team alert skipped:', e && e.message); }
 }
 
 // keep billingEvents small: now and then delete a few older than 90 days

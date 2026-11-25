@@ -137,6 +137,7 @@ export function Onboard({ social, state, initialSkin }) {
     try {
       await social.claimUsername(clean, { skin, petName: petName || byKey[skin]?.name || 'Nibble' });
       social.saveSignup(sq).catch(() => {}); // never blocks getting in
+      if (social.announceJoined) social.announceJoined(sq).catch(() => {}); // team alert email, never blocks either
       track('sign_up', { source: sq.source, country: sq.country });
     }
     catch (x) { setErr(niceError(x)); }
