@@ -252,7 +252,7 @@ Names only; never commit or print values.
 (secret salt for `/api/netid` and the hashed network id in Stripe metadata), `STRIPE_SECRET_KEY` (a restricted
 `rk_` key is preferred), `STRIPE_WEBHOOK_SECRET` (may hold `new,old` while rotating),
 `GCP_USAGE_KEY` (service-account JSON; also used for server Firestore writes unless
-`FIREBASE_ADMIN_KEY` is set), `TEA_SALT` (optional; secret for Tea Room masks, falls back to `NET_SALT`), `ALERT_TO` (optional; team alert recipients, comma-separated, default `CONTACT_TO` / hello@meetnibble.com), `TEAM_ALERTS` (optional; `off` stops them), `NEXT_PUBLIC_GSC_VERIFY` (optional). (`BILLING_KEY` is no longer
+`FIREBASE_ADMIN_KEY` is set), `TEA_SALT` (optional; secret for Tea Room masks, falls back to `NET_SALT`), `NEXT_PUBLIC_GSC_VERIFY` (optional). (`BILLING_KEY` is no longer
 used and can be deleted.) Firebase web config in `lib/social/config.js` is public.
 
 ## 6. API routes (all in `app/api/`)
@@ -450,7 +450,7 @@ Newest first. Add an entry for every piece of work.
 - `lib/teamAlerts.js` + `teamAlertEmail()` in `lib/emailTemplates.js` (flyer look, card layout: badge, headline, big number, facts table, button; no unsubscribe footer). Sent from "Nibble alerts <no-reply@…>" via `lib/mail.js`; each alert claimed once in `teamAlerts/{id}` (claim removed if the send fails so Stripe retries can resend).
 - 🎉 New member: `Auth.js` onboarding → `social.announceJoined()` → `POST /api/notify/joined` (token checked with `accountOf`, only accounts < 2 h old with a username, once per uid). Shows username, name, email, provider, how they found Nibble, country, IP location, uses, client, member number (`fsCount('users')`). Reply-to = their email when verified.
 - 💎 Premium: Stripe webhook `checkout.session.completed` (skipped if the subscription was a cancelled duplicate) → purchase / trial-started alert with amount, discount, package, billing country, risk notes, Premium member count, Stripe links. 🔁 `invoice.paid` with `billing_reason = subscription_cycle` → renewal / trial→paid alert. Test-mode payments are tagged [TEST].
-- `lib/gcp.js fsCount()` (aggregation count). Env `ALERT_TO`, `TEAM_ALERTS=off`. No rules change. Not tested live (Resend/Stripe/Firebase unreachable from the sandbox); templates rendered with sample data.
+- `lib/gcp.js fsCount()` (aggregation count). Always to hello@meetnibble.com (`TEAM_INBOX`), no env needed. No rules change. Published to `main`. Not tested live (Resend/Stripe/Firebase unreachable from the sandbox); templates rendered with sample data.
 
 ### 2026-11-25 Home on phones
 - Hero on phones: 8 pets (3 on top, 2 beside the headline, 3 on a ground line under the chips) via per-pet phone spots in RING (--mx/--mt/--mb); canvases resized with CSS. Pill hides the version on phones.
