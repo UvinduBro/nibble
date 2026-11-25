@@ -446,6 +446,11 @@ Newest first. Add an entry for every piece of work.
   music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
   tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
 
+### 2026-11-25 Home on phones
+- Hero on phones: 8 pets (3 on top, 2 beside the headline, 3 on a ground line under the chips) via per-pet phone spots in RING (--mx/--mt/--mb); canvases resized with CSS. Pill hides the version on phones.
+- Store badges: centered row that never wraps on phones (44px high). Final download box wider on phones.
+- Footer on phones: centered brand, 3 link columns, newsletter as a card with a full-width button, centered base line.
+
 ### 2026-11-24 Home v3: pets around the hero, one scene per feature
 - app/page.js rebuilt: hero ringed by 8 animated pets (RING; on phones a row of 4 above the headline), direct lead copy + facts chips.
 - Feature rows (Row component), each with a live HTML scene: desktop (pet walking a window, one napping), friends (two mini screens with a chat log, visiting pet with name tag, wave/hug/poke/whisper/high-five chips), music room player with dancing pets, games grid with +20 points, reminders list with a pet saying "time to stretch", looks (LOOKS outfits + colour swatches). Then makers card → /about, reviews, pricing, final.

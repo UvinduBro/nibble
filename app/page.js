@@ -10,17 +10,23 @@ import './landing.css';
 
 // Home: hero ringed by pets, then one row per feature, each with a small scene that shows it working.
 
-// pets around the hero: [skin, mood, left %, top px, size, bubble, hide on phone]
+// pets around the hero: [skin, mood, left %, top px, size, bubble, phone spot]
+// phone spots: [left %, top px] or [left %, 'b' + px from the bottom]; null = desktop only
 const RING = [
-  ['mint', 'idle', 6, 70, 1, 'hi there!', false],
-  ['mojo', 'jump', 88, 60, 0.95, '', false],
-  ['hikari', 'flip', 15, 330, 0.85, '', true],
-  ['yuki', 'sit', 86, 380, 0.9, 'pet me 🐾', true],
-  ['kumo', 'walk', 3, 520, 0.8, '', true],
-  ['peach', 'sit', 92, 500, 0.8, '', true],
-  ['volt', 'jump', 26, 610, 0.75, '', false],
-  ['goldie', 'idle', 70, 615, 0.75, '', false],
+  ['mint', 'idle', 6, 70, 1, 'hi there!', [50, 6]],
+  ['mojo', 'jump', 88, 60, 0.95, '', [12, 30]],
+  ['hikari', 'flip', 15, 330, 0.85, '', [88, 24]],
+  ['yuki', 'sit', 86, 380, 0.9, 'pet me 🐾', [11, 212]],
+  ['kumo', 'walk', 3, 520, 0.8, '', [89, 318]],
+  ['peach', 'sit', 92, 500, 0.8, '', [20, 'b8']],
+  ['volt', 'jump', 26, 610, 0.75, '', [50, 'b14']],
+  ['goldie', 'idle', 70, 615, 0.75, '', [80, 'b8']],
 ];
+const phoneSpot = (m) => {
+  if (!m) return {};
+  const [x, y] = m;
+  return typeof y === 'string' ? { '--mx': `${x}%`, '--mb': `${y.slice(1)}px`, '--mt': 'auto' } : { '--mx': `${x}%`, '--mt': `${y}px`, '--mb': 'auto' };
+};
 
 function Tick({ children }) { return <li><span aria-hidden>✓</span>{children}</li>; }
 
@@ -62,15 +68,15 @@ export default async function Home() {
       <section className="hx-hero">
         <div className="hx-glow" aria-hidden />
         <div className="hx-ring" aria-hidden>
-          {RING.map(([skin, mood, x, y, s, say, hide], i) => (
-            <span key={skin} className={'hx-ring-pet' + (hide ? ' hide-sm' : '')} style={{ left: `${x}%`, top: y, '--i': i }}>
+          {RING.map(([skin, mood, x, y, s, say, m], i) => (
+            <span key={skin} className={'hx-ring-pet' + (m ? '' : ' hide-sm') + (i === 3 || i === 4 ? ' side' : '')} style={{ '--x': `${x}%`, '--y': `${y}px`, ...phoneSpot(m), '--i': i }}>
               {say && <em>{say}</em>}
               <PetFigure skin={skin} mood={mood} w={Math.round(150 * s)} h={Math.round(140 * s)} size={s * 1.4} />
             </span>
           ))}
         </div>
         <div className="lp-wrap hx-hero-in">
-          <a href="/download" className="lp-pill"><span className="chip is-new">New</span>Now on the Microsoft Store · v{release.version}</a>
+          <a href="/download" className="lp-pill"><span className="chip is-new">New</span>Now on the Microsoft Store<span className="pv"> · v{release.version}</span></a>
           <Rise text="Free desktop pet for Windows and Mac" />
           <p className="hx-lead rise-sub">A cute pet lives on your screen and keeps you company. Add your friends and your pets can talk, hug and listen to music together.</p>
           <div className="rise-sub"><StoreBadges center /></div>

@@ -452,7 +452,8 @@ body:has(.lp[data-theme='light']) { background: #f4f8f6; }
 
 /* download badges (components/landing/StoreBadges.js) */
 .lp-badges { display: flex; flex-direction: column; gap: 12px; margin-top: 30px; }
-.lp-badges.center { align-items: center; }
+.lp-badges.center { align-items: center; text-align: center; }
+.lp-badges.center .lp-badge-row { justify-content: center; }
 .lp-badge-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .lp-badge { display: inline-flex; align-items: center; height: 52px; border-radius: 10px; transition: transform 0.15s, box-shadow 0.15s; }
 .lp-badge:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); }
@@ -486,7 +487,7 @@ body:has(.lp[data-theme='light']) { background: #f4f8f6; }
               radial-gradient(closest-side at 80% 28%, color-mix(in srgb, var(--c-pink) 20%, transparent), transparent),
               radial-gradient(closest-side at 50% 88%, color-mix(in srgb, var(--c-lav) 20%, transparent), transparent); }
 .hx-ring { position: absolute; inset: 0; max-width: 1360px; margin: 0 auto; pointer-events: none; }
-.hx-ring-pet { position: absolute; display: flex; flex-direction: column; align-items: center; transform: translateX(-50%); animation: hc-bob 3.4s ease-in-out infinite; animation-delay: calc(var(--i) * -0.45s); }
+.hx-ring-pet { position: absolute; left: var(--x); top: var(--y); display: flex; flex-direction: column; align-items: center; transform: translateX(-50%); animation: hc-bob 3.4s ease-in-out infinite; animation-delay: calc(var(--i) * -0.45s); }
 .hx-ring-pet em { font-style: normal; font: 700 14px/1 var(--body); background: #fff; color: #1d2a25; padding: 8px 13px; border-radius: 14px 14px 14px 4px; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22); margin-bottom: 2px; white-space: nowrap; }
 .hx-hero-in { position: relative; text-align: center; display: flex; flex-direction: column; align-items: center; }
 .hx-hero-in h1 { font: 700 clamp(44px, 7.4vw, 92px)/0.98 var(--display); letter-spacing: -0.045em; margin: 26px auto 0; max-width: 11em; text-wrap: balance; }
@@ -612,10 +613,39 @@ body:has(.lp[data-theme='light']) { background: #f4f8f6; }
   .hx-row { padding: 48px 0; }
 }
 @media (max-width: 760px) {
-  .hx-hero { min-height: 0; padding: 28px 0 64px; }
-  .hx-ring { position: relative; display: flex; justify-content: center; margin-bottom: 4px; zoom: 0.66; }
-  .hx-ring-pet { position: relative; left: auto !important; top: auto !important; transform: none; animation-name: hx-bob2; }
-  .hx-ring-pet.hide-sm, .hx-ring-pet em { display: none; }
+  .hx-hero { min-height: 0; padding: 128px 0 128px; }
+  .hx-ring-pet { left: var(--mx); top: var(--mt); bottom: var(--mb); }
+  .hx-ring-pet canvas { width: 88px !important; height: 82px !important; }
+  .hx-ring-pet.hide-sm { display: none; }
+  .hx-ring-pet em { font-size: 12.5px; padding: 6px 10px; }
+  .hx-ring-pet.side canvas { width: 72px !important; height: 67px !important; }
+  .hx-ring::after { content: ''; position: absolute; left: 6%; right: 6%; bottom: 8px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--line-2), transparent); }
+  .hx-hero-in h1 { margin-top: 20px; }
+  .lp-badge-row { gap: 8px; flex-wrap: nowrap; }
+  .lp-badge.ms img, .lp-badge { height: 44px; }
+  .lp-badge.mac { padding: 0 14px 0 11px; gap: 8px; }
+  .lp-badge.mac svg { width: 22px; height: 22px; }
+  .lp-badge.mac small { font-size: 10px; }
+  .lp-badge.mac b { font-size: 18px; }
+  .hx-hero .lp-pill .pv { display: none; }
+  .hx-facts li { font-size: 13px; padding: 6px 11px; }
+  .hx-ring-pet.side em { display: none; }
+  .lp-badge-direct { text-align: center; line-height: 1.7; }
+  /* footer on phones */
+  .lp-foot { padding: 40px 0 26px; }
+  .lp-foot-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 10px; text-align: center; }
+  .lp-foot-grid > div:first-child { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; }
+  .lp-foot-grid > div:first-child p { font-size: 14.5px; }
+  .lp-foot nav { align-items: center; gap: 11px; font-size: 14px; }
+  .lp-foot nav b { font-size: 13px; letter-spacing: 0.02em; color: var(--ink-3); }
+  .lp-news { justify-self: stretch; max-width: none; padding: 18px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); text-align: left; }
+  .lp-final .lp-wrap { width: auto; max-width: none; margin-inline: 12px; padding: 40px 10px 44px; }
+  .lp-final .lp-badge-direct { font-size: 14px; margin-top: 4px; }
+  .lp-badge.mac span { white-space: nowrap; }
+  .lp-news { min-width: 0; }
+  .lp-news-row { flex-direction: column; }
+  .lp-news .lp-btn { width: 100%; }
+  .lp-foot-base { margin-top: 28px; text-align: center; font-size: 12.5px; line-height: 1.9; }
   .hx-scene { padding: 20px 14px; min-height: 0; }
   .hx-chat { flex-direction: column; }
   .hx-wire { width: auto; height: 30px; transform: rotate(90deg); }
