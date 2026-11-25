@@ -1,6 +1,7 @@
 import PetFigure from '../components/PetFigure';
 import StoreBadges from '../components/landing/StoreBadges';
 import OldAnchors from '../components/landing/OldAnchors';
+import ProductHuntBadge from '../components/landing/ProductHuntBadge';
 import { SitePage, Rise, Reviews, PricingSection, FinalSection, LOOKS, GAMES, jsonLd } from '../components/landing/HomeParts';
 import { approvedReviews } from '../lib/reviews';
 import { getPlan } from '../lib/billing';
@@ -83,6 +84,7 @@ export default async function Home() {
           <ul className="hx-facts rise-sub">
             <li>Free forever</li><li>No ads</li><li>Windows 10 & 11, macOS</li>
           </ul>
+          <div className="rise-sub hx-ph"><ProductHuntBadge width={220} /></div>
         </div>
       </section>
 

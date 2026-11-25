@@ -446,6 +446,9 @@ Newest first. Add an entry for every piece of work.
   music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
   tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
 
+### 2026-11-25 Product Hunt badge
+- components/landing/ProductHuntBadge.js (Product Hunt's featured embed, post_id 1330108, light theme): in the home hero under the facts chips, and in the footer brand block on every page.
+
 ### 2026-11-25 Team alert emails to hello@meetnibble.com
 - `lib/teamAlerts.js` + `teamAlertEmail()` in `lib/emailTemplates.js` (flyer look, card layout: badge, headline, big number, facts table, button; no unsubscribe footer). Sent from "Nibble alerts <no-reply@…>" via `lib/mail.js`; each alert claimed once in `teamAlerts/{id}` (claim removed if the send fails so Stripe retries can resend).
 - 🎉 New member: `Auth.js` onboarding → `social.announceJoined()` → `POST /api/notify/joined` (token checked with `accountOf`, only accounts < 2 h old with a username, once per uid). Shows username, name, email, provider, how they found Nibble, country, IP location, uses, client, member number (`fsCount('users')`). Reply-to = their email when verified.

@@ -13,6 +13,7 @@ import release from '../../public/version.json';
 import { orgLd, appLd, siteLd, faqLd, howToLd, ldJson, SELLER, REFUND_DAYS, MS_STORE } from '../../lib/facts';
 import { getPlan } from '../../lib/billing';
 import { buyable } from '../../lib/premium';
+import ProductHuntBadge from './ProductHuntBadge';
 import StoreBadges from './StoreBadges';
 import PriceCards from './PriceCards';
 import { POSTS, readingMinutes } from '../../lib/blog';
@@ -453,6 +454,7 @@ export function SiteFooter() {
         <div>
           <a href="/" className="lp-brand"><img src="/logo.svg" alt="" width={30} height={30} />nibble</a>
           <p>A desktop pet that walks on your windows, visits your friends and plays music with you. Developed by Uvindu Rajapakshe in Sri Lanka.</p>
+          <ProductHuntBadge width={200} />
         </div>
         <nav aria-label="Product"><b>Product</b><a href="/download">Download</a><a href={MS_STORE} target="_blank" rel="noopener">Microsoft Store</a><a href="/blog">Blog</a><a href="/desktop-pet">Desktop pet app</a><a href="/app">Web app</a><a href="/features">Features</a><a href="/pets">Pets</a></nav>
         <nav aria-label="Help"><b>Help</b><a href="/faq">FAQ</a><a href="/contact#feedback">Report a bug</a><a href="/contact#feedback">Suggest a feature</a><a href="/install-help">Install help</a><a href="/Nibble-Reinstall-Guide.pdf">Reinstall guide</a><a href="/version.json">Release notes</a></nav>
