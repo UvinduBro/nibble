@@ -1367,7 +1367,7 @@ export default function SocialApp({ mode = 'web' }) {
       const was = groupNotified.current[g.id];
       groupNotified.current[g.id] = g.chatAt;
       if (was === undefined || !g.unreadChat || g.chatAt <= was) continue;
-      if (notifier && notifier.notify && tab !== 'groups') notifier.notify({ title: `${g.emoji} ${g.name}`, body: `@${g.chatBy} wrote in the group chat`, tab: 'groups' });
+      if (notifier && notifier.notify && tab !== 'groups') notifier.notify({ title: `${g.emoji} ${g.name}`, body: g.mentionedMe ? `@${g.chatBy} mentioned you` : `@${g.chatBy} wrote in the group chat`, tab: 'groups' });
     }
   }, [state.groups, notifier, tab]);
 

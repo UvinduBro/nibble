@@ -222,7 +222,8 @@ service cloud.firestore {
     function myName() { return get(/databases/$(database)/documents/users/$(me())).data.username; }
     function changed() { return incoming().diff(resource.data).affectedKeys(); }
     function groupBase() {
-      return incoming().keys().hasOnly(['owner', 'name', 'emoji', 'members', 'invited', 'names', 'at', 'updatedAt', 'chatAt', 'chatBy', 'teaAt'])
+      return incoming().keys().hasOnly(['owner', 'name', 'emoji', 'members', 'invited', 'names', 'at', 'updatedAt', 'chatAt', 'chatBy', 'chatTo', 'teaAt'])
+        && (!('chatTo' in incoming()) || (incoming().chatTo is list && incoming().chatTo.size() <= 20))
         && incoming().name is string && incoming().name.size() >= 1 && incoming().name.size() <= 30
         && shortText(incoming().emoji, 8)
         && incoming().members is list && incoming().members.size() >= 1 && incoming().members.size() <= 20
@@ -271,7 +272,8 @@ service cloud.firestore {
           || (me() in resource.data.members && me() != resource.data.owner && changed().hasOnly(['members', 'updatedAt'])
             && incoming().members == resource.data.members.removeAll([me()]))
           // a new group chat message (the badge for everyone else)
-          || (me() in resource.data.members && changed().hasOnly(['chatAt', 'chatBy', 'updatedAt'])
+          // (chatTo = the members that message @mentions)
+          || (me() in resource.data.members && changed().hasOnly(['chatAt', 'chatBy', 'chatTo', 'updatedAt'])
             && incoming().chatAt == request.time && incoming().chatBy == myName())
           // owner: rename, take people out, cancel invites (lists only shrink)
           || (me() == resource.data.owner && changed().hasOnly(['name', 'emoji', 'members', 'invited', 'updatedAt'])
@@ -285,8 +287,9 @@ service cloud.firestore {
         function grp() { return get(/databases/$(database)/documents/groups/$(gid)).data; }
         allow read: if signedIn() && me() in grp().members;
         allow create: if signedIn() && !isBanned() && me() in grp().members
-          && incoming().keys().hasOnly(['from', 'fromName', 'text', 'at', 'exp', 're'])
+          && incoming().keys().hasOnly(['from', 'fromName', 'text', 'at', 'exp', 're', 'to'])
           && okReply(incoming())
+          && (!('to' in incoming()) || (incoming().to is list && incoming().to.size() <= 20))
           && incoming().from == me() && incoming().fromName == myName()
           && incoming().text is string && incoming().text.size() >= 1 && incoming().text.size() <= 200
           && incoming().at == request.time

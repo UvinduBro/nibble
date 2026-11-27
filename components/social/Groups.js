@@ -8,7 +8,7 @@ import { ChatReact } from './Reactions';
 import { ReplyBtn, Quote, ReplyBar } from './Reply';
 import { countReactions } from '../../lib/reactions';
 import { niceError } from '../../lib/social/social';
-import { GROUP_EMOJIS, MAX_GROUP_MSG, MAX_GROUP_NAME, MAX_MEMBERS, MAX_GROUPS } from '../../lib/social/groups';
+import { GROUP_EMOJIS, MAX_GROUP_MSG, MAX_GROUP_NAME, MAX_MEMBERS, MAX_GROUPS, MENTION_RE } from '../../lib/social/groups';
 
 const ago = (t) => {
   if (!t) return '';
@@ -69,12 +69,60 @@ function NewGroup({ social, state, toast, onDone }) {
   );
 }
 
+// message text with @mentions highlighted (yours stand out)
+function Rich({ text, myName }) {
+  const out = [];
+  let last = 0;
+  for (const m of String(text).matchAll(MENTION_RE)) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const n = m[1].toLowerCase();
+    out.push(<span key={m.index} className={'gr-at' + (n === 'everyone' || n === myName ? ' me' : '')}>{m[0]}</span>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
 function Chat({ social, state, g, toast }) {
   const [msgs, setMsgs] = useState(undefined);
   const [t, setT] = useState('');
   const [re, setRe] = useState(null);
   const box = useRef(null);
   const input = useRef(null);
+  // @mention picker: opens while you type "@" + the start of a name
+  const [caret, setCaret] = useState(0);
+  const [pickI, setPickI] = useState(0);
+  const [closed, setClosed] = useState(false);
+  const myName = String((state.profile && state.profile.username) || '').toLowerCase();
+  const people = [...g.members.filter((u) => u !== state.user.uid).map((u) => ({ uid: u, name: g.names[u] || '' })).filter((p) => p.name),
+    ...(g.members.length > 2 ? [{ uid: '*', name: 'everyone', hint: 'everyone in the group' }] : [])];
+  const at = /(^|\s)@([a-z0-9_]{0,20})$/i.exec(t.slice(0, caret));
+  const picks = at && !closed ? people.filter((p) => p.name.toLowerCase().startsWith(at[2].toLowerCase())).slice(0, 6) : [];
+  const pick = (p) => {
+    const start = caret - at[2].length;
+    const next = t.slice(0, start) + p.name + ' ' + t.slice(caret);
+    const pos = start + p.name.length + 1;
+    setT(next); setCaret(pos); setPickI(0);
+    requestAnimationFrame(() => { if (input.current) { input.current.focus(); input.current.setSelectionRange(pos, pos); } });
+  };
+  const addAt = () => {
+    const el = input.current;
+    const c = el ? el.selectionStart : t.length;
+    const pre = t.slice(0, c);
+    const ins = (pre && !/\s$/.test(pre) ? ' ' : '') + '@';
+    const next = pre + ins + t.slice(c);
+    setT(next); setCaret(c + ins.length); setClosed(false); setPickI(0);
+    requestAnimationFrame(() => { if (el) { el.focus(); el.setSelectionRange(c + ins.length, c + ins.length); } });
+  };
+  const onKey = (e) => {
+    if (picks.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setPickI((pickI + 1) % picks.length); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setPickI((pickI - 1 + picks.length) % picks.length); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pick(picks[Math.min(pickI, picks.length - 1)]); return; }
+      if (e.key === 'Escape') { e.preventDefault(); setClosed(true); return; }
+    }
+    if (e.key === 'Escape') setRe(null);
+  };
   useEffect(() => {
     setMsgs(undefined); setRe(null);
     return social.groups.watchChat(g.id, (m) => setMsgs(m));
@@ -102,14 +150,14 @@ function Chat({ social, state, g, toast }) {
         {msgs === null && <p className="sa-empty">Couldn’t load the chat. If the Firestore rules were just updated, give it a minute.</p>}
         {msgs && !msgs.length && <p className="sa-empty">No messages in the last 24 hours. Say hi to the group! 👋</p>}
         {msgs && msgs.map((m) => (
-          <div key={m.id} className={'sa-m' + (m.from === me ? ' mine' : '')}>
+          <div key={m.id} className={'sa-m' + (m.from === me ? ' mine' : '') + ((m.to || []).includes(me) ? ' at-me' : '')}>
             <small>{m.from === me ? 'You' : '@' + m.fromName} · {ago(m.at)}
               <ReplyBtn onClick={() => replyTo(m)} />
               {m.from === me || g.isOwner
                 ? <button className="gr-mini" title="Delete" onClick={() => social.groups.deleteMsg(g.id, m.id).catch((x) => toast({ err: true, text: niceError(x) }))}>✕</button>
                 : <button className="gr-mini" title="Report" onClick={() => report(m)}>⚑</button>}
             </small>
-            <p><Quote re={m.re} mine={m.from === me} />{m.text}</p>
+            <p><Quote re={m.re} mine={m.from === me} /><Rich text={m.text} myName={myName} /></p>
             <ChatReact align={m.from === me ? 'right' : 'left'} mine={(m.rx || {})[me] || ''} counts={countReactions(m.rx)}
               onPick={(k) => social.groups.react(g.id, m.id, k).catch((x) => toast({ err: true, text: niceError(x) }))} />
           </div>
@@ -117,7 +165,18 @@ function Chat({ social, state, g, toast }) {
       </div>
       <ReplyBar re={re} onClose={() => setRe(null)} />
       <form className="sa-saybar sa-chatbar" onSubmit={send}>
-        <input ref={input} value={t} maxLength={MAX_GROUP_MSG} onKeyDown={(e) => { if (e.key === 'Escape') setRe(null); }} placeholder={`Message ${g.emoji} ${g.name}`} onChange={(e) => setT(e.target.value)} />
+        {picks.length > 0 && (
+          <ul className="gr-picks" role="listbox" aria-label="Mention someone">
+            {picks.map((p, i) => (
+              <li key={p.uid} role="option" aria-selected={i === pickI} className={i === pickI ? 'on' : ''} onMouseDown={(e) => { e.preventDefault(); pick(p); }} onMouseEnter={() => setPickI(i)}>
+                <b>@{p.name}</b>{p.hint && <small>{p.hint}</small>}
+              </li>
+            ))}
+          </ul>
+        )}
+        <button type="button" className="gr-atbtn" title="Mention someone" aria-label="Mention someone" onClick={addAt}>@</button>
+        <input ref={input} value={t} maxLength={MAX_GROUP_MSG} onKeyDown={onKey}
+          onSelect={(e) => setCaret(e.target.selectionStart || 0)} placeholder={`Message ${g.emoji} ${g.name} · type @ to mention`} onChange={(e) => { setT(e.target.value); setCaret(e.target.selectionStart || 0); setClosed(false); setPickI(0); }} />
         <em>{MAX_GROUP_MSG - t.length}</em>
         <button className="btn small" disabled={!t.trim()}>Send</button>
       </form>
@@ -290,7 +349,7 @@ export default function Groups({ social, state, toast, go, desktop, openTea }) {
               <button key={x.id} className={x.id === g.id ? 'on' : ''} onClick={() => setSel(x.id)}>
                 <span className="gr-emo"><Emo e={x.emoji} size={24} /></span>
                 <span><b>{x.name}</b><small>{x.members.length} member{x.members.length > 1 ? 's' : ''}{x.chatBy && x.chatAt ? ` · @${x.chatBy} ${ago(x.chatAt)}` : ''}</small></span>
-                {(x.unreadChat || x.newTea) && <i className="gr-new-dot" title="Something new" />}
+                {x.mentionedMe ? <i className="gr-at-dot" title="You were mentioned">@</i> : (x.unreadChat || x.newTea) && <i className="gr-new-dot" title="Something new" />}
               </button>
             ))}
           </div>

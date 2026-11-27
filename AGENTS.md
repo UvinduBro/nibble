@@ -446,6 +446,11 @@ Newest first. Add an entry for every piece of work.
   music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
   tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
 
+### 2026-11-27 @mentions in group chats (web only)
+- Typing "@" (or the @ button) in a group chat opens a picker of members (+ @everyone in groups of 3+); ↑/↓, Enter/Tab pick, Esc closes. Mentions are highlighted; a message that mentions you gets a yellow outline.
+- groups.send() works out the mentioned uids (mentionsIn in lib/social/groups.js): msg.to = [uid], and the group doc's chatTo = [uid] so members' apps know without a chat listener → state.groups[].mentionedMe → "@x mentioned you" notification and an @ dot in the group list.
+- firestore.rules: groups accept chatTo (list ≤ 20) on the chat-ping update; group msgs accept `to` (list ≤ 20). Old rules → the client resends without re/to/chatTo.
+
 ### 2026-11-27 Replies in private and group chats (web only, no app release)
 - ↩ on any text message in a private chat or group chat → "Replying to @name" bar above the input (✕ or Esc cancels); the sent message carries re = { n, t } (author + ≤60-char snippet) and shows it as a quote. Not on the "All friends" broadcast.
 - Code: components/social/Reply.js (ReplyBtn, Quote, ReplyBar), lib/social/reply.js (cleanReply, isDenied), social.send(to, kind, text, reply), groups.send(gid, text, reply).
