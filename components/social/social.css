@@ -1439,3 +1439,16 @@ td.sx-btns { justify-content: flex-end; }
 .sa-card .btn.danger { border-color: rgba(255, 122, 122, 0.45); color: #ff9a9a; }
 .sa-card .btn.danger:not(.ghost) { background: #e0566b; color: #fff; border-color: transparent; }
 .sa-google.sa-apple { background: #000; color: #fff; margin-bottom: 8px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+
+/* replies (private + group chats) */
+.rp-btn { all: unset; cursor: pointer; margin-left: 6px; opacity: 0.55; font-size: 13px; padding: 0 3px; border-radius: 6px; }
+.rp-btn:hover, .rp-btn:focus-visible { opacity: 1; background: rgba(255, 255, 255, 0.08); }
+.sa-m p .rp-quote, .rp-quote { display: block; margin: 0 0 6px; padding: 5px 9px; border-left: 3px solid var(--mint); border-radius: 6px; background: rgba(0, 0, 0, 0.18); font-size: 12.5px; line-height: 1.35; text-align: left; opacity: 0.92; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.rp-quote b { display: block; font-size: 11.5px; }
+.rp-quote.mine { border-left-color: #0b1a16; background: rgba(0, 0, 0, 0.1); }
+.rp-bar { display: flex; align-items: center; gap: 10px; margin: 10px 0 -4px; padding: 8px 10px 8px 12px; border-left: 3px solid var(--mint); border-radius: 10px; background: rgba(126, 232, 198, 0.08); font-size: 13px; }
+.rp-bar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-bar small { display: block; font-weight: 700; color: var(--mint); font-size: 11.5px; }
+.rp-bar button { all: unset; cursor: pointer; opacity: 0.6; padding: 2px 6px; }
+.rp-bar button:hover { opacity: 1; }
+@media (pointer: coarse) { .rp-btn { font-size: 16px; padding: 2px 8px; opacity: 0.75; } }

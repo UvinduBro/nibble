@@ -446,6 +446,12 @@ Newest first. Add an entry for every piece of work.
   music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
   tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
 
+### 2026-11-27 Replies in private and group chats (web only, no app release)
+- ↩ on any text message in a private chat or group chat → "Replying to @name" bar above the input (✕ or Esc cancels); the sent message carries re = { n, t } (author + ≤60-char snippet) and shows it as a quote. Not on the "All friends" broadcast.
+- Code: components/social/Reply.js (ReplyBtn, Quote, ReplyBar), lib/social/reply.js (cleanReply, isDenied), social.send(to, kind, text, reply), groups.send(gid, text, reply).
+- firestore.rules: okReply(); inbox items and groups/{gid}/msgs accept an optional `re`. If the rules aren't published yet the client resends without `re` (the reply still arrives, just without the quote).
+- The desktop Hub loads /hub and the phone app loads /m from the site, so this ships with a Vercel deploy; no desktop/phone release needed.
+
 ### 2026-11-25 Product Hunt badge
 - components/landing/ProductHuntBadge.js (Product Hunt's featured embed, post_id 1330108, light theme): in the home hero under the facts chips, and in the footer brand block on every page.
 

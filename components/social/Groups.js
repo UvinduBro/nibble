@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import PetFigure from '../PetFigure';
 import Emo from '../Emo';
 import { ChatReact } from './Reactions';
+import { ReplyBtn, Quote, ReplyBar } from './Reply';
 import { countReactions } from '../../lib/reactions';
 import { niceError } from '../../lib/social/social';
 import { GROUP_EMOJIS, MAX_GROUP_MSG, MAX_GROUP_NAME, MAX_MEMBERS, MAX_GROUPS } from '../../lib/social/groups';
@@ -71,9 +72,11 @@ function NewGroup({ social, state, toast, onDone }) {
 function Chat({ social, state, g, toast }) {
   const [msgs, setMsgs] = useState(undefined);
   const [t, setT] = useState('');
+  const [re, setRe] = useState(null);
   const box = useRef(null);
+  const input = useRef(null);
   useEffect(() => {
-    setMsgs(undefined);
+    setMsgs(undefined); setRe(null);
     return social.groups.watchChat(g.id, (m) => setMsgs(m));
   }, [g.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { social.groups.markSeen(g.id, 'chat'); }, [g.id, g.chatAt]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -81,9 +84,11 @@ function Chat({ social, state, g, toast }) {
   const send = async (e) => {
     e.preventDefault();
     const v = t.trim(); if (!v) return;
-    setT('');
-    try { await social.groups.send(g.id, v); } catch (x) { setT(v); toast({ err: true, text: niceError(x) }); }
+    const r = re;
+    setT(''); setRe(null);
+    try { await social.groups.send(g.id, v, r); } catch (x) { setT(v); setRe(r); toast({ err: true, text: niceError(x) }); }
   };
+  const replyTo = (m) => { setRe({ n: m.fromName, t: m.text }); if (input.current) input.current.focus(); };
   const report = (m) => {
     if (!window.confirm(`Report this message from @${m.fromName} to the Nibble team?`)) return;
     social.report({ kind: 'feedback', cat: 'problem', title: 'Group chat report', text: `Group "${g.name}" (${g.id}) · message from @${m.fromName} (${m.from}): “${m.text}”` })
@@ -99,18 +104,20 @@ function Chat({ social, state, g, toast }) {
         {msgs && msgs.map((m) => (
           <div key={m.id} className={'sa-m' + (m.from === me ? ' mine' : '')}>
             <small>{m.from === me ? 'You' : '@' + m.fromName} · {ago(m.at)}
+              <ReplyBtn onClick={() => replyTo(m)} />
               {m.from === me || g.isOwner
                 ? <button className="gr-mini" title="Delete" onClick={() => social.groups.deleteMsg(g.id, m.id).catch((x) => toast({ err: true, text: niceError(x) }))}>✕</button>
                 : <button className="gr-mini" title="Report" onClick={() => report(m)}>⚑</button>}
             </small>
-            <p>{m.text}</p>
+            <p><Quote re={m.re} mine={m.from === me} />{m.text}</p>
             <ChatReact align={m.from === me ? 'right' : 'left'} mine={(m.rx || {})[me] || ''} counts={countReactions(m.rx)}
               onPick={(k) => social.groups.react(g.id, m.id, k).catch((x) => toast({ err: true, text: niceError(x) }))} />
           </div>
         ))}
       </div>
+      <ReplyBar re={re} onClose={() => setRe(null)} />
       <form className="sa-saybar sa-chatbar" onSubmit={send}>
-        <input value={t} maxLength={MAX_GROUP_MSG} placeholder={`Message ${g.emoji} ${g.name}`} onChange={(e) => setT(e.target.value)} />
+        <input ref={input} value={t} maxLength={MAX_GROUP_MSG} onKeyDown={(e) => { if (e.key === 'Escape') setRe(null); }} placeholder={`Message ${g.emoji} ${g.name}`} onChange={(e) => setT(e.target.value)} />
         <em>{MAX_GROUP_MSG - t.length}</em>
         <button className="btn small" disabled={!t.trim()}>Send</button>
       </form>

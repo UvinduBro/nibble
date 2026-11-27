@@ -22,6 +22,7 @@ import TeaRoom from './TeaRoom';
 import { teaConfig } from '../../lib/tea';
 import { getMobileBridge } from '../../lib/mobileBridge';
 import FeedbackForm, { systemName } from './Feedback';
+import { ReplyBtn, Quote, ReplyBar } from './Reply';
 import { ChatReact } from './Reactions';
 import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
 import { GAMES } from '../../lib/social/games';
@@ -270,6 +271,8 @@ function Friends({ social, state, toast, presetAdd, desktop }) {
 function Messages({ social, state, chatWith, setChatWith }) {
   const box = useRef(null);
   const [t, setT] = useState('');
+  const [re, setRe] = useState(null);
+  const input = useRef(null);
   const friends = state.friends;
   const sel = chatWith === 'all' ? 'all' : (friends.find((f) => f.uid === chatWith) || friends[0] || {}).uid || 'all';
   const inThread = (m, id) => (id === 'all'
@@ -279,20 +282,22 @@ function Messages({ social, state, chatWith, setChatWith }) {
   const lastOf = (id) => { const l = state.messages.filter((m) => inThread(m, id)); return l[l.length - 1]; };
   const friend = friends.find((f) => f.uid === sel);
   useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight; }, [thread.length, sel]);
+  useEffect(() => { setRe(null); }, [sel]);
+  const replyTo = (m) => { setRe({ n: m.mine ? state.profile.username : m.fromName, t: m.text }); if (input.current) input.current.focus(); };
   const send = async (e) => {
     e.preventDefault();
     const v = t.trim();
     if (!v) return;
-    setT('');
+    setT(''); setRe(null);
     if (sel === 'all') await social.say(v).catch(() => {});
-    else await social.send(sel, 'whisper', v).catch(() => {});
+    else await social.send(sel, 'whisper', v, re).catch(() => {});
   };
   const bubble = (m) => {
     const text = m.text || `${EMOTES[m.kind] || ''} ${m.mine ? 'you sent ' + (m.kind === 'hug' ? 'a cuddle' : m.kind) : EMOTE_TEXT[m.kind] || m.kind}`;
     return (
       <div key={m.id} className={'sa-m' + (m.mine ? ' mine' : '') + (m.text ? '' : ' act')}>
-        <small>{m.mine ? 'You' : '@' + m.fromName} · {ago(m.at)}</small>
-        <p>{text}</p>
+        <small>{m.mine ? 'You' : '@' + m.fromName} · {ago(m.at)}{sel !== 'all' && m.text && <ReplyBtn onClick={() => replyTo(m)} />}</small>
+        <p><Quote re={m.re} mine={m.mine} />{text}</p>
         {/* reactions: on messages a friend sent you, and theirs shows on yours */}
         {!m.mine && m.direct && String(m.id).startsWith('i_') && <ChatReact mine={m.myRx || ''} counts={m.myRx ? { [m.myRx]: 1 } : {}} onPick={(k) => social.reactMsg(m.id, k).catch(() => {})} />}
         {m.mine && m.theirRx && <span className="rx-chat right"><ChatReactSummary k={m.theirRx} /></span>}
@@ -327,11 +332,14 @@ function Messages({ social, state, chatWith, setChatWith }) {
             {friend && friend.typing && <div className="sa-m"><p className="sa-typing"><i /><i /><i /></p></div>}
           </div>
           {(friends.length > 0) && (
+            <>
+            <ReplyBar re={re} onClose={() => setRe(null)} />
             <form className="sa-saybar sa-chatbar" onSubmit={send}>
-              <input value={t} maxLength={MAX_TEXT} placeholder={sel === 'all' ? 'Message all friends' : `Message @${friend ? friend.username : ''}`} onChange={(e) => { setT(e.target.value); social.setTyping(!!e.target.value, sel === 'all' ? '' : sel).catch(() => {}); }} onBlur={() => social.setTyping(false).catch(() => {})} />
+              <input ref={input} value={t} maxLength={MAX_TEXT} onKeyDown={(e) => { if (e.key === 'Escape') setRe(null); }} placeholder={sel === 'all' ? 'Message all friends' : `Message @${friend ? friend.username : ''}`} onChange={(e) => { setT(e.target.value); social.setTyping(!!e.target.value, sel === 'all' ? '' : sel).catch(() => {}); }} onBlur={() => social.setTyping(false).catch(() => {})} />
               <em>{MAX_TEXT - t.length}</em>
               <button className="btn small" disabled={!t.trim()}>Send</button>
             </form>
+            </>
           )}
         </div>
       </div>

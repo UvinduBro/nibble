@@ -6,6 +6,11 @@ service cloud.firestore {
 
     function signedIn() { return request.auth != null; }
     function me() { return request.auth.uid; }
+    // a chat reply quotes the message it answers: re = { n: who wrote it, t: short snippet }
+    function okReply(d) {
+      return !('re' in d) || (d.re is map && d.re.keys().hasOnly(['n', 't'])
+        && d.re.n is string && d.re.n.size() <= 30 && d.re.t is string && d.re.t.size() >= 1 && d.re.t.size() <= 80);
+    }
     // `owner` lists the caller as a friend
     function isFriendOf(owner) { return exists(/databases/$(database)/documents/users/$(owner)/friends/$(me())); }
     // admin = a doc exists at admins/{your uid} (add it by hand in the Firebase console)
@@ -280,7 +285,8 @@ service cloud.firestore {
         function grp() { return get(/databases/$(database)/documents/groups/$(gid)).data; }
         allow read: if signedIn() && me() in grp().members;
         allow create: if signedIn() && !isBanned() && me() in grp().members
-          && incoming().keys().hasOnly(['from', 'fromName', 'text', 'at', 'exp'])
+          && incoming().keys().hasOnly(['from', 'fromName', 'text', 'at', 'exp', 're'])
+          && okReply(incoming())
           && incoming().from == me() && incoming().fromName == myName()
           && incoming().text is string && incoming().text.size() >= 1 && incoming().text.size() <= 200
           && incoming().at == request.time
@@ -576,7 +582,8 @@ service cloud.firestore {
     match /inbox/{uid}/items/{id} {
       allow read, delete: if signedIn() && uid == me();
       allow create: if signedIn() && !isBanned() && isFriendOf(uid)
-        && incoming().keys().hasOnly(['from', 'fromName', 'kind', 'text', 'at'])
+        && incoming().keys().hasOnly(['from', 'fromName', 'kind', 'text', 'at', 're'])
+        && okReply(incoming())
         && incoming().from == me()
         && incoming().kind is string && incoming().kind.matches('^[a-z]{2,12}$')
         && shortText(incoming().get('text', ''), 80)
