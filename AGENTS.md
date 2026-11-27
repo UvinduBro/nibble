@@ -446,6 +446,10 @@ Newest first. Add an entry for every piece of work.
   music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
   tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
 
+### 2026-11-27 Profile card on usernames (web only)
+- Click a sender's @name (private + group chats) or an @mention in a group chat → small popover card (components/social/UserCard.js: useUserCard + Who): pet, @username, pet name, online/offline or "Not friends yet", status, points; Message / Poke / 🤗 for friends, Add friend otherwise. Closes on outside click, Esc or scroll. Data: social.profileOf(uid) (friends from memory; others = 1 profile read + 1 wallet read).
+- Mentions also show an in-app toast "@x mentioned you in <group>" when you're not on Groups (plus the desktop/phone notification).
+
 ### 2026-11-27 @mentions in group chats (web only)
 - Typing "@" (or the @ button) in a group chat opens a picker of members (+ @everyone in groups of 3+); ↑/↓, Enter/Tab pick, Esc closes. Mentions are highlighted; a message that mentions you gets a yellow outline.
 - groups.send() works out the mentioned uids (mentionsIn in lib/social/groups.js): msg.to = [uid], and the group doc's chatTo = [uid] so members' apps know without a chat listener → state.groups[].mentionedMe → "@x mentioned you" notification and an @ dot in the group list.

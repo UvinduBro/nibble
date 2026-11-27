@@ -6,6 +6,7 @@ import PetFigure from '../PetFigure';
 import Emo from '../Emo';
 import { ChatReact } from './Reactions';
 import { ReplyBtn, Quote, ReplyBar } from './Reply';
+import { useUserCard, Who } from './UserCard';
 import { countReactions } from '../../lib/reactions';
 import { niceError } from '../../lib/social/social';
 import { GROUP_EMOJIS, MAX_GROUP_MSG, MAX_GROUP_NAME, MAX_MEMBERS, MAX_GROUPS, MENTION_RE } from '../../lib/social/groups';
@@ -70,20 +71,24 @@ function NewGroup({ social, state, toast, onDone }) {
 }
 
 // message text with @mentions highlighted (yours stand out)
-function Rich({ text, myName }) {
+function Rich({ text, myName, uidOf, onOpen }) {
   const out = [];
   let last = 0;
   for (const m of String(text).matchAll(MENTION_RE)) {
     if (m.index > last) out.push(text.slice(last, m.index));
     const n = m[1].toLowerCase();
-    out.push(<span key={m.index} className={'gr-at' + (n === 'everyone' || n === myName ? ' me' : '')}>{m[0]}</span>);
+    const cls = 'gr-at' + (n === 'everyone' || n === myName ? ' me' : '');
+    const uid = uidOf && uidOf(n);
+    out.push(uid ? <Who key={m.index} uid={uid} name={m[1]} onOpen={onOpen} className={cls} /> : <span key={m.index} className={cls}>{m[0]}</span>);
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));
   return out;
 }
 
-function Chat({ social, state, g, toast }) {
+function Chat({ social, state, g, toast, go, setChatWith }) {
+  const [openCard, cardEl] = useUserCard({ social, toast, go, setChatWith });
+  const uidOf = (n) => Object.keys(g.names || {}).find((u) => String(g.names[u]).toLowerCase() === n && g.members.includes(u));
   const [msgs, setMsgs] = useState(undefined);
   const [t, setT] = useState('');
   const [re, setRe] = useState(null);
@@ -145,19 +150,20 @@ function Chat({ social, state, g, toast }) {
   const me = state.user.uid;
   return (
     <div className="gr-chat">
+      {cardEl}
       <div className="sa-msgs" ref={box}>
         {msgs === undefined && <p className="sa-empty">Loading…</p>}
         {msgs === null && <p className="sa-empty">Couldn’t load the chat. If the Firestore rules were just updated, give it a minute.</p>}
         {msgs && !msgs.length && <p className="sa-empty">No messages in the last 24 hours. Say hi to the group! 👋</p>}
         {msgs && msgs.map((m) => (
           <div key={m.id} className={'sa-m' + (m.from === me ? ' mine' : '') + ((m.to || []).includes(me) ? ' at-me' : '')}>
-            <small>{m.from === me ? 'You' : '@' + m.fromName} · {ago(m.at)}
+            <small>{m.from === me ? 'You' : <Who uid={m.from} name={m.fromName} onOpen={openCard} />} · {ago(m.at)}
               <ReplyBtn onClick={() => replyTo(m)} />
               {m.from === me || g.isOwner
                 ? <button className="gr-mini" title="Delete" onClick={() => social.groups.deleteMsg(g.id, m.id).catch((x) => toast({ err: true, text: niceError(x) }))}>✕</button>
                 : <button className="gr-mini" title="Report" onClick={() => report(m)}>⚑</button>}
             </small>
-            <p><Quote re={m.re} mine={m.from === me} /><Rich text={m.text} myName={myName} /></p>
+            <p><Quote re={m.re} mine={m.from === me} /><Rich text={m.text} myName={myName} uidOf={uidOf} onOpen={openCard} /></p>
             <ChatReact align={m.from === me ? 'right' : 'left'} mine={(m.rx || {})[me] || ''} counts={countReactions(m.rx)}
               onPick={(k) => social.groups.react(g.id, m.id, k).catch((x) => toast({ err: true, text: niceError(x) }))} />
           </div>
@@ -273,7 +279,7 @@ function Settings({ social, g, toast, close }) {
   );
 }
 
-export default function Groups({ social, state, toast, go, desktop, openTea }) {
+export default function Groups({ social, state, toast, go, desktop, openTea, setChatWith }) {
   const groups = state.groups || [];
   const invites = state.groupInvites || [];
   const [sel, setSel] = useState('');
@@ -369,7 +375,7 @@ export default function Groups({ social, state, toast, go, desktop, openTea }) {
                 <button key={k} role="tab" aria-selected={view === k} className={view === k ? 'on' : ''} onClick={() => setView(k)}><Emo k={ic} size={16} /> {l}{k === 'chat' && g.unreadChat && view !== 'chat' && <i className="gr-new-dot" />}</button>
               ))}
             </div>
-            {view === 'chat' && <Chat social={social} state={state} g={g} toast={toast} />}
+            {view === 'chat' && <Chat social={social} state={state} g={g} toast={toast} go={go} setChatWith={setChatWith} />}
             {view === 'members' && <Members social={social} state={state} g={g} toast={toast} go={go} />}
             {view === 'points' && <Points social={social} state={state} g={g} />}
             {view === 'settings' && <Settings social={social} g={g} toast={toast} close={() => setSel('')} />}

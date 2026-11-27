@@ -23,6 +23,7 @@ import { teaConfig } from '../../lib/tea';
 import { getMobileBridge } from '../../lib/mobileBridge';
 import FeedbackForm, { systemName } from './Feedback';
 import { ReplyBtn, Quote, ReplyBar } from './Reply';
+import { useUserCard, Who } from './UserCard';
 import { ChatReact } from './Reactions';
 import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
 import { GAMES } from '../../lib/social/games';
@@ -268,7 +269,8 @@ function Friends({ social, state, toast, presetAdd, desktop }) {
 }
 
 // Private chats: one thread per friend (only the two of you see it) + an opt-in "All friends" room.
-function Messages({ social, state, chatWith, setChatWith }) {
+function Messages({ social, state, chatWith, setChatWith, toast, go }) {
+  const [openCard, cardEl] = useUserCard({ social, toast, go, setChatWith });
   const box = useRef(null);
   const [t, setT] = useState('');
   const [re, setRe] = useState(null);
@@ -296,7 +298,7 @@ function Messages({ social, state, chatWith, setChatWith }) {
     const text = m.text || `${EMOTES[m.kind] || ''} ${m.mine ? 'you sent ' + (m.kind === 'hug' ? 'a cuddle' : m.kind) : EMOTE_TEXT[m.kind] || m.kind}`;
     return (
       <div key={m.id} className={'sa-m' + (m.mine ? ' mine' : '') + (m.text ? '' : ' act')}>
-        <small>{m.mine ? 'You' : '@' + m.fromName} · {ago(m.at)}{sel !== 'all' && m.text && <ReplyBtn onClick={() => replyTo(m)} />}</small>
+        <small>{m.mine ? 'You' : <Who uid={m.from} name={m.fromName} onOpen={openCard} />} · {ago(m.at)}{sel !== 'all' && m.text && <ReplyBtn onClick={() => replyTo(m)} />}</small>
         <p><Quote re={m.re} mine={m.mine} />{text}</p>
         {/* reactions: on messages a friend sent you, and theirs shows on yours */}
         {!m.mine && m.direct && String(m.id).startsWith('i_') && <ChatReact mine={m.myRx || ''} counts={m.myRx ? { [m.myRx]: 1 } : {}} onPick={(k) => social.reactMsg(m.id, k).catch(() => {})} />}
@@ -306,6 +308,7 @@ function Messages({ social, state, chatWith, setChatWith }) {
   };
   return (
     <div className="sa-page">
+      {cardEl}
       <h2>Messages <small className="sa-ttl">🔒 private · disappear after 30 min</small></h2>
       <div className="sa-chat">
         <div className="sa-threads">
@@ -1368,6 +1371,7 @@ export default function SocialApp({ mode = 'web' }) {
       groupNotified.current[g.id] = g.chatAt;
       if (was === undefined || !g.unreadChat || g.chatAt <= was) continue;
       if (notifier && notifier.notify && tab !== 'groups') notifier.notify({ title: `${g.emoji} ${g.name}`, body: g.mentionedMe ? `@${g.chatBy} mentioned you` : `@${g.chatBy} wrote in the group chat`, tab: 'groups' });
+      if (g.mentionedMe && tab !== 'groups') toast({ text: `💬 @${g.chatBy} mentioned you in ${g.emoji} ${g.name}` });
     }
   }, [state.groups, notifier, tab]);
 
