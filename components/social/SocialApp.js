@@ -24,7 +24,7 @@ import { getMobileBridge } from '../../lib/mobileBridge';
 import FeedbackForm, { systemName } from './Feedback';
 import { ReplyBtn, Quote, ReplyBar } from './Reply';
 import { useUserCard, Who } from './UserCard';
-import { PhoneTabs, InstallCard } from './AppTabs';
+import { PhoneTabs, InstallCard, NotifyCard, PushSetting } from './AppTabs';
 import { registerSW, isStandalone } from '../../lib/pwa';
 import { ChatReact } from './Reactions';
 import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
@@ -419,7 +419,7 @@ function ConnectionCheck({ state, local, desktop }) {
 }
 
 const SIZES = [['Tiny', 0.65], ['Small', 0.82], ['Normal', 1], ['Big', 1.3], ['Chonky', 1.65]];
-function Settings({ social, state, desktop, local, toast, go }) {
+function Settings({ social, state, desktop, mobile, local, toast, go }) {
   const s = (local && local.settings) || {};
   const set = (patch) => desktop.setLocal(patch);
   const [status, setStatus] = useState(state.prefs.status || '');
@@ -435,6 +435,7 @@ function Settings({ social, state, desktop, local, toast, go }) {
         <Toggle label="Do not disturb" hint="Hide friends’ pets and messages for now. Friends see you as busy." on={state.prefs.dnd} onChange={(v) => social.setPrefs({ dnd: v })} />
         <Toggle label="Appear offline" hint="Your pet stops visiting friends. You still see theirs." on={state.prefs.invisible} onChange={(v) => social.setPrefs({ invisible: v })} />
         {desktop && <Toggle label="Friends’ pets visit my desktop" hint="Online friends’ pets walk around on your screen." on={s.showFriends !== false} onChange={(v) => set({ showFriends: v })} />}
+        {!desktop && !mobile && <PushSetting social={social} toast={toast} />}
       </div>
       <DockSettings />
       {desktop && local && <ExtraPets state={state} desktop={desktop} local={local} />}
@@ -1312,6 +1313,7 @@ export default function SocialApp({ mode = 'web' }) {
     if (q.get('add')) { setPresetAdd(q.get('add')); setTab('friends'); }
     const fixTab = (t) => (t === 'pets' ? 'settings' : t);
     if (q.get('tab')) setTab(fixTab(q.get('tab')));
+    if (q.get('with') && /^[A-Za-z0-9]{6,40}$/.test(q.get('with'))) setChatWith(q.get('with')); // opened from a message notification
     // back from Stripe: open the Premium page and tidy the address
     if (q.get('premium')) {
       setTab('premium');
@@ -1576,6 +1578,7 @@ export default function SocialApp({ mode = 'web' }) {
         {signedIn && showNotice && <Banner level={cfg.noticeLevel} text={cfg.notice} onClose={dismissNotice} />}
         {signedIn && showBc && <Banner level={state.broadcast.level} title={state.broadcast.title} text={state.broadcast.text} link={state.broadcast.link} onClose={dismissBc} />}
         {signedIn && tab === 'home' && !isDesk && !isMob && <InstallCard />}
+        {signedIn && tab === 'home' && !isDesk && !isMob && <NotifyCard social={social} toast={toast} />}
         {body}
       </main>
       {signedIn && webphone && <PhoneTabs items={navItems} tab={tab} go={setTab} badge={badgeOf} />}

@@ -43,5 +43,18 @@ const JOBS = [
     fs.writeFileSync(path.join(OUT, file), Buffer.from(data.split(',')[1], 'base64'));
     console.log('wrote', file);
   }
+  // the small monochrome icon Android shows in the status bar: a white pet silhouette
+  const badge = await p.evaluate(() => {
+    const size = 96, c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d');
+    const u = (size * 0.86) / 64;
+    window.NibbleDraw.drawPet(x, { x: size / 2 + 4 * u, y: size / 2 + 30 * u, dir: 1, sx: 1, sy: 1, walk: 0, t: 0.4, blink: 1, look: { x: 0, y: 0 }, eyes: 'open', mouth: 'w', arms: 'down', ears: 0, stride: 0, bob: 0, tailWag: 3, acc: [], tint: '', makeup: '', style: null }, window.SKINS.mint, u);
+    const img = x.getImageData(0, 0, size, size);
+    for (let i = 0; i < img.data.length; i += 4) { img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; }
+    x.putImageData(img, 0, 0);
+    return c.toDataURL('image/png');
+  });
+  fs.writeFileSync(path.join(OUT, 'badge-96.png'), Buffer.from(badge.split(',')[1], 'base64'));
+  console.log('wrote badge-96.png');
   await b.close();
 })();

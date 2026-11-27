@@ -1526,3 +1526,6 @@ td.sx-btns { justify-content: flex-end; }
 .sa.webphone .mu-float { bottom: calc(80px + env(safe-area-inset-bottom)); right: 10px; max-width: calc(100vw - 20px); }
 .sa.webphone .sa-toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 .sa.webphone .gr-chat .sa-msgs, .sa.webphone .sa-thread .sa-msgs { max-height: calc(100dvh - 330px); }
+.pt-push { background: linear-gradient(135deg, rgba(126, 232, 198, 0.16), rgba(143, 211, 255, 0.12)); border-color: rgba(126, 232, 198, 0.35); }
+.pt-bell { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; background: rgba(255, 255, 255, 0.08); }
+.sa-toggle.off { opacity: 0.7; }

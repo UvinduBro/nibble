@@ -282,7 +282,8 @@ function Settings({ social, g, toast, close }) {
 export default function Groups({ social, state, toast, go, desktop, openTea, setChatWith }) {
   const groups = state.groups || [];
   const invites = state.groupInvites || [];
-  const [sel, setSel] = useState('');
+  // opened from a notification: /app?tab=groups&group=<id>
+  const [sel, setSel] = useState(() => { try { return new URLSearchParams(location.search).get('group') || ''; } catch { return ''; } });
   const [creating, setCreating] = useState(false);
   const [view, setView] = useState('chat');
   const g = groups.find((x) => x.id === sel) || (!creating && groups[0]) || null;

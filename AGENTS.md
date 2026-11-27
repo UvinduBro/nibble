@@ -446,6 +446,12 @@ Newest first. Add an entry for every piece of work.
   music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
   tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
 
+### 2026-11-27 Push notifications in the web app (PWA)
+- Web Push for /app (installed or in a browser): new private messages, group chat messages and @mentions ("@x mentioned you: …"), even when Nibble is closed. Not used by the Hub or the store phone app (they notify on their own).
+- Server: `lib/push.js` (VAPID key pair derived from PUSH_SALT → NET_SALT → service key, so no new env var; `web-push` 4.0.0), routes `/api/push/key`, `/api/push/subscribe` (POST/DELETE), `/api/push/send` (after a DM: checks users/{to}/friends/{me}; after a group message: checks membership, mentioned members get the mention text). Subscriptions in `pushSubs/{uid}` (server only, no rule, ≤ 5 devices, dead ones removed on 404/410, endpoints limited to real push services). People without push are cached for 5 min per instance to save reads. Per-sender limit 40/min. Account deletion removes pushSubs.
+- Client: social.send(whisper) and groups.send fire `/api/push/send`; `social.push.{key,subscribe,unsubscribe}`; lib/pwa.js enablePush/disablePush/pushState. UI: "Know when friends message you" card on Home + Settings → "🔔 Notifications on this device". SW shows the notification (skipped when the app is open and focused), click opens /app?tab=messages&with=<uid> or ?tab=groups&group=<gid>. iPhone: works only after Add to Home Screen (iOS 16.4+). Status-bar icon public/icons/badge-96.png.
+- No rules change (pushSubs has no client access). Not tested end to end (push services aren't reachable from the sandbox); key derivation + payload encryption checked locally.
+
 ### 2026-11-27 Better web app on phones (PWA)
 - New app icon (pet engine on a lavender→pink sky): public/icons/app-{192,512,180}.png + app-maskable-512.png, drawn by `tools/pwa/make-icons.cjs` (needs the site running locally). Apple touch icon site-wide → app-180.
 - app/manifest.js: id /app, name "Nibble", start_url /app?source=pwa, maskable icon, shortcuts (Messages, Groups, Friends, Games), screenshots (public/icons/shot-*.png from test mode), categories. /app: appleWebApp (full screen on iPhone), viewport-fit cover.
