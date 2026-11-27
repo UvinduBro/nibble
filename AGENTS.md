@@ -446,6 +446,13 @@ Newest first. Add an entry for every piece of work.
   music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
   tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
 
+### 2026-11-27 Better web app on phones (PWA)
+- New app icon (pet engine on a lavender→pink sky): public/icons/app-{192,512,180}.png + app-maskable-512.png, drawn by `tools/pwa/make-icons.cjs` (needs the site running locally). Apple touch icon site-wide → app-180.
+- app/manifest.js: id /app, name "Nibble", start_url /app?source=pwa, maskable icon, shortcuts (Messages, Groups, Friends, Games), screenshots (public/icons/shot-*.png from test mode), categories. /app: appleWebApp (full screen on iPhone), viewport-fit cover.
+- public/sw.js (scope /app only, never /hub or /m): page loads go to the network; offline → public/offline.html. Registered by lib/pwa.js (also catches beforeinstallprompt, isStandalone, isIOS).
+- Phones in a browser / installed (`.sa.webphone`, not the Hub or the native phone app): slim top bar (logo + points), app-style bottom tabs Home · Friends · Messages · Groups · More (components/social/AppTabs.js) with badges; More = bottom sheet grid of the other pages + install card + desktop link. Safe-area insets; music player, toasts and the cookie banner sit above the tab bar.
+- "Add Nibble to your home screen" card on Home (Install button where the browser allows it, Share → Add to Home Screen steps on iPhone; "Not now" hides it for 14 days).
+
 ### 2026-11-27 Profile card on usernames (web only)
 - Click a sender's @name (private + group chats) or an @mention in a group chat → small popover card (components/social/UserCard.js: useUserCard + Who): pet, @username, pet name, online/offline or "Not friends yet", status, points; Message / Poke / 🤗 for friends, Add friend otherwise. Closes on outside click, Esc or scroll. Data: social.profileOf(uid) (friends from memory; others = 1 profile read + 1 wallet read).
 - Mentions also show an in-app toast "@x mentioned you in <group>" when you're not on Groups (plus the desktop/phone notification).

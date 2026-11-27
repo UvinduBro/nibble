@@ -24,6 +24,8 @@ import { getMobileBridge } from '../../lib/mobileBridge';
 import FeedbackForm, { systemName } from './Feedback';
 import { ReplyBtn, Quote, ReplyBar } from './Reply';
 import { useUserCard, Who } from './UserCard';
+import { PhoneTabs, InstallCard } from './AppTabs';
+import { registerSW, isStandalone } from '../../lib/pwa';
 import { ChatReact } from './Reactions';
 import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
 import { GAMES } from '../../lib/social/games';
@@ -1322,6 +1324,13 @@ export default function SocialApp({ mode = 'web' }) {
     if (window.nibbleDesktop && window.nibbleDesktop.onVisible) window.nibbleDesktop.onVisible((v) => { window.__nibbleHidden = !v; window.dispatchEvent(new Event('nibble-visibility')); });
   }, []);
   const local = useDesktopBridge(desktop, social, state);
+  // the web app in a normal browser: offline page + "Add to home screen" (never in the Hub or phone app)
+  const [standalone, setStandalone] = useState(false);
+  useEffect(() => {
+    if (mode !== 'web' || window.nibbleDesktop || getMobileBridge()) return;
+    setStandalone(isStandalone());
+    registerSW();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // phones: keep the open page's button visible in the swipeable menu row
   useEffect(() => {
     const t = setTimeout(() => { const b = document.querySelector('.sa.phone .sa-side nav button.on'); if (b && b.scrollIntoView) b.scrollIntoView({ inline: 'center', block: 'nearest' }); }, 120);
@@ -1499,16 +1508,22 @@ export default function SocialApp({ mode = 'web' }) {
   const signedIn = state.user && state.profile && !state.banned;
 
   const phone = !isDesk && winW <= 640;
+  const webphone = phone && !isMob; // a phone browser or the installed web app: app-style bottom tabs
+  const badgeOf = (k) => (k === 'friends' ? state.incoming.length
+    : k === 'games' ? myTurns(state)
+    : k === 'groups' ? groupBadge(state)
+    : k === 'tea' ? !!(state.teaNew || (state.groups || []).some((g) => g.newTea))
+    : k === 'music' ? (state.music ? state.music.invites.length : 0) : 0);
   const mini = !phone && (navPref !== null ? navPref : winW < 1000);
   return (
-    <div className={'sa' + (isDesk ? ' desk' : '') + (isMob ? ' mob' : '') + (signedIn ? '' : ' solo') + (signedIn && mini ? ' mini' : '') + (phone ? ' phone' : '')}>
+    <div className={'sa' + (isDesk ? ' desk' : '') + (isMob ? ' mob' : '') + (signedIn ? '' : ' solo') + (signedIn && mini ? ' mini' : '') + (phone ? ' phone' : '') + (webphone ? ' webphone' : '') + (standalone ? ' pwa' : '')}>
       {signedIn && (
         <aside className="sa-side">
           <div className="sa-side-top">
             <a className="logo" href={isDesk ? undefined : '/'}><span className="sa-logo"><img src="/logo.svg" alt="" /></span><span className="sa-lt"> Nibble</span></a>
             {!phone && <button className="sa-collapse" onClick={() => toggleNav(!mini)} title={mini ? 'Open the menu' : 'Collapse the menu'} aria-label={mini ? 'Open the menu' : 'Collapse the menu'}>{mini ? '»' : '«'}</button>}
           </div>
-          <div className="sa-me">
+          <div className="sa-me" onClick={webphone ? () => setTab('profile') : undefined}>
             <Avatar skin={state.profile.skin} who={state.profile} size={52} mood="happy" />
             <div><b>@{state.profile.username}{social.premium.perk('badge') && <span className="sa-prem" title="Nibble Premium">⭐</span>}</b><small><span className={'sa-dot' + (state.prefs.invisible ? '' : ' on') + (state.prefs.dnd ? ' dnd' : '')} />{state.prefs.invisible ? 'appearing offline' : state.prefs.dnd ? 'do not disturb' : 'online'}</small></div>
           </div>
@@ -1560,8 +1575,10 @@ export default function SocialApp({ mode = 'web' }) {
         ))}
         {signedIn && showNotice && <Banner level={cfg.noticeLevel} text={cfg.notice} onClose={dismissNotice} />}
         {signedIn && showBc && <Banner level={state.broadcast.level} title={state.broadcast.title} text={state.broadcast.text} link={state.broadcast.link} onClose={dismissBc} />}
+        {signedIn && tab === 'home' && !isDesk && !isMob && <InstallCard />}
         {body}
       </main>
+      {signedIn && webphone && <PhoneTabs items={navItems} tab={tab} go={setTab} badge={badgeOf} />}
       {signedIn && social && social.music && <MusicDock social={social} state={state} player={player} go={setTab} tab={tab} />}
       <Notice note={note} onDone={() => setNote(null)} />
     </div>

@@ -1483,3 +1483,46 @@ td.sx-btns { justify-content: flex-end; }
 .uc-status { margin: 10px 0 0; font-size: 13.5px; font-style: italic; color: var(--text); }
 .uc-pts { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
 .uc-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+
+/* ---------- phones in a browser / installed web app: app-style tabs ---------- */
+.sa.webphone .sa-side { position: sticky; top: 0; z-index: 30; flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; padding: max(10px, env(safe-area-inset-top)) 14px 10px; border-bottom: 1px solid var(--line); }
+.sa.webphone .sa-side nav, .sa.webphone .sa-side-foot, .sa.webphone .sa-me > div { display: none; }
+.sa.webphone .sa-side-top { width: auto; }
+.sa.webphone .sa-me { order: 3; padding: 0; background: none; border: 0; cursor: pointer; }
+.sa.webphone .sa-pts { order: 2; margin-left: auto; padding: 6px 10px; gap: 6px; border-radius: 99px; }
+.sa.webphone .sa-pts b { font-size: 15px; }
+.sa.webphone .sa-pts small { display: none; }
+.sa.webphone .sa-main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.sa.webphone input, .sa.webphone textarea { font-size: 16px; } /* iOS zooms into smaller inputs */
+.sa.webphone { -webkit-tap-highlight-color: transparent; }
+.pt-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(5, 1fr); padding: 6px 6px max(8px, env(safe-area-inset-bottom)); background: rgba(12, 14, 28, 0.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid var(--line); }
+.pt-bar button { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 0; color: var(--muted); font-size: 11px; font-weight: 700; }
+.pt-bar button span { position: relative; display: grid; place-items: center; width: 52px; height: 30px; border-radius: 99px; transition: background 0.15s; }
+.pt-bar button.on { color: var(--text); }
+.pt-bar button.on span { background: rgba(126, 232, 198, 0.18); }
+.pt-bar em, .pt-grid em { position: absolute; top: -3px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 99px; background: var(--pink, #ff6fb5); color: #fff; font: 800 10px/16px system-ui; font-style: normal; text-align: center; }
+.pt-bar em:empty, .pt-grid em:empty { min-width: 9px; width: 9px; height: 9px; padding: 0; top: 0; right: 10px; }
+.pt-dots { display: flex; gap: 4px; } .pt-dots i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.pt-sheet-wrap { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, 0.45); display: flex; align-items: flex-end; animation: pt-fade 0.15s ease-out; }
+@keyframes pt-fade { from { opacity: 0; } }
+.pt-sheet { width: 100%; max-height: 80vh; overflow-y: auto; box-sizing: border-box; padding: 10px 16px calc(96px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; background: var(--card, #161a2e); border-top: 1px solid var(--line); animation: pt-up 0.2s ease-out; }
+@keyframes pt-up { from { transform: translateY(30px); } }
+.pt-grab { display: block; width: 40px; height: 5px; border-radius: 99px; background: rgba(255, 255, 255, 0.2); margin: 0 auto 14px; }
+.pt-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pt-grid button { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px; border-radius: 16px; font-size: 12px; font-weight: 700; color: var(--text); text-align: center; }
+.pt-grid button span { position: relative; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: rgba(255, 255, 255, 0.06); }
+.pt-grid button.on span { background: rgba(126, 232, 198, 0.2); }
+.pt-desk { display: block; margin-top: 12px; text-align: center; color: var(--muted); font-size: 13.5px; }
+.pt-install { display: flex; align-items: center; gap: 12px; padding: 14px; margin: 0 0 18px; border-radius: 18px; background: linear-gradient(135deg, rgba(185, 163, 255, 0.18), rgba(255, 158, 203, 0.14)); border: 1px solid rgba(185, 163, 255, 0.35); }
+.pt-install.compact { margin: 16px 0 0; }
+.pt-install img { flex: none; border-radius: 14px; }
+.pt-install > div:nth-child(2) { flex: 1; min-width: 0; }
+.pt-install b { display: block; font-size: 15px; }
+.pt-install small { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; margin-top: 2px; }
+.pt-install small b { display: inline; font-size: inherit; color: var(--text); }
+.pt-share { display: inline-block; padding: 0 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); }
+.pt-install-acts { display: flex; align-items: center; gap: 4px; }
+.pt-x { all: unset; cursor: pointer; opacity: 0.55; padding: 4px 6px; }
+.sa.webphone .mu-float { bottom: calc(80px + env(safe-area-inset-bottom)); right: 10px; max-width: calc(100vw - 20px); }
+.sa.webphone .sa-toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+.sa.webphone .gr-chat .sa-msgs, .sa.webphone .sa-thread .sa-msgs { max-height: calc(100dvh - 330px); }

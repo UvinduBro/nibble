@@ -14,7 +14,7 @@ export { SITE };
 const ICONS = {
   icon: [{ url: '/favicon.ico', sizes: 'any' }, { url: '/logo.svg', type: 'image/svg+xml' }, { url: '/icons/favicon-48.png', sizes: '48x48', type: 'image/png' }, { url: '/icons/favicon-96.png', sizes: '96x96', type: 'image/png' }, { url: '/icons/nibble-192.png', sizes: '192x192', type: 'image/png' }],
   shortcut: '/favicon.ico',
-  apple: [{ url: '/icons/nibble-180.png', sizes: '180x180' }],
+  apple: [{ url: '/icons/app-180.png', sizes: '180x180' }],
 };
 
 // site-wide defaults; every page adds its own title, description and share image (lib/seo.js).

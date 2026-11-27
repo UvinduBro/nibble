@@ -420,3 +420,4 @@ kbd { font-size: 12.5px; background: var(--card2); border: 1px solid rgba(255, 2
 .dl-store span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; color: #a5bab2; line-height: 1.4; }
 .dl-store b { color: #7ee8c6; font-size: 14.5px; }
 .dl-or { margin: 4px 0 -2px; font-size: 13.5px; color: #6f857c; }
+body:has(.sa.webphone) .consent { bottom: calc(84px + env(safe-area-inset-bottom)); }
