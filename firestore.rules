@@ -582,6 +582,8 @@ service cloud.firestore {
     }
 
     // direct pokes, waves, cuddles and whispers. Only friends can send; only you can read.
+    // Whispers stay up to 30 min so all your devices show the chat; you also keep a copy of each
+    // whisper you send in your own inbox (to = the friend, ref = their copy's id).
     match /inbox/{uid}/items/{id} {
       allow read, delete: if signedIn() && uid == me();
       allow create: if signedIn() && !isBanned() && isFriendOf(uid)
@@ -589,6 +591,14 @@ service cloud.firestore {
         && okReply(incoming())
         && incoming().from == me()
         && incoming().kind is string && incoming().kind.matches('^[a-z]{2,12}$')
+        && shortText(incoming().get('text', ''), 80)
+        && incoming().at == request.time;
+      allow create: if signedIn() && !isBanned() && uid == me()
+        && incoming().keys().hasOnly(['from', 'fromName', 'kind', 'text', 'at', 're', 'to', 'ref'])
+        && okReply(incoming())
+        && incoming().from == me() && incoming().kind == 'whisper'
+        && incoming().to is string && exists(/databases/$(database)/documents/users/$(me())/friends/$(incoming().to))
+        && incoming().ref is string && incoming().ref.size() <= 40
         && shortText(incoming().get('text', ''), 80)
         && incoming().at == request.time;
       allow update: if false;

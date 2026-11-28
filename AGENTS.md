@@ -446,6 +446,11 @@ Newest first. Add an entry for every piece of work.
   music shuffle/repeat. Website: redesign, bug reports/feedback, sign-up questions, Firebase usage
   tab + Saver mode, launch on meetnibble.com (SEO, contact form, privacy/terms, analytics).
 
+### 2026-11-28 Private messages sync across your devices
+- Before: inbox items were deleted by the first device that read them and sent messages lived only in that device's local storage, so a chat sent from the desktop never showed on the phone/PWA (and a second device missed incoming ones).
+- Now whispers stay in `inbox/{uid}/items` for 30 min (MSG_TTL; older ones are deleted by whichever device sees them) and the sender also writes a copy to their own inbox (`to`, `ref` = the friend's doc id, id `m_<doc>`), so every device of both people shows the same chat for 30 min. Only messages under 2 min old pop up / make the pet talk on a device that opens later. Pokes, hugs, reactions etc. are still one-shot (deleted on read).
+- firestore.rules: second `create` on inbox (your own inbox, kind whisper, `to` must be your friend, `ref` ≤ 40). Old rules → the copy is refused and sending still works (only that device keeps it).
+
 ### 2026-11-27 Push notifications in the web app (PWA)
 - Web Push for /app (installed or in a browser): new private messages, group chat messages and @mentions ("@x mentioned you: …"), even when Nibble is closed. Not used by the Hub or the store phone app (they notify on their own).
 - Server: `lib/push.js` (VAPID key pair derived from PUSH_SALT → NET_SALT → service key, so no new env var; `web-push` 4.0.0), routes `/api/push/key`, `/api/push/subscribe` (POST/DELETE), `/api/push/send` (after a DM: checks users/{to}/friends/{me}; after a group message: checks membership, mentioned members get the mention text). Subscriptions in `pushSubs/{uid}` (server only, no rule, ≤ 5 devices, dead ones removed on 404/410, endpoints limited to real push services). People without push are cached for 5 min per instance to save reads. Per-sender limit 40/min. Account deletion removes pushSubs.
