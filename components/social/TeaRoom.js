@@ -7,6 +7,7 @@ import Emo from '../Emo';
 import { ReactButton, ReactSummary } from './Reactions';
 import { niceError } from '../../lib/social/social';
 import { MAX_POST, MAX_COMMENT, PROMPTS, dailyPrompt, teaConfig } from '../../lib/tea';
+import { GifButton, GifView } from './Gif';
 
 const ago = (t) => {
   const s = Math.max(0, (Date.now() - t) / 1000);
@@ -57,12 +58,12 @@ function Thread({ social, feed, p, canAnon, toast, onCount, canMod }) {
   const [anon, setAnon] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => { social.tea.comments(feed, p.id).then(setList, (x) => { setList([]); toast({ err: true, text: niceError(x) }); }); }, [p.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const send = async (e) => {
-    e.preventDefault();
-    if (!t.trim()) return;
+  const send = async (e, gif) => {
+    if (e) e.preventDefault();
+    if (!t.trim() && !gif) return;
     setBusy(true);
     try {
-      const r = await social.tea.comment(feed, p.id, t, anon);
+      const r = await social.tea.comment(feed, p.id, t, anon, { gif });
       setT('');
       setList((l) => [...(l || []), { id: r.id, ...r.doc }]);
       onCount(1);
@@ -79,7 +80,8 @@ function Thread({ social, feed, p, canAnon, toast, onCount, canMod }) {
           <Who x={c} size={30} />
           <div className="tea-bubble">
             <small><b>{whoName(c)}</b>{c.op && <em className="tea-chip op">poster</em>}<span>{ago(c.at)}</span></small>
-            <p>{c.text}</p>
+            {c.text && <p>{c.text}</p>}
+            {c.gif && <GifView g={c.gif} max={200} />}
           </div>
           <Menu items={social.tea.isMine(p.id, c.id) || canMod ? [['Delete', () => remove(c), 'trash']] : [['Report', () => report(c), 'flag']]} />
         </div>
@@ -87,9 +89,20 @@ function Thread({ social, feed, p, canAnon, toast, onCount, canMod }) {
       <form className="tea-reply" onSubmit={send}>
         <input value={t} maxLength={MAX_COMMENT} placeholder={list && !list.length ? 'Be the first to reply…' : 'Reply…'} onChange={(e) => setT(e.target.value)} />
         <Identity anon={anon} setAnon={setAnon} allowed={canAnon} small />
+        <GifButton social={social} disabled={busy} onPick={(g) => send(null, g)} />
         <button className="btn small" disabled={busy || !t.trim()}>Send</button>
       </form>
     </div>
+  );
+}
+
+function TeaImg({ img }) {
+  const [big, setBig] = useState(false);
+  return (
+    <>
+      <img className="tea-img" src={img.u} alt="" width={img.w} height={img.h} loading="lazy" onClick={() => setBig(true)} />
+      {big && <div className="rp-big" onClick={() => setBig(false)}><img src={img.u} alt="" /></div>}
+    </>
   );
 }
 
@@ -124,7 +137,9 @@ function Post({ social, feed, p, canAnon, toast, onGone, canMod }) {
         <Menu items={social.tea.isMine(p.id) || canMod ? [['Delete', remove, 'trash']] : [['Report', report, 'flag']]} />
       </header>
       {prompt && <p className="tea-q"><Emo k="tea" size={16} /> {prompt}</p>}
-      <p className="tea-text">{p.text}</p>
+      {p.text && <p className="tea-text">{p.text}</p>}
+      {p.img && <TeaImg img={p.img} />}
+      {p.gif && <GifView g={p.gif} max={320} />}
       <footer>
         <ReactSummary counts={rc} />
         <span className="tea-acts">
@@ -153,6 +168,17 @@ export default function TeaRoom({ social, state, toast, go, teaFeed, setTeaFeed 
   const [usePrompt, setUsePrompt] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sort, setSort] = useState('new');
+  // a picture (uploaded as soon as it's picked) or a GIF on the next post
+  const [pic, setPic] = useState(null); // { local, up?: {u,w,h}, busy }
+  const [gif, setGif] = useState(null);
+  const fileRef = useRef(null);
+  const pickPic = async (f) => {
+    if (!f) return;
+    const local = URL.createObjectURL(f);
+    setGif(null); setPic({ local, busy: true });
+    try { const up = await social.uploadTeaImage(f); setPic((x) => (x && x.local === local ? { local, up } : x)); }
+    catch (x) { setPic(null); toast({ err: true, text: niceError(x) }); }
+  };
   const today = dailyPrompt();
   const me = state.profile || {};
 
@@ -169,14 +195,15 @@ export default function TeaRoom({ social, state, toast, go, teaFeed, setTeaFeed 
   useEffect(() => { if (!canAnon) setAnon(false); }, [canAnon]);
   const shown = useMemo(() => (posts && sort === 'hot' ? [...posts].sort((a, b) => heat(b) - heat(a) || b.at - a.at) : posts), [posts, sort]);
 
+  const ready = !!(text.trim() || (pic && pic.up) || gif) && !(pic && pic.busy);
   const post = async (e) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!ready) return;
     setBusy(true);
     try {
-      const r = await social.tea.post(feed, text, anon, usePrompt ? today.id : -1);
+      const r = await social.tea.post(feed, text, anon, usePrompt ? today.id : -1, { img: pic && pic.up, gif });
       setPosts((l) => [{ id: r.id, ...r.doc }, ...(l || [])]);
-      setText(''); setUsePrompt(false);
+      setText(''); setUsePrompt(false); setPic(null); setGif(null);
       toast({ text: anon ? '🕶 Posted anonymously' : '🍵 Posted' });
     } catch (x) { toast({ err: true, text: niceError(x) }); }
     setBusy(false);
@@ -218,10 +245,17 @@ export default function TeaRoom({ social, state, toast, go, teaFeed, setTeaFeed 
               <Identity anon={anon} setAnon={setAnon} allowed={canAnon} />
             </div>
             <textarea rows={3} value={text} maxLength={MAX_POST} placeholder={usePrompt ? today.text : feed === 'all' ? 'What’s the tea? ☕' : `What’s the tea in ${cur ? cur.name : 'the group'}?`} onChange={(e) => setText(e.target.value)} />
+            {pic && <span className="tea-preview"><img src={pic.local} alt="" />{pic.busy && <span className="tea-up">Uploading…</span>}<button type="button" aria-label="Remove picture" onClick={() => setPic(null)}>✕</button></span>}
+            {gif && <span className="tea-preview"><GifView g={gif} max={200} /><button type="button" aria-label="Remove GIF" onClick={() => setGif(null)}>✕</button></span>}
+            <div className="tea-attach">
+              <button type="button" className="tea-pic-btn" onClick={() => fileRef.current && fileRef.current.click()} title="Add a picture (up to 2 MB after shrinking)"><Emo e="📷" size={16} /> Photo</button>
+              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" hidden onChange={(e) => { pickPic(e.target.files && e.target.files[0]); e.target.value = ''; }} />
+              <GifButton social={social} onPick={(g) => { setPic(null); setGif(g); }} />
+            </div>
             <div className="tea-compose-row">
               <button type="button" className={'tea-qbtn' + (usePrompt ? ' on' : '')} onClick={() => setUsePrompt(!usePrompt)} title="Answer today’s question"><Emo k="tea" size={16} /> {today.text}</button>
               <em className={MAX_POST - text.length < 30 ? 'low' : ''}>{MAX_POST - text.length}</em>
-              <button className="btn small" disabled={busy || !text.trim()}>{busy ? 'Posting…' : anon ? 'Post anonymously' : 'Post'}</button>
+              <button className="btn small" disabled={busy || !ready}>{busy ? 'Posting…' : anon ? 'Post anonymously' : 'Post'}</button>
             </div>
           </form>
 

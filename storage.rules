@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Nibble · Firebase Storage rules. Paste into Firebase console → Storage → Rules → Publish.
+// Only Tea Room pictures live here: tea/<random name>.webp|jpg, up to 2 MB, uploaded by signed-in people.
+// The app shrinks pictures first (1600 px, WebP) and the post itself is written by the server, which
+// only accepts links to files in tea/. Nobody can change or delete a picture from the app.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /tea/{name} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && name.matches('[A-Za-z0-9]{20,40}[.](webp|jpg)')
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/(webp|jpeg)');
+      allow update, delete: if false;
+    }
+    match /{everything=**} {
+      allow read, write: if false;
+    }
+  }
+}

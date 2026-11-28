@@ -25,6 +25,7 @@ import FeedbackForm, { systemName } from './Feedback';
 import { ReplyBtn, Quote, ReplyBar } from './Reply';
 import { useUserCard, Who } from './UserCard';
 import { PhoneTabs, InstallCard, NotifyCard, PushSetting } from './AppTabs';
+import { GifButton, GifView } from './Gif';
 import { registerSW, isStandalone } from '../../lib/pwa';
 import { ChatReact } from './Reactions';
 import { EMOTES as SHOP_EMOTES, SPECIES as SHOP_SPECIES, PT, owns } from '../../lib/shop';
@@ -287,7 +288,7 @@ function Messages({ social, state, chatWith, setChatWith, toast, go }) {
   const friend = friends.find((f) => f.uid === sel);
   useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight; }, [thread.length, sel]);
   useEffect(() => { setRe(null); }, [sel]);
-  const replyTo = (m) => { setRe({ n: m.mine ? state.profile.username : m.fromName, t: m.text }); if (input.current) input.current.focus(); };
+  const replyTo = (m) => { setRe({ n: m.mine ? state.profile.username : m.fromName, t: m.text || 'GIF 🎞️' }); if (input.current) input.current.focus(); };
   const send = async (e) => {
     e.preventDefault();
     const v = t.trim();
@@ -300,8 +301,8 @@ function Messages({ social, state, chatWith, setChatWith, toast, go }) {
     const text = m.text || `${EMOTES[m.kind] || ''} ${m.mine ? 'you sent ' + (m.kind === 'hug' ? 'a cuddle' : m.kind) : EMOTE_TEXT[m.kind] || m.kind}`;
     return (
       <div key={m.id} className={'sa-m' + (m.mine ? ' mine' : '') + (m.text ? '' : ' act')}>
-        <small>{m.mine ? 'You' : <Who uid={m.from} name={m.fromName} onOpen={openCard} />} · {ago(m.at)}{sel !== 'all' && m.text && <ReplyBtn onClick={() => replyTo(m)} />}</small>
-        <p><Quote re={m.re} mine={m.mine} />{text}</p>
+        <small>{m.mine ? 'You' : <Who uid={m.from} name={m.fromName} onOpen={openCard} />} · {ago(m.at)}{sel !== 'all' && (m.text || m.gif) && <ReplyBtn onClick={() => replyTo(m)} />}</small>
+        <p className={m.gif && !m.text ? 'gif-only' : ''}><Quote re={m.re} mine={m.mine} />{m.gif && !m.text ? null : text}{m.gif && <GifView g={m.gif} />}</p>
         {/* reactions: on messages a friend sent you, and theirs shows on yours */}
         {!m.mine && m.direct && String(m.id).startsWith('i_') && <ChatReact mine={m.myRx || ''} counts={m.myRx ? { [m.myRx]: 1 } : {}} onPick={(k) => social.reactMsg(m.id, k).catch(() => {})} />}
         {m.mine && m.theirRx && <span className="rx-chat right"><ChatReactSummary k={m.theirRx} /></span>}
@@ -341,6 +342,7 @@ function Messages({ social, state, chatWith, setChatWith, toast, go }) {
             <ReplyBar re={re} onClose={() => setRe(null)} />
             <form className="sa-saybar sa-chatbar" onSubmit={send}>
               <input ref={input} value={t} maxLength={MAX_TEXT} onKeyDown={(e) => { if (e.key === 'Escape') setRe(null); }} placeholder={sel === 'all' ? 'Message all friends' : `Message @${friend ? friend.username : ''}`} onChange={(e) => { setT(e.target.value); social.setTyping(!!e.target.value, sel === 'all' ? '' : sel).catch(() => {}); }} onBlur={() => social.setTyping(false).catch(() => {})} />
+              {sel !== 'all' && <GifButton social={social} onPick={(g) => { const r = re; setRe(null); social.send(sel, 'whisper', t.trim(), r, g).then(() => setT(''), (e) => toast({ err: true, text: niceError(e) })); }} />}
               <em>{MAX_TEXT - t.length}</em>
               <button className="btn small" disabled={!t.trim()}>Send</button>
             </form>

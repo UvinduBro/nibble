@@ -7,6 +7,7 @@ import Emo from '../Emo';
 import { ChatReact } from './Reactions';
 import { ReplyBtn, Quote, ReplyBar } from './Reply';
 import { useUserCard, Who } from './UserCard';
+import { GifButton, GifView } from './Gif';
 import { countReactions } from '../../lib/reactions';
 import { niceError } from '../../lib/social/social';
 import { GROUP_EMOJIS, MAX_GROUP_MSG, MAX_GROUP_NAME, MAX_MEMBERS, MAX_GROUPS, MENTION_RE } from '../../lib/social/groups';
@@ -141,7 +142,7 @@ function Chat({ social, state, g, toast, go, setChatWith }) {
     setT(''); setRe(null);
     try { await social.groups.send(g.id, v, r); } catch (x) { setT(v); setRe(r); toast({ err: true, text: niceError(x) }); }
   };
-  const replyTo = (m) => { setRe({ n: m.fromName, t: m.text }); if (input.current) input.current.focus(); };
+  const replyTo = (m) => { setRe({ n: m.fromName, t: m.text || 'GIF 🎞️' }); if (input.current) input.current.focus(); };
   const report = (m) => {
     if (!window.confirm(`Report this message from @${m.fromName} to the Nibble team?`)) return;
     social.report({ kind: 'feedback', cat: 'problem', title: 'Group chat report', text: `Group "${g.name}" (${g.id}) · message from @${m.fromName} (${m.from}): “${m.text}”` })
@@ -163,7 +164,7 @@ function Chat({ social, state, g, toast, go, setChatWith }) {
                 ? <button className="gr-mini" title="Delete" onClick={() => social.groups.deleteMsg(g.id, m.id).catch((x) => toast({ err: true, text: niceError(x) }))}>✕</button>
                 : <button className="gr-mini" title="Report" onClick={() => report(m)}>⚑</button>}
             </small>
-            <p><Quote re={m.re} mine={m.from === me} /><Rich text={m.text} myName={myName} uidOf={uidOf} onOpen={openCard} /></p>
+            <p className={m.gif && !m.text ? 'gif-only' : ''}><Quote re={m.re} mine={m.from === me} /><Rich text={m.text || ''} myName={myName} uidOf={uidOf} onOpen={openCard} />{m.gif && <GifView g={m.gif} />}</p>
             <ChatReact align={m.from === me ? 'right' : 'left'} mine={(m.rx || {})[me] || ''} counts={countReactions(m.rx)}
               onPick={(k) => social.groups.react(g.id, m.id, k).catch((x) => toast({ err: true, text: niceError(x) }))} />
           </div>
@@ -181,6 +182,7 @@ function Chat({ social, state, g, toast, go, setChatWith }) {
           </ul>
         )}
         <button type="button" className="gr-atbtn" title="Mention someone" aria-label="Mention someone" onClick={addAt}>@</button>
+        <GifButton social={social} onPick={(gif) => { const r = re; setRe(null); social.groups.send(g.id, t.trim(), r, gif).then(() => setT(''), (x) => toast({ err: true, text: niceError(x) })); }} />
         <input ref={input} value={t} maxLength={MAX_GROUP_MSG} onKeyDown={onKey}
           onSelect={(e) => setCaret(e.target.selectionStart || 0)} placeholder={`Message ${g.emoji} ${g.name} · type @ to mention`} onChange={(e) => { setT(e.target.value); setCaret(e.target.selectionStart || 0); setClosed(false); setPickI(0); }} />
         <em>{MAX_GROUP_MSG - t.length}</em>

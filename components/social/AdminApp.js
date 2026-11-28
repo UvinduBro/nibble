@@ -1745,7 +1745,9 @@ function TeaTab({ social, state, users, toast, go, setOpenUid }) {
               <b>{who(p)}</b>
               <span className="rp-status">{ago(p.at)}{!p.cid ? ` · ${p.cc || 0} comments` : ''}{p.reports ? ` · ${p.reports} reports` : ''}{p.hidden ? ' · hidden' : ''}</span>
             </header>
-            <p className="rp-text">“{p.text || '(no text)'}”</p>
+            {(p.text || (!p.img && !p.gif)) && <p className="rp-text">“{p.text || '(no text)'}”</p>}
+            {p.img && <a href={p.img.u} target="_blank" rel="noopener"><img src={p.img.u} alt="Picture in this post" style={{ maxWidth: 220, maxHeight: 220, borderRadius: 10, display: 'block', margin: '6px 0' }} /></a>}
+            {p.gif && <img src={`/api/gif/m/${p.gif.p}/${encodeURIComponent(p.gif.id)}`} alt="GIF" style={{ maxWidth: 180, borderRadius: 10, display: 'block', margin: '6px 0' }} />}
             <p className="rp-who">{feedName(p)}{p.cid && p.anon ? ' · anonymous comment' : ''}</p>
             <footer>
               {p.hidden ? <button className="btn small ghost" onClick={() => act(p, 'restore', 'Restored')}>Restore</button> : <button className="btn small ghost" onClick={() => act(p, 'hide', 'Hidden')}>Hide</button>}
