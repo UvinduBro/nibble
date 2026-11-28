@@ -252,7 +252,7 @@ Names only; never commit or print values.
 (secret salt for `/api/netid` and the hashed network id in Stripe metadata), `STRIPE_SECRET_KEY` (a restricted
 `rk_` key is preferred), `STRIPE_WEBHOOK_SECRET` (may hold `new,old` while rotating),
 `GCP_USAGE_KEY` (service-account JSON; also used for server Firestore writes unless
-`FIREBASE_ADMIN_KEY` is set), `TEA_SALT` (optional; secret for Tea Room masks, falls back to `NET_SALT`), `NEXT_PUBLIC_GSC_VERIFY` (optional). (`BILLING_KEY` is no longer
+`FIREBASE_ADMIN_KEY` is set), `TEA_SALT` (optional; secret for Tea Room masks, falls back to `NET_SALT`), `KLIPY_API_KEY` (GIF search, set 2026-11-28; `GIPHY_API_KEY` is the fallback provider), `PUSH_SALT` (optional; web push keys fall back to `NET_SALT`), `NEXT_PUBLIC_GSC_VERIFY` (optional). (`BILLING_KEY` is no longer
 used and can be deleted.) Firebase web config in `lib/social/config.js` is public.
 
 ## 6. API routes (all in `app/api/`)
